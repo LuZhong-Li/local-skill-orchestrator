@@ -37,6 +37,9 @@ function renderHuman(result: Result<unknown>, color: boolean): string {
     ? paint('成功', 'green', color)
     : paint(`失败（退出码 ${result.exit_code}）`, 'red', color);
   lines.push(`指令 ${result.command}：${status}`);
+  if (result.preview === true) {
+    lines.push(paint('  预演模式：未写入任何文件，下列变更均未发生', 'dim', color));
+  }
 
   for (const item of result.findings) {
     const level =

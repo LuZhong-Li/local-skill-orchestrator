@@ -17,6 +17,9 @@ export const BOOLEAN_OPTIONS = new Set([
   'no-color',
   'verbose',
   'strict',
+  'hard',
+  'keep-library',
+  'library-only',
 ]);
 
 /** 可重复出现的取值选项 */

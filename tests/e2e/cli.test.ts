@@ -99,3 +99,113 @@ test('缺少选项取值返回输入类错误与退出码 2', async () => {
 test('--version 输出后直接返回 0', async () => {
   assert.equal(await run(['--version']), 0);
 });
+
+/** 造一份可安装的来源目录 */
+function sourceSkill(id: string): string {
+  const dir = mkdtempSync(join(tmpdir(), 'sm-cli-src-'));
+  writeFileSync(join(dir, 'SKILL.md'), '# skill');
+  writeFileSync(
+    join(dir, 'skill_meta.yaml'),
+    [
+      `id: ${id}`,
+      `name: ${id}`,
+      'status: enabled',
+      `path: ./skills/${id}`,
+      'source:',
+      '  type: local',
+      'targets:',
+      '  - target: claude',
+      '    scope: global',
+      `    path: .claude/skills/${id}`,
+      '    mode: copy',
+      '    enabled: true',
+      '    file_map:',
+      '      SKILL.md: SKILL.md',
+      '',
+    ].join('\n'),
+  );
+  return dir;
+}
+
+test('验收：install 写入中心库、创建副本并登记索引', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  assert.equal(await run(['install', sourceSkill('code-review'), '--workspace', root]), 0);
+  assert.ok(existsSync(join(root, 'skills', 'code-review', 'SKILL.md')));
+  assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review', 'SKILL.md')));
+  assert.ok(readFileSync(indexPath(root), 'utf8').includes('id: code-review'));
+});
+
+test('验收：install 缺少来源参数返回输入类错误', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  assert.equal(await run(['install', '--workspace', root]), 2);
+});
+
+test('验收：install 重复标识返回冲突错误与退出码 1', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  assert.equal(await run(['install', sourceSkill('code-review'), '--workspace', root]), 1);
+});
+
+test('验收：uninstall 默认保留中心库原件，--hard 一并删除', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+
+  assert.equal(await run(['uninstall', 'code-review', '--workspace', root]), 0);
+  assert.ok(!existsSync(join(root, '.claude', 'skills', 'code-review')), '副本应被清理');
+  assert.ok(existsSync(join(root, 'skills', 'code-review')), '原件默认保留');
+
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  assert.equal(await run(['uninstall', 'code-review', '--workspace', root, '--hard']), 0);
+  assert.ok(!existsSync(join(root, 'skills', 'code-review')), '--hard 应删除原件');
+});
+
+test('验收：uninstall 不存在的标识返回输入类错误与退出码 2', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  assert.equal(await run(['uninstall', 'ghost', '--workspace', root]), 2);
+});
+
+test('验收：install --dry-run 不写入任何文件', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  assert.equal(
+    await run(['install', sourceSkill('code-review'), '--workspace', root, '--dry-run']),
+    0,
+  );
+  assert.ok(!existsSync(join(root, 'skills', 'code-review')), '预演不得写入中心库');
+  assert.ok(!existsSync(join(root, '.claude', 'skills', 'code-review')), '预演不得创建副本');
+  assert.ok(!readFileSync(indexPath(root), 'utf8').includes('id: code-review'), '预演不得登记记录');
+});
+
+test('验收：install --library-only 只落库，不分发到目标位置', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  assert.equal(
+    await run(['install', sourceSkill('code-review'), '--workspace', root, '--library-only']),
+    0,
+  );
+  assert.ok(existsSync(join(root, 'skills', 'code-review', 'SKILL.md')), '中心库原件应落位');
+  assert.ok(!existsSync(join(root, '.claude', 'skills', 'code-review')), '不得分发到目标位置');
+  assert.ok(readFileSync(indexPath(root), 'utf8').includes('status: disabled'));
+});
+
+test('验收：uninstall 接受契约中的 --keep-library 选项', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  assert.equal(await run(['uninstall', 'code-review', '--workspace', root, '--keep-library']), 0);
+  assert.ok(existsSync(join(root, 'skills', 'code-review')), '中心库原件应保留');
+});
+
+test('验收：uninstall --dry-run 不删除任何文件', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  assert.equal(await run(['uninstall', 'code-review', '--workspace', root, '--dry-run']), 0);
+  assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '预演不得清理副本');
+  assert.ok(readFileSync(indexPath(root), 'utf8').includes('id: code-review'), '预演不得移除记录');
+});

@@ -8,7 +8,7 @@
  * 本体只提供副本层面的可见性切换原语，不负责决定哪个目录是副本——
  * 该判断由调用方依据索引中的落位目标给出。
  */
-import { existsSync, renameSync } from 'node:fs';
+import { cpSync, existsSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { KernelError } from '../errors.ts';
 import { CODES } from '../contract.ts';
@@ -63,4 +63,56 @@ export function setCopyVisibility(copyDir: string, enabled: boolean): 'changed' 
   }
   renameSync(active, disabled);
   return 'changed';
+}
+
+/** 目录是否存在 */
+export function pathExists(target: string): boolean {
+  return existsSync(target);
+}
+
+/** 目标是否为目录 */
+export function isDirectory(target: string): boolean {
+  try {
+    return statSync(target).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 把一份内容整体复制为副本。
+ * 调用方必须保证传入的路径已经过路径防护校验。
+ */
+export function copyTree(sourceDir: string, destDir: string): void {
+  try {
+    cpSync(sourceDir, destDir, { recursive: true, force: true });
+  } catch (error) {
+    throw new KernelError({
+      code: CODES.IO_FAILED,
+      message: `复制失败：${error instanceof Error ? error.message : String(error)}`,
+      source: 'library-fs',
+      target: destDir,
+      remedy: '请检查目标位置是否可写',
+      cause: error,
+    });
+  }
+}
+
+/**
+ * 移除一个目录。
+ * 调用方必须保证传入的路径已经过路径防护校验，且确实是本工具管理的副本目录。
+ */
+export function removeTree(target: string): void {
+  try {
+    rmSync(target, { recursive: true, force: true });
+  } catch (error) {
+    throw new KernelError({
+      code: CODES.IO_FAILED,
+      message: `移除失败：${error instanceof Error ? error.message : String(error)}`,
+      source: 'library-fs',
+      target,
+      remedy: '请检查该目录是否被占用，或手工处理后再试',
+      cause: error,
+    });
+  }
 }

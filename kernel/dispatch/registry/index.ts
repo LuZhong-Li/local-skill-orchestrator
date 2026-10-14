@@ -7,6 +7,7 @@
 import { existsSync } from 'node:fs';
 import { createInitialIndex, loadIndex, saveIndex, TOOL_VERSION } from '../../core/index/index.ts';
 import { scanWorkspace } from '../../core/discovery/index.ts';
+import { installSkill, uninstallSkill } from '../../core/lifecycle/index.ts';
 import {
   ensureWorkspaceDirs,
   layoutOf,
@@ -33,7 +34,7 @@ export interface CommandSpec {
 }
 
 /** 一期已注册的指令名 */
-export const REGISTERED_COMMANDS = ['init', 'scan'] as const;
+export const REGISTERED_COMMANDS = ['init', 'scan', 'install', 'uninstall'] as const;
 
 const handlers = new Map<string, CommandHandler>();
 
@@ -176,3 +177,134 @@ const scanHandler: CommandHandler = async ({ args, now }) => {
 
 register({ name: 'init', handler: initHandler });
 register({ name: 'scan', handler: scanHandler });
+
+const installHandler: CommandHandler = async ({ args, now }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const source = args.positionals[0];
+  const dryRun = flag(args, 'dry-run');
+  if (source === undefined || source === '') {
+    return buildResult('install', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'source',
+        message: 'install 需要给出来源',
+        remedy: '请提供本地 Skill 目录，或指向其 skill_meta.yaml',
+      }),
+    ]);
+  }
+  if (!existsSync(layout.indexFile)) {
+    return buildResult('install', [
+      finding(CODES.ENV_NOT_INITIALIZED, {
+        source: 'workspace',
+        target: layout.root,
+        message: '工作区尚未初始化',
+        remedy: '请先执行 init',
+      }),
+    ]);
+  }
+  try {
+    return await withLock(layout.indexFile, () => {
+      const loaded = loadIndex(layout.indexFile);
+      if (loaded.index === null) {
+        return buildResult('install', [
+          finding(CODES.ENV_INCOMPLETE, {
+            source: 'workspace',
+            target: layout.indexFile,
+            message: '索引无法读取，不能登记新的 Skill',
+            remedy: '请先修复或重建索引',
+          }),
+        ]);
+      }
+      const outcome = installSkill({
+        layout,
+        index: loaded.index,
+        sourcePath: source,
+        now,
+        libraryOnly: flag(args, 'library-only'),
+        dryRun,
+      });
+      if (!dryRun && outcome.index !== loaded.index) saveIndex(layout.indexFile, outcome.index);
+      return buildResult('install', outcome.findings, outcome.changes, {
+        data: outcome.data,
+        ...(outcome.preview === true ? { preview: true } : {}),
+      });
+    });
+  } catch (error) {
+    const kernelError = toKernelError(error, CODES.IO_FAILED);
+    return buildResult('install', [
+      finding(kernelError.code, {
+        source: kernelError.source,
+        target: kernelError.target,
+        message: kernelError.message,
+        remedy: kernelError.remedy,
+      }),
+    ]);
+  }
+};
+
+const uninstallHandler: CommandHandler = async ({ args, now }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const id = args.positionals[0];
+  const dryRun = flag(args, 'dry-run');
+  if (id === undefined || id === '') {
+    return buildResult('uninstall', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'id',
+        message: 'uninstall 需要给出 Skill 标识',
+        remedy: '请提供要卸载的 Skill 标识',
+      }),
+    ]);
+  }
+  if (!existsSync(layout.indexFile)) {
+    return buildResult('uninstall', [
+      finding(CODES.ENV_NOT_INITIALIZED, {
+        source: 'workspace',
+        target: layout.root,
+        message: '工作区尚未初始化',
+        remedy: '请先执行 init',
+      }),
+    ]);
+  }
+  try {
+    return await withLock(layout.indexFile, () => {
+      const loaded = loadIndex(layout.indexFile);
+      if (loaded.index === null) {
+        return buildResult('uninstall', [
+          finding(CODES.ENV_INCOMPLETE, {
+            source: 'workspace',
+            target: layout.indexFile,
+            message: '索引无法读取，不能执行卸载',
+            remedy: '请先修复或重建索引',
+          }),
+        ]);
+      }
+      const outcome = uninstallSkill({
+        layout,
+        index: loaded.index,
+        id,
+        now,
+        ...(flag(args, 'hard') ? { hard: true } : {}),
+        dryRun,
+      });
+      if (!dryRun && outcome.index !== loaded.index) saveIndex(layout.indexFile, outcome.index);
+      return buildResult('uninstall', outcome.findings, outcome.changes, {
+        data: outcome.data,
+        ...(outcome.preview === true ? { preview: true } : {}),
+      });
+    });
+  } catch (error) {
+    const kernelError = toKernelError(error, CODES.IO_FAILED);
+    return buildResult('uninstall', [
+      finding(kernelError.code, {
+        source: kernelError.source,
+        target: kernelError.target,
+        message: kernelError.message,
+        remedy: kernelError.remedy,
+      }),
+    ]);
+  }
+};
+
+register({ name: 'install', handler: installHandler });
+register({ name: 'uninstall', handler: uninstallHandler });
