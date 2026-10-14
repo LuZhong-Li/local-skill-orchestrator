@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from '../../kernel/entry/cli.ts';
@@ -208,4 +208,44 @@ test('验收：uninstall --dry-run 不删除任何文件', async () => {
   assert.equal(await run(['uninstall', 'code-review', '--workspace', root, '--dry-run']), 0);
   assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '预演不得清理副本');
   assert.ok(readFileSync(indexPath(root), 'utf8').includes('id: code-review'), '预演不得移除记录');
+});
+
+test('验收：validate 在干净工作区返回 0，且不改写索引', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  const before = readFileSync(indexPath(root), 'utf8');
+  assert.equal(await run(['validate', '--workspace', root]), 0);
+  assert.equal(readFileSync(indexPath(root), 'utf8'), before, '校验全程只读');
+});
+
+test('验收：validate 仅警告时返回 0，--strict 时返回 1', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  const meta = join(root, 'skills', 'code-review', 'skill_meta.yaml');
+  writeFileSync(meta, readFileSync(meta, 'utf8').replace('name: code-review', 'name: renamed'));
+
+  assert.equal(await run(['validate', '--workspace', root]), 0);
+  assert.equal(await run(['validate', '--workspace', root, '--strict']), 1);
+  assert.equal(readFileSync(indexPath(root), 'utf8').includes('name: renamed'), false);
+});
+
+test('验收：validate 存在错误级问题时返回 1', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  rmSync(join(root, 'skills', 'code-review'), { recursive: true, force: true });
+  assert.equal(await run(['validate', '--workspace', root]), 1);
+});
+
+test('验收：validate 指定未知对象返回输入类错误与退出码 2', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  assert.equal(await run(['validate', 'nosuch', '--workspace', root]), 2);
+});
+
+test('验收：未初始化的工作区执行 validate 返回环境类错误', async () => {
+  const root = workspace();
+  assert.equal(await run(['validate', '--workspace', root]), 1);
 });

@@ -6,7 +6,8 @@ Skill 元信息管理器：统一管理环境内已安装 Skill 的元数据，�
 
 ## 当前状态
 
-处于**一期实现起步阶段**。文档基线已完成并冻结，仓库骨架已建立，尚无业务逻辑实现。
+处于**一期实现阶段**。文档基线已完成并冻结，仓库骨架已建立，内核已落地存储层与元数据模型，
+并跑通 `init`、`scan`、`install`、`uninstall`、`validate` 五条指令，其余十条指令待后续批次。
 
 ## 仓库结构
 
@@ -22,11 +23,16 @@ Skill 元信息管理器：统一管理环境内已安装 Skill 的元数据，�
 ## 常用命令
 
 ```bash
-npm run check    # 契约校验与分层校验
-npm run lint     # 静态检查
-npm run format   # 格式化
-npm run build    # 构建内核与桌面外壳
+npm test              # 单元、契约与端到端测试
+npm run check         # 契约校验与分层校验
+npm run typecheck     # 类型检查
+npm run lint          # 静态检查
+npm run format        # 格式化
+npm run format:check  # 格式检查
+npm run build         # 构建内核与桌面外壳
 ```
+
+内核为 TypeScript，可直接以 Node 运行，例如 `node kernel/entry/cli.ts scan --workspace <路径>`。
 
 ## 文档入口
 

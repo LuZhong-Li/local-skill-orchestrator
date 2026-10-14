@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs';
 import { createInitialIndex, loadIndex, saveIndex, TOOL_VERSION } from '../../core/index/index.ts';
 import { scanWorkspace } from '../../core/discovery/index.ts';
 import { installSkill, uninstallSkill } from '../../core/lifecycle/index.ts';
+import { validateWorkspace, type ValidationReport } from '../../core/validation/index.ts';
 import {
   ensureWorkspaceDirs,
   layoutOf,
@@ -16,7 +17,7 @@ import {
 } from '../../store/workspace/index.ts';
 import { withLock } from '../../store/locking/index.ts';
 import { toKernelError } from '../../store/errors.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { categoryOf, CODES, finding, type Finding } from '../../store/contract.ts';
 import { buildResult, type Change, type Result } from '../result/index.ts';
 import { flag, option, optionList, type ParsedArgs } from '../parsers/index.ts';
 
@@ -34,7 +35,7 @@ export interface CommandSpec {
 }
 
 /** 一期已注册的指令名 */
-export const REGISTERED_COMMANDS = ['init', 'scan', 'install', 'uninstall'] as const;
+export const REGISTERED_COMMANDS = ['init', 'scan', 'install', 'uninstall', 'validate'] as const;
 
 const handlers = new Map<string, CommandHandler>();
 
@@ -308,3 +309,79 @@ const uninstallHandler: CommandHandler = async ({ args, now }) => {
 
 register({ name: 'install', handler: installHandler });
 register({ name: 'uninstall', handler: uninstallHandler });
+
+/**
+ * validate 的退出口径。
+ *
+ * 契约 4.12 规定「存在错误级问题时返回 1；仅存在警告时返回 0」，指令总表把本指令的范围限定为 0 至 3。
+ * 二者共同约束下：参数类问题按通用派生规则返回 2，其余错误级问题返回 1，仅警告时返回 0，
+ * --strict 下警告也视为失败返回 1。只读指令，不产生变更，因此 changes 恒为空。
+ */
+function validateResult(
+  findings: Finding[],
+  report: ValidationReport | undefined,
+  strict: boolean,
+) {
+  const errors = findings.filter((item) => item.severity === 'error');
+  const warnings = findings.filter((item) => item.severity === 'warning');
+  let exitCode = 0;
+  if (errors.length > 0) {
+    exitCode = errors.some((item) => categoryOf(item.code) === 'INPUT') ? 2 : 1;
+  } else if (strict && warnings.length > 0) {
+    exitCode = 1;
+  }
+  const result = buildResult(
+    'validate',
+    findings,
+    [],
+    report === undefined ? {} : { data: report },
+  );
+  result.exit_code = exitCode;
+  result.ok = exitCode === 0;
+  return result;
+}
+
+const validateHandler: CommandHandler = async ({ args }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const subject = args.positionals[0];
+  const strict = flag(args, 'strict');
+
+  // 前置条件为「无」：索引不存在时报告环境类问题而非崩溃
+  if (!existsSync(layout.indexFile)) {
+    return validateResult(
+      [
+        finding(CODES.ENV_NOT_INITIALIZED, {
+          source: 'workspace',
+          target: layout.root,
+          message: '工作区尚未初始化，无法校验',
+          remedy: '请先执行 init 建立工作区',
+        }),
+      ],
+      undefined,
+      strict,
+    );
+  }
+
+  const loaded = loadIndex(layout.indexFile);
+  const findings: Finding[] = [...loaded.findings];
+  if (loaded.index === null) {
+    findings.push(
+      finding(CODES.ENV_INCOMPLETE, {
+        source: 'workspace',
+        target: layout.indexFile,
+        message: '索引无法读取，无法校验',
+        remedy: '请先修复或重建索引',
+      }),
+    );
+    return validateResult(findings, undefined, strict);
+  }
+
+  const outcome = validateWorkspace({
+    layout,
+    index: loaded.index,
+    ...(subject !== undefined && subject !== '' ? { subject } : {}),
+  });
+  return validateResult([...findings, ...outcome.findings], outcome.report, strict);
+};
+
+register({ name: 'validate', handler: validateHandler });
