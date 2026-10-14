@@ -8,6 +8,8 @@
   "engines": {
     "node": ">=22"
   },
-  "dependencies": {},
+  "dependencies": {
+    "yaml": "^2.7.0"
+  },
   "devDependencies": {}
 }
