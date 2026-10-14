@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from '../../kernel/entry/cli.ts';
@@ -13,6 +21,26 @@ function workspace(): string {
 
 function indexPath(root: string): string {
   return join(root, 'skill_index.yaml');
+}
+
+/**
+ * 捕获一次调用的标准输出，便于断言结构化结果的内容。
+ * 只用于测试：入口把结果写在标准输出上，退出码不足以区分「无问题」与「仅警告」。
+ */
+async function capture(argv: string[]): Promise<{ code: number; out: string }> {
+  const chunks: string[] = [];
+  const original = process.stdout.write;
+  const patched = (chunk: unknown): boolean => {
+    chunks.push(String(chunk));
+    return true;
+  };
+  process.stdout.write = patched as typeof process.stdout.write;
+  try {
+    const code = await run(argv);
+    return { code, out: chunks.join('') };
+  } finally {
+    process.stdout.write = original;
+  }
 }
 
 function skill(root: string, dir: string, meta: string, content = '# skill'): void {
@@ -248,4 +276,65 @@ test('验收：validate 指定未知对象返回输入类错误与退出码 2', 
 test('验收：未初始化的工作区执行 validate 返回环境类错误', async () => {
   const root = workspace();
   assert.equal(await run(['validate', '--workspace', root]), 1);
+});
+
+test('验收：uninstall 生成备份并在载荷中给出备份位置', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+
+  const { code, out } = await capture(['uninstall', 'code-review', '--workspace', root, '--json']);
+  assert.equal(code, 0);
+  const result = JSON.parse(out) as {
+    data: { backup_path?: string; backup_file_count?: number; backup_timestamp?: string };
+  };
+  assert.match(String(result.data.backup_path), /^backups\/code-review\//);
+  assert.equal(result.data.backup_file_count, 2);
+
+  const backupRoot = join(root, 'backups', 'code-review');
+  const stamps = readdirSync(backupRoot);
+  assert.equal(stamps.length, 1);
+  const dir = join(backupRoot, stamps[0]!);
+  assert.ok(existsSync(join(dir, 'backup_meta.yaml')), '应写出备份清单');
+  assert.ok(existsSync(join(dir, 'content', 'SKILL.md')), '应复制内容');
+  assert.ok(existsSync(join(dir, 'content', 'skill_meta.yaml')), '应复制元文件');
+});
+
+test('验收：备份失败时卸载中止并返回文件系统类退出码', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  // 用同名文件占住备份目录，使备份无法创建
+  writeFileSync(join(root, 'backups', 'code-review'), 'occupied');
+
+  assert.equal(await run(['uninstall', 'code-review', '--workspace', root]), 5);
+  assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '副本不得被清理');
+  assert.ok(existsSync(join(root, 'skills', 'code-review')), '原件不得被删除');
+  assert.ok(readFileSync(indexPath(root), 'utf8').includes('id: code-review'), '记录不得被移除');
+});
+
+test('验收：--hard 卸载先备份再删除原件', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root]);
+  assert.equal(await run(['uninstall', 'code-review', '--workspace', root, '--hard']), 0);
+  assert.ok(!existsSync(join(root, 'skills', 'code-review')), '原件应被删除');
+
+  const backupRoot = join(root, 'backups', 'code-review');
+  const stamps = readdirSync(backupRoot);
+  assert.ok(
+    existsSync(join(backupRoot, stamps[0]!, 'content', 'SKILL.md')),
+    '删除原件后仍能从备份回溯内容',
+  );
+});
+
+test('验收：仅落库安装后 validate 不再报告启用状态与落位摘要的投影不一致', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root, '--library-only']);
+
+  const { code, out } = await capture(['validate', '--workspace', root, '--json']);
+  assert.equal(code, 0);
+  const result = JSON.parse(out) as { findings: Array<{ code: string; target: string }> };
+  assert.deepEqual(result.findings, [], 'status 与 targets.enabled 不参与投影判定');
 });

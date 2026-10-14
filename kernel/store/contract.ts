@@ -75,6 +75,10 @@ export const CODES = {
   // 版本类
   VERSION_UNSUPPORTED: 'E-VER-001',
 
+  // 备份类
+  BACKUP_FAILED: 'E-BAK-001',
+  BACKUP_UNAVAILABLE: 'E-BAK-002',
+
   // 并发与文件系统类
   LOCK_FAILED: 'E-LOCK-001',
   IO_FAILED: 'E-IO-001',

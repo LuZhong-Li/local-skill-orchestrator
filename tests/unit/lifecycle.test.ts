@@ -1,12 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { installSkill, uninstallSkill } from '../../kernel/core/lifecycle/index.ts';
 import { createInitialIndex } from '../../kernel/core/index/index.ts';
 import { layoutOf, ensureWorkspaceDirs } from '../../kernel/store/workspace/index.ts';
 import { CODES } from '../../kernel/store/contract.ts';
+import { BACKUP_CONTENT_DIR_NAME, timestampToDirName } from '../../kernel/store/backup-fs/index.ts';
 import type { SkillIndex } from '../../kernel/core/metadata/types.ts';
 
 const NOW = '2026-10-14T00:00:00Z';
@@ -377,4 +386,148 @@ test('预演：卸载不删除任何文件，原样返回索引并列出将删�
   assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '预演不得清理副本');
   assert.ok(existsSync(join(root, 'skills', 'code-review', 'SKILL.md')), '预演不得删除原件');
   assert.deepEqual(outcome.data['would_remove'], [join(root, '.claude', 'skills', 'code-review')]);
+});
+
+test('备份：卸载默认生成备份，载荷含备份位置、时间戳与文件数', () => {
+  const root = workspace();
+  const installed = installSkill({
+    layout: layoutOf(root),
+    index: emptyIndex(),
+    sourcePath: sourceSkill('code-review'),
+    now: NOW,
+  });
+  const outcome = uninstallSkill({
+    layout: layoutOf(root),
+    index: installed.index,
+    id: 'code-review',
+    now: LATER,
+  });
+  const dir = join(root, 'backups', 'code-review', timestampToDirName(LATER));
+  assert.equal(outcome.data['backup_path'], `backups/code-review/${timestampToDirName(LATER)}`);
+  assert.equal(outcome.data['backup_timestamp'], LATER);
+  assert.equal(outcome.data['backup_file_count'], 2, '含元文件与内容文件');
+  assert.ok(existsSync(join(dir, 'backup_meta.yaml')), '应写出备份清单');
+  assert.deepEqual(
+    readFileSync(join(dir, BACKUP_CONTENT_DIR_NAME, 'SKILL.md')),
+    readFileSync(join(root, 'skills', 'code-review', 'SKILL.md')),
+    '备份内容应与原件一致',
+  );
+});
+
+test('备份：--hard 删除原件前同样先备份', () => {
+  const root = workspace();
+  const installed = installSkill({
+    layout: layoutOf(root),
+    index: emptyIndex(),
+    sourcePath: sourceSkill('code-review'),
+    now: NOW,
+  });
+  uninstallSkill({
+    layout: layoutOf(root),
+    index: installed.index,
+    id: 'code-review',
+    now: LATER,
+    hard: true,
+  });
+  const dir = join(
+    root,
+    'backups',
+    'code-review',
+    timestampToDirName(LATER),
+    BACKUP_CONTENT_DIR_NAME,
+  );
+  assert.ok(!existsSync(join(root, 'skills', 'code-review')), '原件应被删除');
+  assert.ok(existsSync(join(dir, 'SKILL.md')), '删除原件后仍能从备份回溯内容');
+});
+
+test('备份：备份失败时卸载中止，副本、原件与索引记录都不动', () => {
+  const root = workspace();
+  const installed = installSkill({
+    layout: layoutOf(root),
+    index: emptyIndex(),
+    sourcePath: sourceSkill('code-review'),
+    now: NOW,
+  });
+  // 用同名文件占住 backups/<标识>，使备份目录无法创建
+  writeFileSync(join(root, 'backups', 'code-review'), 'occupied');
+
+  const outcome = uninstallSkill({
+    layout: layoutOf(root),
+    index: installed.index,
+    id: 'code-review',
+    now: LATER,
+  });
+  assert.deepEqual(codesOf(outcome.findings), [CODES.BACKUP_UNAVAILABLE]);
+  assert.equal(outcome.data['rejected'], 'backup_failed');
+  assert.equal(outcome.index, installed.index, '索引必须原样返回');
+  assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '副本不得被清理');
+  assert.ok(existsSync(join(root, 'skills', 'code-review', 'SKILL.md')), '原件不得被删除');
+});
+
+test('备份：重复卸载已移除的标识不产生新的备份', () => {
+  const root = workspace();
+  const installed = installSkill({
+    layout: layoutOf(root),
+    index: emptyIndex(),
+    sourcePath: sourceSkill('code-review'),
+    now: NOW,
+  });
+  uninstallSkill({
+    layout: layoutOf(root),
+    index: installed.index,
+    id: 'code-review',
+    now: LATER,
+  });
+  const second = uninstallSkill({
+    layout: layoutOf(root),
+    index: emptyIndex(),
+    id: 'code-review',
+    now: LATER,
+  });
+  assert.deepEqual(codesOf(second.findings), [CODES.INPUT_INVALID_ARG]);
+  const dirs = readdirSync(join(root, 'backups', 'code-review'));
+  assert.equal(dirs.length, 1, '只在第一次卸载时产生备份');
+});
+
+test('备份：中心库原件不存在时无备份可做，仍允许清理索引记录', () => {
+  const root = workspace();
+  const installed = installSkill({
+    layout: layoutOf(root),
+    index: emptyIndex(),
+    sourcePath: sourceSkill('code-review'),
+    now: NOW,
+  });
+  rmSync(join(root, 'skills', 'code-review'), { recursive: true, force: true });
+
+  const outcome = uninstallSkill({
+    layout: layoutOf(root),
+    index: installed.index,
+    id: 'code-review',
+    now: LATER,
+  });
+  assert.equal(outcome.data['backup_path'], undefined);
+  assert.match(String(outcome.data['backup_reason']), /没有可备份的内容/);
+  assert.equal(outcome.index.skills.length, 0, '记录仍应被移除');
+  // 落位路径只存在于中心库原件的元文件里，原件缺失时无法确定副本位置
+  assert.ok(codesOf(outcome.findings).includes(CODES.HASH_MISSING), '应报告无法确定副本位置');
+  assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '副本位置不可知，保留原状');
+});
+
+test('备份：预演不产生备份', () => {
+  const root = workspace();
+  const installed = installSkill({
+    layout: layoutOf(root),
+    index: emptyIndex(),
+    sourcePath: sourceSkill('code-review'),
+    now: NOW,
+  });
+  const outcome = uninstallSkill({
+    layout: layoutOf(root),
+    index: installed.index,
+    id: 'code-review',
+    now: LATER,
+    dryRun: true,
+  });
+  assert.equal(outcome.data['backup_planned'], true);
+  assert.ok(!existsSync(join(root, 'backups', 'code-review')), '预演不得写盘');
 });

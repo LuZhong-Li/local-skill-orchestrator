@@ -14,6 +14,7 @@ import type { IndexRecord, SkillIndex, SkillMeta } from '../metadata/types.ts';
 import { validateMetaRecord, type MetaContext } from '../metadata/validate.ts';
 import { computeChecksum } from '../integrity/index.ts';
 import { detectMappingConflicts, detectOccupationConflicts } from '../conflict/index.ts';
+import { backupBeforeUninstall } from '../backup/index.ts';
 import { libraryPathOf, resolveTargets, type ResolvedTarget } from '../targets/resolver/index.ts';
 import {
   copyTree,
@@ -419,11 +420,23 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
         library_kept: hard !== true,
         library_path: libraryDir,
         system_disabled: isCopyDisabled(libraryDir),
+        backup_planned: true,
       },
     };
   }
 
-  // 三、清理副本：失败则中止，索引与原件都不动
+  // 三、卸载前的备份：没有备份就不允许删除任何内容
+  const backup = backupBeforeUninstall({ layout, id, now });
+  if (!backup.created && backup.findings.length > 0) {
+    return {
+      index,
+      findings: [...findings, ...backup.findings],
+      changes: [],
+      data: { rejected: 'backup_failed', ...backup.data },
+    };
+  }
+
+  // 四、清理副本：失败则中止，索引与原件都不动
   for (const target of copies) {
     const copyPath = target.absolutePath;
     if (!pathExists(copyPath)) continue;
@@ -442,14 +455,14 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
     }
   }
 
-  // 四、索引移除：先写索引，再按选项处理中心库原件
+  // 五、索引移除：先写索引，再按选项处理中心库原件
   const next: SkillIndex = {
     ...index,
     generated_at: now,
     skills: index.skills.filter((item) => item.id !== id),
   };
 
-  // 五、按选项处理中心库原件
+  // 六、按选项处理中心库原件
   if (hard === true) {
     try {
       removeTree(libraryDir);
@@ -478,6 +491,7 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
       library_kept: hard !== true,
       library_path: libraryDir,
       system_disabled: isCopyDisabled(libraryDir),
+      ...backup.data,
     },
   };
 }

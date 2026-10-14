@@ -40,17 +40,24 @@ import { KernelError } from '../../store/errors.ts';
 import { TARGET_MODE_VALUES } from '../metadata/constants.ts';
 import { SKILLS_DIR_NAME, type WorkspaceLayout } from '../../store/workspace/index.ts';
 
-/** V-16 比对的声明区投影字段；source_type 由 source.type 派生，单独处理 */
+/**
+ * V-16 比对的声明区投影字段；source_type 由 source.type 派生，单独处理。
+ *
+ * 不含 status：索引中的 status 是启用状态的唯一事实源（元数据规范 5.6），
+ * 安装动作按 4.7 行为 7 与 D-08 决定登记取值，元文件取值不参与判定。
+ */
 const PROJECTION_FIELDS = [
   'name',
   'version',
   'description',
   'author',
   'license',
-  'status',
   'path',
   'trigger_keywords',
 ] as const;
+
+/** V-16 比对 targets 摘要的子字段；enabled 属运行期可见性，不参与判定 */
+const PROJECTION_TARGET_FIELDS = ['target', 'scope'] as const;
 
 /** V-14 比对的派生区字段 */
 const DERIVED_FIELDS_COMPARED = ['created_at', 'updated_at', 'checksum'] as const;
@@ -587,23 +594,22 @@ function detectProjectionDrift(
     findings.push(projectionFinding(id, 'source_type', record.source_type, metaType));
   }
 
-  // targets 摘要与元文件对应项在 target、scope、enabled 三个子字段上比对
-  const metaTargets = Array.isArray(raw['targets'])
-    ? (raw['targets'] as unknown[]).flatMap((item) => {
-        if (item === null || typeof item !== 'object' || Array.isArray(item)) return [];
-        const entry = item as Record<string, unknown>;
-        if (typeof entry['target'] !== 'string') return [];
-        return [
-          {
-            target: entry['target'],
-            scope: entry['scope'],
-            enabled: entry['enabled'] === true,
-          },
-        ];
-      })
-    : [];
-  if (!sameValue(record.targets, metaTargets)) {
-    findings.push(projectionFinding(id, 'targets', record.targets, metaTargets));
+  // targets 摘要与元文件对应项在 target 与 scope 两个子字段上比对；enabled 不参与
+  const projecting = (value: unknown): unknown[] =>
+    Array.isArray(value)
+      ? value.flatMap((item) => {
+          if (item === null || typeof item !== 'object' || Array.isArray(item)) return [];
+          const entry = item as Record<string, unknown>;
+          if (typeof entry['target'] !== 'string') return [];
+          const picked: Record<string, unknown> = {};
+          for (const field of PROJECTION_TARGET_FIELDS) picked[field] = entry[field];
+          return [picked];
+        })
+      : [];
+  const indexTargets = projecting(record.targets);
+  const metaTargets = projecting(raw['targets']);
+  if (!sameValue(indexTargets, metaTargets)) {
+    findings.push(projectionFinding(id, 'targets', indexTargets, metaTargets));
   }
 
   return findings;
