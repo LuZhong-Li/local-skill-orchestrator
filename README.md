@@ -38,4 +38,4 @@ npm run build    # 构建内核与桌面外壳
 
 ## 许可证
 
-尚未确定，待补充。
+[MIT](LICENSE)
