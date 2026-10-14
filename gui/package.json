@@ -1,0 +1,17 @@
+{
+  "name": "@skill-manager/gui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron 桌面外壳：只承担视图职责，操作经由内核指令完成",
+  "type": "module",
+  "main": "main/index.ts",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

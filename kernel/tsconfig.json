@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "../build/kernel",
+    "types": ["node"]
+  },
+  "include": ["index.ts", "dispatch/**/*.ts", "core/**/*.ts", "store/**/*.ts", "entry/**/*.ts"]
+}

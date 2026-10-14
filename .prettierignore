@@ -1,0 +1,8 @@
+# 手写规格与文档：格式经过人工对齐，不交由格式化工具重排
+docs/
+
+# 生成物与依赖
+node_modules/
+build/
+dist/
+package-lock.json
