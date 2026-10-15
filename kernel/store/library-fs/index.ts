@@ -8,7 +8,7 @@
  * 本体只提供副本层面的可见性切换原语，不负责决定哪个目录是副本——
  * 该判断由调用方依据索引中的落位目标给出。
  */
-import { cpSync, existsSync, renameSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { KernelError } from '../errors.ts';
 import { CODES } from '../contract.ts';
@@ -77,6 +77,29 @@ export function isDirectory(target: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * 统计目录内的普通文件数量，用于影响范围说明。
+ * 只统计普通文件，不跟随符号链接，不进入符号链接目录。
+ */
+export function countTreeFiles(target: string): number {
+  let count = 0;
+  let entries;
+  try {
+    entries = readdirSync(target, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      count += countTreeFiles(join(target, entry.name));
+      continue;
+    }
+    if (entry.isFile()) count += 1;
+  }
+  return count;
 }
 
 /**

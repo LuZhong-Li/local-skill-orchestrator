@@ -40,6 +40,9 @@ function renderHuman(result: Result<unknown>, color: boolean): string {
   if (result.preview === true) {
     lines.push(paint('  预演模式：未写入任何文件，下列变更均未发生', 'dim', color));
   }
+  if (abortedReason(result) !== null) {
+    lines.push(paint('  已取消：未做任何变更', 'dim', color));
+  }
 
   for (const item of result.findings) {
     const level =
@@ -60,6 +63,14 @@ function renderHuman(result: Result<unknown>, color: boolean): string {
     lines.push('  无变更');
   }
   return lines.join('\n');
+}
+
+/** 读取结果载荷中的取消标记；非取消结果返回 null */
+function abortedReason(result: Result<unknown>): string | null {
+  const data = result.data;
+  if (data === undefined || data === null || typeof data !== 'object') return null;
+  const aborted = (data as Record<string, unknown>)['aborted'];
+  return typeof aborted === 'string' && aborted !== '' ? aborted : null;
 }
 
 function renderMachine(result: Result<unknown>): string {

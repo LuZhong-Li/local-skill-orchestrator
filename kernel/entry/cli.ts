@@ -11,13 +11,40 @@ import { render } from '../dispatch/render/index.ts';
 import { buildResult, exitCodeFor } from '../dispatch/result/index.ts';
 import { CODES, finding } from '../store/contract.ts';
 import { pathToFileURL } from 'node:url';
+import { createInterface } from 'node:readline';
+import type { Interaction } from '../dispatch/policy/index.ts';
 
 /** 协调世界时秒级时间戳 */
 function utcNow(): string {
   return `${new Date().toISOString().slice(0, 19)}Z`;
 }
 
-export async function run(argv: string[]): Promise<number> {
+/**
+ * 基于标准输入输出的交互通道。
+ * 只有标准输入与标准输出都是终端时才视为可交互；否则禁止等待输入，
+ * 由策略层拒绝执行并要求显式给出跳过确认选项，避免脚本挂起。
+ */
+export function createStdioInteraction(): Interaction {
+  return {
+    interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
+    write: (text: string): void => {
+      process.stdout.write(text);
+    },
+    read: (): Promise<string> =>
+      new Promise((resolve) => {
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        rl.once('line', (line) => {
+          rl.close();
+          resolve(line);
+        });
+      }),
+  };
+}
+
+export async function run(
+  argv: string[],
+  interaction: Interaction = createStdioInteraction(),
+): Promise<number> {
   const { args, findings } = parseArgs(argv);
   const json = flag(args, 'json');
   const machine = flag(args, 'machine');
@@ -38,7 +65,7 @@ export async function run(argv: string[]): Promise<number> {
     return result.exit_code;
   }
 
-  const result = await dispatch({ args, now: utcNow() });
+  const result = await dispatch({ args, now: utcNow(), interaction });
   process.stdout.write(`${render(result, { json, machine, color })}\n`);
   return result.exit_code;
 }
@@ -64,6 +91,7 @@ function helpText(): string {
     '  --keep-library          卸载时保留中心库原件（默认行为，供显式声明）',
     '  --library-only          安装时只写入中心库与登记记录，不分发到目标位置',
     '  --strict                校验时把警告级问题也视为失败',
+    '  --yes                   跳过确认；非交互环境下需要确认的指令必须显式给出',
     '  --json                  输出机器可读结构',
     '  --machine               输出制表符分隔的扁平结构',
     '  --no-color              关闭人类可读输出的着色',

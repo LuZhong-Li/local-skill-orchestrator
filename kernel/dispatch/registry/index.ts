@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs';
 import { createInitialIndex, loadIndex, saveIndex, TOOL_VERSION } from '../../core/index/index.ts';
 import { scanWorkspace } from '../../core/discovery/index.ts';
-import { installSkill, uninstallSkill } from '../../core/lifecycle/index.ts';
+import { installSkill, uninstallSkill, type LifecycleOutcome } from '../../core/lifecycle/index.ts';
 import { validateWorkspace, type ValidationReport } from '../../core/validation/index.ts';
 import {
   ensureWorkspaceDirs,
@@ -20,11 +20,20 @@ import { toKernelError } from '../../store/errors.ts';
 import { categoryOf, CODES, finding, type Finding } from '../../store/contract.ts';
 import { buildResult, type Change, type Result } from '../result/index.ts';
 import { flag, option, optionList, type ParsedArgs } from '../parsers/index.ts';
+import {
+  confirmLevelOf,
+  decideConfirmation,
+  isAffirmative,
+  type ConfirmPlan,
+  type Interaction,
+} from '../policy/index.ts';
 
 export interface CommandContext {
   args: ParsedArgs;
   /** 当前时间戳，由入口注入以便测试确定化 */
   now: string;
+  /** 交互通道，由入口注入；无终端环境下禁止等待输入 */
+  interaction: Interaction;
 }
 
 export type CommandHandler = (context: CommandContext) => Promise<Result<unknown>>;
@@ -179,7 +188,79 @@ const scanHandler: CommandHandler = async ({ args, now }) => {
 register({ name: 'init', handler: initHandler });
 register({ name: 'scan', handler: scanHandler });
 
-const installHandler: CommandHandler = async ({ args, now }) => {
+/**
+ * 确认闸门。
+ *
+ * 传入的是一份**只读预览**的结果：调用方先以预演方式跑一遍，本函数据此组装影响范围、
+ * 交给策略层裁决。业务知识（哪些文件、索引与副本会被写入）留在调用方，本函数只做编排。
+ *
+ * 返回非 null 表示闸门拦下，直接以该结果结束本次调用：
+ *   预览已明确拒绝，或预览产生错误级问题且没有任何计划变更时，直接返回预览结果，
+ *   不向用户索要确认——这类调用注定失败，打扰用户没有意义；
+ *   无终端且未给出跳过确认选项时返回参数类问题；
+ *   用户给出否定回答时返回「已取消」，不产生任何变更。
+ */
+async function confirmationGate(options: {
+  command: string;
+  args: ParsedArgs;
+  interaction: Interaction;
+  preview: LifecycleOutcome;
+  plan: ConfirmPlan;
+}): Promise<Result<unknown> | null> {
+  const { command, args, interaction, preview, plan } = options;
+
+  if (preview.data['rejected'] !== undefined) {
+    return buildResult(command, preview.findings, [], { data: preview.data });
+  }
+  if (preview.findings.some((item) => item.severity === 'error') && preview.changes.length === 0) {
+    return buildResult(command, preview.findings, [], { data: preview.data });
+  }
+
+  const decision = decideConfirmation({
+    level: confirmLevelOf(command, { hard: flag(args, 'hard') }),
+    yes: flag(args, 'yes'),
+    dryRun: flag(args, 'dry-run'),
+    interaction,
+    plan,
+  });
+
+  if (decision.kind === 'skip') return null;
+  if (decision.kind === 'reject') return buildResult(command, [decision.finding]);
+
+  interaction.write(`${decision.text}\n`);
+  const answer = await interaction.read();
+  if (isAffirmative(answer)) return null;
+
+  // 用户取消：未做任何变更。契约 2.4 规定默认聚焦取消，因此空白与无法识别的回答同样按取消处理。
+  return buildResult(command, [], [], {
+    data: {
+      aborted: 'user_declined',
+      impact: plan.writes,
+      notes: plan.notes,
+    },
+  });
+}
+
+/** 由预览结果与附加提示组装预期变更摘要 */
+function planOf(
+  command: string,
+  subject: string,
+  preview: LifecycleOutcome,
+  notes: string[],
+): ConfirmPlan {
+  return {
+    action: command === 'install' ? '安装' : '卸载',
+    subject,
+    writes: preview.changes.map((item) => ({
+      action: item.action,
+      kind: item.kind,
+      path: item.path,
+    })),
+    notes,
+  };
+}
+
+const installHandler: CommandHandler = async ({ args, now, interaction }) => {
   const layout = layoutOf(workspaceRootOf(args));
   const source = args.positionals[0];
   const dryRun = flag(args, 'dry-run');
@@ -204,7 +285,7 @@ const installHandler: CommandHandler = async ({ args, now }) => {
     ]);
   }
   try {
-    return await withLock(layout.indexFile, () => {
+    return await withLock(layout.indexFile, async () => {
       const loaded = loadIndex(layout.indexFile);
       if (loaded.index === null) {
         return buildResult('install', [
@@ -216,14 +297,34 @@ const installHandler: CommandHandler = async ({ args, now }) => {
           }),
         ]);
       }
-      const outcome = installSkill({
+      const installInput = {
         layout,
         index: loaded.index,
         sourcePath: source,
         now,
         libraryOnly: flag(args, 'library-only'),
-        dryRun,
-      });
+      };
+
+      // 需要确认且不是预演时，先跑一次只读预览取得影响范围
+      if (!dryRun) {
+        const preview = installSkill({ ...installInput, dryRun: true });
+        const notes = [
+          '安装会把内容写入中心库并分发到声明的落位目标',
+          flag(args, 'library-only') === true
+            ? '本次为仅落库方式：不向目标位置分发，登记状态为已禁用'
+            : '安装完成后该 Skill 的登记状态为已启用',
+        ];
+        const blocked = await confirmationGate({
+          command: 'install',
+          args,
+          interaction,
+          preview,
+          plan: planOf('install', source, preview, notes),
+        });
+        if (blocked !== null) return blocked;
+      }
+
+      const outcome = installSkill({ ...installInput, dryRun });
       if (!dryRun && outcome.index !== loaded.index) saveIndex(layout.indexFile, outcome.index);
       return buildResult('install', outcome.findings, outcome.changes, {
         data: outcome.data,
@@ -243,7 +344,7 @@ const installHandler: CommandHandler = async ({ args, now }) => {
   }
 };
 
-const uninstallHandler: CommandHandler = async ({ args, now }) => {
+const uninstallHandler: CommandHandler = async ({ args, now, interaction }) => {
   const layout = layoutOf(workspaceRootOf(args));
   const id = args.positionals[0];
   const dryRun = flag(args, 'dry-run');
@@ -268,7 +369,7 @@ const uninstallHandler: CommandHandler = async ({ args, now }) => {
     ]);
   }
   try {
-    return await withLock(layout.indexFile, () => {
+    return await withLock(layout.indexFile, async () => {
       const loaded = loadIndex(layout.indexFile);
       if (loaded.index === null) {
         return buildResult('uninstall', [
@@ -280,14 +381,38 @@ const uninstallHandler: CommandHandler = async ({ args, now }) => {
           }),
         ]);
       }
-      const outcome = uninstallSkill({
+      const hard = flag(args, 'hard');
+      const uninstallInput = {
         layout,
         index: loaded.index,
         id,
         now,
-        ...(flag(args, 'hard') ? { hard: true } : {}),
-        dryRun,
-      });
+        ...(hard ? { hard: true } : {}),
+      };
+
+      // 需要确认且不是预演时，先跑一次只读预览；强制二次确认须逐条列出影响范围与文件数量
+      if (!dryRun) {
+        const preview = uninstallSkill({ ...uninstallInput, dryRun: true });
+        const detail = preview.data['would_remove_detail'];
+        const fileCount = String(preview.data['would_remove_file_count'] ?? 0);
+        const notes = [
+          `合计将移除 ${Array.isArray(detail) ? detail.length : 0} 个副本位置、${fileCount} 个文件`,
+          '卸载前会先把中心库原件备份到工作区的备份目录',
+          hard
+            ? '中心库原件将被永久删除，本工具不再持有该 Skill 的任何原件'
+            : '中心库原件将保留；保留后它不再属于已管理集合',
+        ];
+        const blocked = await confirmationGate({
+          command: 'uninstall',
+          args,
+          interaction,
+          preview,
+          plan: planOf('uninstall', id, preview, notes),
+        });
+        if (blocked !== null) return blocked;
+      }
+
+      const outcome = uninstallSkill({ ...uninstallInput, dryRun });
       if (!dryRun && outcome.index !== loaded.index) saveIndex(layout.indexFile, outcome.index);
       return buildResult('uninstall', outcome.findings, outcome.changes, {
         data: outcome.data,

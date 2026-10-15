@@ -17,6 +17,7 @@ import { detectMappingConflicts, detectOccupationConflicts } from '../conflict/i
 import { backupBeforeUninstall } from '../backup/index.ts';
 import { libraryPathOf, resolveTargets, type ResolvedTarget } from '../targets/resolver/index.ts';
 import {
+  countTreeFiles,
   copyTree,
   isCopyDisabled,
   pathExists,
@@ -373,6 +374,7 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
   const findings: Finding[] = [];
   const changes: Change[] = [];
   const removed: string[] = [];
+  let removedFiles = 0;
 
   // 一、从中心库原件读回落位路径：索引只保留目标摘要，落位路径只存在于元文件里
   const libraryDir = libraryPathOf(workspaceRoot, id);
@@ -401,13 +403,20 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
 
   // 二、预演：列出将被删除与将被保留的路径，不执行任何删除
   if (dryRun === true) {
-    const wouldRemove = copies.map((item) => item.absolutePath).filter((path) => pathExists(path));
+    const detail = copies
+      .map((item) => ({ path: item.absolutePath, file_count: countTreeFiles(item.absolutePath) }))
+      .filter((item) => pathExists(item.path));
+    const wouldRemove = detail.map((item) => item.path);
     const planned: Change[] = wouldRemove.map((path): Change => ({
       action: 'remove',
       kind: 'target_copy',
       path,
     }));
-    if (hard === true) planned.push({ action: 'remove', kind: 'library', path: libraryDir });
+    let libraryFiles = 0;
+    if (hard === true) {
+      libraryFiles = countTreeFiles(libraryDir);
+      planned.push({ action: 'remove', kind: 'library', path: libraryDir });
+    }
     return {
       index,
       findings,
@@ -417,6 +426,10 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
         preview: true,
         id,
         would_remove: wouldRemove,
+        // 契约 2.4：强制二次确认须逐条列出影响范围与文件数量
+        would_remove_detail: detail,
+        would_remove_file_count:
+          detail.reduce((sum, item) => sum + item.file_count, 0) + libraryFiles,
         library_kept: hard !== true,
         library_path: libraryDir,
         system_disabled: isCopyDisabled(libraryDir),
@@ -441,6 +454,8 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
     const copyPath = target.absolutePath;
     if (!pathExists(copyPath)) continue;
     try {
+      // 文件数量必须在删除前统计
+      removedFiles += countTreeFiles(copyPath);
       removeTree(copyPath);
       removed.push(copyPath);
       changes.push({ action: 'remove', kind: 'target_copy', path: copyPath });
@@ -488,6 +503,7 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
     data: {
       id,
       removed_copies: removed,
+      removed_file_count: removedFiles,
       library_kept: hard !== true,
       library_path: libraryDir,
       system_disabled: isCopyDisabled(libraryDir),
