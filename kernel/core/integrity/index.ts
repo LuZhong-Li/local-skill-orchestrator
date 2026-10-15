@@ -11,6 +11,8 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { META_FILE_NAME } from '../metadata/constants.ts';
+import { CODES } from '../../store/contract.ts';
+import { KernelError } from '../../store/errors.ts';
 
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
 const EXCLUDED_FILE = /(^\.|\.tmp$|\.bak$|~$)/;
@@ -43,8 +45,37 @@ export function collectHashEntries(
   return collected.sort((a, b) => Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8')));
 }
 
-/** 计算技能目录的内容指纹 */
+/**
+ * 计算技能目录的内容指纹。
+ *
+ * 目标不存在时**抛错**，绝不返回空内容哈希：空内容哈希是空文件与空目录的合法指纹，
+ * 用它表达「目录不存在」会让调用方拿到一个看似正常、实则无意义的取值。
+ * 目录存在但确实不含参与计算的文件时照常计算，该情形由内容缺失判定（V-08）负责报告。
+ */
 export function computeChecksum(skillDir: string): string {
+  let stats;
+  try {
+    stats = lstatSync(skillDir);
+  } catch (error) {
+    throw new KernelError({
+      code: CODES.PATH_INVALID,
+      message: `指纹计算目标不存在：${skillDir}`,
+      source: 'integrity',
+      target: skillDir,
+      remedy: '请确认该 Skill 目录是否存在；目录不存在时不应计算指纹',
+      cause: error,
+    });
+  }
+  if (!stats.isDirectory()) {
+    throw new KernelError({
+      code: CODES.PATH_INVALID,
+      message: `指纹计算目标不是目录：${skillDir}`,
+      source: 'integrity',
+      target: skillDir,
+      remedy: '请指向一个 Skill 目录',
+    });
+  }
+
   const hash = createHash('sha256');
   for (const rel of collectHashEntries(skillDir)) {
     hash.update(Buffer.from(rel, 'utf8'));

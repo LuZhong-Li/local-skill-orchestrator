@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-manager.local/schemas/skill_meta.schema.json",
+  "title": "skill_meta.yaml",
+  "description": "单 Skill 元文件的机器可读形态，逐字段对齐 docs/specification/skill-meta-spec.md 第 3 章。声明区字段由用户编写，派生区字段由内核在登记、安装、更新与扫描时回填；派生区字段缺失表示待回填，不构成不合格。",
+  "type": "object",
+  "required": ["id", "name", "status", "path", "source", "targets"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "maxLength": 64,
+      "description": "Skill 的唯一标识；必须与所在目录名完全一致，在工作区内唯一"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^\\S(?:.*\\S)?$",
+      "description": "展示名称；不含首尾空白"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$",
+      "description": "语义化版本三段式；缺失时不参与更新比较"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "功能与适用场景说明"
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "description": "作者或维护者标识"
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "description": "许可协议标识，例如 MIT、Apache-2.0"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["enabled", "disabled"],
+      "description": "启用状态；只表达用户是否主动启停，不承载校验结论"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^\\./skills/[^/\\\\]+(?:/[^/\\\\]+)*$",
+      "description": "Skill 目录相对工作区根目录的路径；必须位于 ./skills/ 之下，使用正斜杠，禁止绝对路径与上级目录跳转"
+    },
+    "trigger_keywords": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1, "maxLength": 32 },
+      "uniqueItems": true,
+      "description": "触发关键词列表；建议不超过 10 项"
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "skills": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "被依赖的 Skill 及其版本约束，形如「Skill 标识 加版本约束」"
+        },
+        "runtime": {
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "description": "依赖的外部运行时及其最低版本；缺失时报告为依赖未满足"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["local", "git", "archive", "unknown"]
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "来源地址；来源类型非 local 且非 unknown 时必填"
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "引用标识；来源类型非 local 且非 unknown 时必填"
+        },
+        "subpath": { "type": "string", "minLength": 1, "pattern": "^(?!.*\\.\\.).*$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "enum": ["git", "archive"] } }, "required": ["type"] },
+          "then": { "required": ["url", "ref"] }
+        }
+      ]
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["target", "scope", "path", "mode", "enabled", "file_map"],
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "type": "string",
+            "minLength": 1,
+            "description": "目标位置的标识名；同一 Skill 内不得重复"
+          },
+          "scope": { "type": "string", "enum": ["global", "project"] },
+          "path": {
+            "type": "string",
+            "pattern": "^(?!.*\\.\\.)(?![/\\\\])(?!.*:).*$",
+            "description": "该目标下的落位路径，相对工作区根目录；禁止绝对路径与上级目录跳转"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["copy", "link"],
+            "description": "一期实际仅使用 copy"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "该目标下是否生效；与同级的 status 共同决定可见性"
+          },
+          "file_map": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": { "type": "string", "minLength": 1 },
+            "description": "逐文件的来源与落位对应关系，供卸载时精确回收"
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "派生区：首次登记时间，协调世界时秒级。缺失表示待内核回填，不构成不合格"
+    },
+    "updated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "派生区：最近一次变更时间，不得早于 created_at。缺失表示待回填"
+    },
+    "checksum": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "派生区：内容指纹，由内核按契约算法计算。缺失表示待回填"
+    }
+  },
+  "additionalProperties": true,
+  "x-additional-properties-policy": "允许扩展字段：契约对元文件的未知顶层字段只给警告（白名单外字段对应 W-FIELD-004），因此本 schema 不禁止附加属性；导出白名单另见 backup.schema.json。"
+}

@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-manager.local/schemas/backup.schema.json",
+  "title": "备份文档",
+  "description": "备份相关的两类文档：根模式为导出清单（export 产出、import 消费的可迁移备份，见指令契约第 4.14 与 4.15 节）；$defs.backupManifest 为备份载体清单（卸载前自动备份时写出的 backup_meta.yaml，见存储层备份载体读写）。两者都允许附加属性：契约对未知字段只给警告，不以拒绝处理。",
+  "type": "object",
+  "required": ["backup_format_version", "exported_at", "tool_version", "skills"],
+  "properties": {
+    "backup_format_version": {
+      "type": "string",
+      "const": "1",
+      "description": "备份自身格式版本标识；导入侧据此判断能否解析"
+    },
+    "exported_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "导出时间，协调世界时秒级"
+    },
+    "tool_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "导出该备份的工具版本"
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "被导出索引的格式版本"
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "被导出索引的最近写入时间"
+    },
+    "config": {
+      "type": "object",
+      "description": "索引的配置区；带 --no-config 导出时整体剥离并记入被剥离项清单",
+      "properties": {
+        "skill_roots": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "default_target": { "type": "string", "minLength": 1 },
+        "default_mode": { "type": "string", "enum": ["copy", "link"] }
+      },
+      "additionalProperties": true
+    },
+    "skills": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/exportRecord" },
+      "description": "导出时的索引记录，逐字段取自导出白名单（十六条记录字段）"
+    }
+  },
+  "additionalProperties": true,
+  "x-additional-properties-policy": "允许附加属性：导入对契约之外的字段只给警告（W-FIELD-004），不整体拒绝；白名单之外的字段不参与导入。",
+  "x-absolute-path-rule": "备份不以绝对路径表达位置；记录的 path 字段若为绝对路径形式，导出时剥离并记入被剥离项清单。",
+  "$defs": {
+    "exportRecord": {
+      "type": "object",
+      "required": ["id", "name", "status"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "author": { "type": "string", "minLength": 1 },
+        "license": { "type": "string", "minLength": 1 },
+        "status": { "type": "string", "enum": ["enabled", "disabled"] },
+        "path": { "type": "string", "minLength": 1 },
+        "trigger_keywords": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "dependencies": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "source_type": { "type": "string", "enum": ["local", "git", "archive", "unknown"] },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["target", "scope", "enabled"],
+            "properties": {
+              "target": { "type": "string", "minLength": 1 },
+              "scope": { "type": "string", "enum": ["global", "project"] },
+              "enabled": { "type": "boolean" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "created_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "updated_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        },
+        "checksum": { "type": "string", "pattern": "^(sha256:[0-9a-f]{64})?$" },
+        "validation": {
+          "type": "object",
+          "required": ["status", "errors"],
+          "properties": {
+            "status": { "type": "string", "enum": ["ok", "invalid"] },
+            "errors": { "type": "array", "items": { "type": "string" } },
+            "last_scan_at": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "backupManifest": {
+      "type": "object",
+      "required": [
+        "timestamp",
+        "skill_id",
+        "source",
+        "file_count",
+        "backup_digest",
+        "content_checksum"
+      ],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "description": "备份时间戳，契约格式；目录名使用冒号替换为短横线的安全转写，字段值不受影响"
+        },
+        "skill_id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "被备份内容的相对路径，通常为中心库原件"
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "副本内的文件数，含元文件"
+        },
+        "backup_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "description": "载体自身的完整性摘要，覆盖全部文件含元文件"
+        },
+        "content_checksum": {
+          "type": "string",
+          "pattern": "^(sha256:[0-9a-f]{64})?$",
+          "description": "被备份内容按契约算法计算的内容指纹；计算失败时为空字符串"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

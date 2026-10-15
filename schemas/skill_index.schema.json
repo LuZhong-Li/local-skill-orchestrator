@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-manager.local/schemas/skill_index.schema.json",
+  "title": "skill_index.yaml",
+  "description": "全局索引的机器可读形态，逐字段对齐 docs/specification/skill-meta-spec.md 第 4 章与 docs/specification/index-format.md。记录分四类来源：声明区引用字段、为列表展示保留的引用摘要、派生区字段与运行期结论字段。运行期结论只由扫描动作写入。",
+  "type": "object",
+  "required": ["schema_version", "tool_version", "generated_at", "config", "skills"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1",
+      "description": "索引格式版本；必须加引号书写，取值高于当前工具支持的版本时拒绝读取"
+    },
+    "tool_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "生成该索引的工具版本；语义化版本"
+    },
+    "generated_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "description": "派生区：最近一次写入索引的时间"
+    },
+    "config": {
+      "type": "object",
+      "required": ["skill_roots"],
+      "properties": {
+        "skill_roots": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "发现 Skill 时要扫描的根目录集合；每项为相对工作区根目录的非空路径且必须可达"
+        },
+        "default_target": {
+          "type": "string",
+          "minLength": 1,
+          "description": "未显式指定目标时使用的默认落位目标；一期的目标标识没有登记表，取值域校验仅覆盖非空"
+        },
+        "default_mode": {
+          "type": "string",
+          "enum": ["copy", "link"],
+          "description": "默认的文件落位方式；一期实际仅使用 copy"
+        }
+      },
+      "additionalProperties": true,
+      "description": "管理器的运行配置；允许扩展配置项"
+    },
+    "skills": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "additionalProperties": true,
+  "x-additional-properties-policy": "允许扩展字段：索引读写保留未识别字段，不得丢弃。",
+  "$defs": {
+    "record": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "status",
+        "path",
+        "source_type",
+        "targets",
+        "created_at",
+        "updated_at",
+        "checksum",
+        "validation"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "description": "声明区引用字段：Skill 唯一标识；在索引内唯一，且必须能在 ./skills/ 下找到同名目录"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "声明区引用字段：展示名称，与元文件一致"
+        },
+        "version": { "type": "string", "minLength": 1, "description": "声明区引用字段：版本号" },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "声明区引用字段：功能说明"
+        },
+        "author": { "type": "string", "minLength": 1, "description": "声明区引用字段：作者标识" },
+        "license": {
+          "type": "string",
+          "minLength": 1,
+          "description": "声明区引用字段：许可协议标识"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["enabled", "disabled"],
+          "description": "声明区引用字段：启用状态。索引中的该字段是启用状态的唯一事实源，不参与投影一致性判定"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^\\./skills/[^/\\\\]+(?:/[^/\\\\]+)*$",
+          "description": "声明区引用字段：Skill 目录相对工作区根目录的路径；必须位于 ./skills/ 之下且对应目录存在"
+        },
+        "trigger_keywords": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "声明区引用字段：触发关键词列表"
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "声明区引用字段：被依赖 Skill 的标识列表；只记录标识，完整版本约束存于元文件"
+        },
+        "source_type": {
+          "type": "string",
+          "enum": ["local", "git", "archive", "unknown"],
+          "description": "为列表展示保留的引用摘要：来源类型的摘要"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["target", "scope", "enabled"],
+            "additionalProperties": false,
+            "properties": {
+              "target": { "type": "string", "minLength": 1 },
+              "scope": { "type": "string", "enum": ["global", "project"] },
+              "enabled": {
+                "type": "boolean",
+                "description": "运行期可见性；不参与投影一致性判定"
+              }
+            }
+          },
+          "description": "为列表展示保留的引用摘要：落位目标摘要，不含落位路径与逐文件映射"
+        },
+        "created_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "description": "派生区：首次登记时间"
+        },
+        "updated_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "description": "派生区：最近一次变更时间"
+        },
+        "checksum": {
+          "type": "string",
+          "pattern": "^(sha256:[0-9a-f]{64})?$",
+          "description": "派生区：内容指纹；磁盘内容缺失时为空字符串，由运行期结论报告失效"
+        },
+        "validation": { "$ref": "#/$defs/validation" }
+      },
+      "additionalProperties": true,
+      "description": "索引中的一条 Skill 记录；允许扩展字段，读写时原样保留"
+    },
+    "validation": {
+      "type": "object",
+      "required": ["status", "errors"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["ok", "invalid"],
+          "description": "运行期结论：最近一次校验的结论"
+        },
+        "errors": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[EW]-[A-Z]+-\\d{3}$" },
+          "description": "运行期结论：本次校验的问题码；无问题时为空数组，结论为 invalid 时不得为空"
+        },
+        "last_scan_at": {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+          "description": "运行期结论：最近一次扫描写入该结论的时间；只由扫描动作维护。缺失表示该记录尚未经过扫描"
+        }
+      },
+      "additionalProperties": false,
+      "description": "运行期结论区块：只由扫描动作写入或刷新，其余指令一律只读"
+    }
+  },
+  "x-write-permissions": {
+    "declared": "安装、卸载、更新与导入会改变记录本身；用户只可编辑配置区与各记录的启用状态字段",
+    "derived": "由内核在安装、更新、扫描时写入",
+    "validation": "只由扫描动作写入；校验动作保持只读，结论过期时只报告并建议重新扫描"
+  }
+}

@@ -10,6 +10,7 @@ import {
   isChecksumFormat,
 } from '../../kernel/core/integrity/index.ts';
 import { META_FILE_NAME } from '../../kernel/core/metadata/constants.ts';
+import { CODES } from '../../kernel/store/contract.ts';
 
 function skillDir(files: Record<string, string>): string {
   const dir = mkdtempSync(join(tmpdir(), 'sm-hash-'));
@@ -69,4 +70,30 @@ test('S-07 无参与内容时判定为内容缺失', () => {
   const dir = skillDir({ [META_FILE_NAME]: 'id: a\n' });
   assert.equal(hasHashableContent(dir), false);
   assert.equal(hasHashableContent(skillDir({ 'SKILL.md': '# a' })), true);
+});
+
+test('S-07 目录不存在时抛错，不得返回空内容哈希', () => {
+  const missing = join(mkdtempSync(join(tmpdir(), 'sm-hash-')), 'not-there');
+  assert.throws(
+    () => computeChecksum(missing),
+    (error: unknown) => {
+      assert.equal((error as { code?: string }).code, CODES.PATH_INVALID);
+      assert.match(String((error as { message?: string }).message), /不存在/);
+      return true;
+    },
+  );
+  // 空内容哈希是空文件与空目录的合法指纹，不得用它表示「目录不存在」
+  const emptyHash = computeChecksum(skillDir({ [META_FILE_NAME]: 'id: a\n' }));
+  assert.equal(emptyHash.startsWith('sha256:'), true);
+  assert.notEqual(emptyHash, '', '目录存在时照常计算，含不含参与文件由内容缺失判定负责');
+});
+
+test('S-07 目标不是目录时抛错', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'sm-hash-'));
+  const file = join(dir, 'plain.txt');
+  writeFileSync(file, 'x');
+  assert.throws(
+    () => computeChecksum(file),
+    (error: unknown) => (error as { code?: string }).code === CODES.PATH_INVALID,
+  );
 });
