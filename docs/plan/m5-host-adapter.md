@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M5 宿主适配层计划拆解（任务序列、依赖、里程碑验收映射） |
 | 文档路径 | `docs/plan/m5-host-adapter.md` |
-| 文档状态 | 计划稿（**T0 / T1 / T2 / T3 已完成**；T4 起待执行） |
+| 文档状态 | 计划稿（**T0 / T1 / T2 / T3 / T4 已完成**；T5 起待执行） |
 | 依据 | [`docs/design/m5-host-adapter.md`](../design/m5-host-adapter.md)（含 DP-01 ~ DP-05 裁决、HD-01 ~ HD-06 待确认项）；[`docs/requirements.md`](../requirements.md) 9.3.6（M5-R1 ~ M5-R9）；[`docs/research/host-mechanisms.md`](../research/host-mechanisms.md) |
 | 说明 | 本文档只输出任务序列、依赖、验收与映射；不含实现代码。批次的执行顺序即任务编号顺序，未满足依赖的任务不得启动。 |
 
@@ -107,6 +107,8 @@
 **规模估算**：渲染核心 + 3 种模式 + 字段映射与差异回报。
 
 ### T4 首批适配器
+
+**执行状态**：**已完成（2026-10-15）**。交付：`kernel/core/adapters/`（`types.ts` 适配器与落位计划类型、`plan.ts` 模板展开与计划组装、`rules.ts` Cursor 规则路径形态、`index.ts` 形态实现与宿主绑定）、`tests/contract/adapters.test.ts`（9 项断言，总数 328 → 337）。验收标准逐条达成：六宿主产物结构合规（`verify` 无错误）；字段策略边界正确（Claude 无扩展、Codex/豆包白名单内透传与白名单外警告、禁用字段全宿主全形态不出现）；复用技能形态的四个宿主**共享同一实现对象**（无宿主专有代码，M5-R7），Cursor 是本批唯一新增形态；agents-md 降级片段正确并声明 `capability_gaps` 且 `landable = false`（合并不落盘）；deepseek 无适配器且登记表达正确（依赖 `not_applicable` 豁免）；落位计划结构正确（目标路径展开 `.claude/skills/<Skill 标识>/SKILL.md`、`.cursor/rules/<Skill 标识>.mdc`，重叠消费声明）；`adapter_state` 置 implemented 后可落位集合由空变六项；适配器层不写盘（源码检索断言）。实现期同步更新了 T2 中因 `adapter_state` 与消费集合变化而语义过期的两条既有断言。
 
 **目标**：落地首批名单（M5-R4）。
 

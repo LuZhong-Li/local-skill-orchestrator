@@ -2,6 +2,20 @@
 
 ## 未发布
 
+### 内核：首批适配器（M5-T4）
+
+后续阶段 M5 的第四个交付批次：把「形态实现」与「宿主绑定」分离，落地首批六宿主的适配器与落位计划（不含写盘）。
+
+#### 变更
+
+- **新增 `kernel/core/adapters/`**：`types.ts`（`HostAdapter` 接口、`PlacementEntry` / `PlacementPlan` / 重叠声明）、`plan.ts`（落位模板展开、落位项组装、重叠消费声明）、`rules.ts`（Cursor 规则路径形态 `.mdc`）、`index.ts`（形态实现与宿主绑定）。
+- **形态与宿主分离（M5-R7 的收益落地）**：复用技能形态的四个宿主（`claude` / `codex` / `doubao` / `agentskills`）**共享同一实现对象**，无任何宿主专有代码；`agents-md` 复用指令文件降级形态；**Cursor 的规则路径形态是本批唯一新增的形态**。形态实现经 `formImplementationOf()` 暴露，供审计与测试断言「同一实现对象」。
+- **注册表状态推进**：六个宿主的 `adapter_state` 由 `planned` 置为 `implemented`，可落位集合（HR-10）由空变六项；`deepseek` 保持 `planned` 且无适配器（不适用 / 模型提供方）。
+- **落位计划（供 T5 消费）**：落位项含完整目标路径（`.claude/skills/<Skill 标识>/SKILL.md`、`.cursor/rules/<Skill 标识>.mdc`、`AGENTS.md`）、落位根类别、是否位于工作区之外（豆包的用户技能根）、`landable` 与不可落盘原因、消费宿主集合；并在计划层声明**重叠消费**（Claude 技能根被 Claude 与 Cursor 读取；通用指令文件被 Codex 与 Cursor 读取）。
+- **只读合规校验**：适配器的 `verify` 解析产物元数据块，断言必填字段齐全且字段集不超过「标准六字段 + 宿主白名单」，并可校验规则文件扩展名与 `alwaysApply` 前置元数据。
+- **规范兼容澄清**：明确 `path_template` 的粒度由 `kind` 决定（`skill` / `external` 为技能目录模板，`rules` 为规则文件模板），落位计划据此判定是否需要拼接产物文件名。见 `docs/specification/host-registry.spec.md` 修订记录第 4 条。
+- **契约测试扩展（328 → 337 项）**：新增 `tests/contract/adapters.test.ts` 九项断言（六宿主结构合规、字段策略边界、同核验证、降级片段与不落盘、Cursor 规则形态、落位计划结构与重叠声明、不适用宿主、可落位集合生效、适配器层不写盘）；并同步 T2 中因 `adapter_state` 与消费集合变化而语义过期的两条既有断言（改行为回看用例语义）。
+
 ### 内核：渲染层核心（M5-T3）
 
 后续阶段 M5 的第三个交付批次：把「内部技能表示 → 宿主可识别产物」渲染为纯函数，接入 T2 的透传白名单，保持渲染与落位解耦。
