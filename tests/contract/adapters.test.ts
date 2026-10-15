@@ -237,11 +237,14 @@ test('契约：adapter_state 置 implemented 后可落位集合生效', () => {
   }
 });
 
-test('契约：适配器层不写盘（以源码检索守住）', () => {
+test('契约：适配器层不写盘（落位执行器是唯一例外）', () => {
+  // land.ts 是适配器层唯一允许执行写盘的位置（它只调用存储层的原子写与备份原语）；
+  // 其余模块（含 roots.ts）不得出现写盘 API。
   const sources = [
     'kernel/core/adapters/index.ts',
     'kernel/core/adapters/plan.ts',
     'kernel/core/adapters/rules.ts',
+    'kernel/core/adapters/roots.ts',
   ]
     .map((file) => read(file))
     .join('\n');
@@ -254,6 +257,16 @@ test('契约：适配器层不写盘（以源码检索守住）', () => {
     'mkdirSync',
     'cpSync',
   ]) {
-    assert.equal(sources.includes(forbidden), false, `适配器层不得调用 ${forbidden}：落盘属 T5`);
+    assert.equal(
+      sources.includes(forbidden),
+      false,
+      `除 land.ts 外的适配器模块不得调用 ${forbidden}`,
+    );
   }
+
+  // 落位执行器：写盘只能经存储层原语，不得绕过原子写
+  const land = read('kernel/core/adapters/land.ts');
+  assert.ok(land.includes("from '../../store/atomic/index.ts'"), '写盘必须复用原子写原语');
+  assert.ok(land.includes("from '../../store/backup-fs/index.ts'"), '写盘前必须复用备份原语');
+  assert.equal(land.includes('writeFileSync'), false, '落位执行器不得绕过原子写直接写文件');
 });
