@@ -769,3 +769,114 @@ test('验收：未知选项按参数类错误拒绝', async () => {
   assert.equal(await run(['list', '--workspace', root, '--sttae', 'enabled']), 2);
   assert.equal(await run(['scan', '--workspace', root, '--frobnicate']), 2);
 });
+
+/** 造一份清单并移除其中一条记录，返回工作区路径 */
+async function importScenario(): Promise<string> {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  skill(root, 'alpha', validMeta('alpha'));
+  skill(root, 'beta', validMeta('beta'));
+  await run(['scan', '--workspace', root]);
+  await run(['export', 'backups/snapshot.yaml', '--workspace', root]);
+  await run(['uninstall', 'alpha', '--hard', '--workspace', root, '--yes']);
+  return root;
+}
+
+test('验收：import 需要轻确认，非终端未给 --yes 时拒绝', async () => {
+  const root = await importScenario();
+  assert.equal(await run(['import', 'backups/snapshot.yaml', '--workspace', root]), 2);
+  assert.equal(await run(['import', 'backups/snapshot.yaml', '--workspace', root, '--yes']), 0);
+});
+
+test('验收：import 的确认提示给出将登记的记录条数', async () => {
+  const root = await importScenario();
+  const { written, channel } = interactionOf('n');
+  const code = await run(['import', 'backups/snapshot.yaml', '--workspace', root], channel);
+  assert.equal(code, 0, '用户取消不是执行失败');
+  assert.match(written[0] ?? '', /将登记 1 条记录/);
+  assert.match(written[0] ?? '', /确认执行？\[y\/N\]/);
+  assert.ok(!readFileSync(indexPath(root), 'utf8').includes('id: alpha'), '取消后不登记');
+});
+
+test('验收：import 恢复记录并跳过既有标识，扫描后与磁盘实况一致', async () => {
+  const root = await importScenario();
+  const { code, out } = await capture([
+    'import',
+    'backups/snapshot.yaml',
+    '--workspace',
+    root,
+    '--yes',
+    '--json',
+  ]);
+  assert.equal(code, 0);
+  const data = (
+    JSON.parse(out) as {
+      data: { imported: number; conflicts: number; ids: string[]; roundtrip: string };
+    }
+  ).data;
+  assert.equal(data.imported, 1, 'alpha 的原目录已删除，仍按清单登记');
+  assert.equal(data.conflicts, 1, 'beta 已在索引中，跳过不覆盖');
+  assert.deepEqual(data.ids, ['alpha']);
+  assert.equal(data.roundtrip, 'consistent');
+
+  // 导入后 alpha 的记录未经验证，扫描按磁盘实况给出结论
+  await run(['scan', '--workspace', root]);
+  const listed = await capture(['list', '--workspace', root, '--json']);
+  const summary = (
+    JSON.parse(listed.out) as {
+      data: { total: number; by_validation: { ok: number; invalid: number } };
+    }
+  ).data;
+  assert.equal(summary.total, 2);
+  assert.deepEqual(summary.by_validation, { ok: 1, invalid: 1 }, 'alpha 的目录缺失判为不通过');
+});
+
+test('验收：import 重复执行时全部按冲突跳过且不改动索引', async () => {
+  const root = await importScenario();
+  await run(['import', 'backups/snapshot.yaml', '--workspace', root, '--yes']);
+  const before = readFileSync(indexPath(root), 'utf8');
+  const { code, out } = await capture([
+    'import',
+    'backups/snapshot.yaml',
+    '--workspace',
+    root,
+    '--yes',
+    '--json',
+  ]);
+  assert.equal(code, 0);
+  const data = (JSON.parse(out) as { data: { imported: number; conflicts: number } }).data;
+  assert.equal(data.imported, 0);
+  assert.equal(data.conflicts, 2);
+  assert.equal(readFileSync(indexPath(root), 'utf8'), before, '无新增时不改写索引');
+});
+
+test('验收：import 格式非法时返回退出码 3 且详情可见', async () => {
+  const root = await importScenario();
+  const bad = join(root, 'backups', 'bad.yaml');
+  writeFileSync(
+    bad,
+    ['backup_format_version: "1"', 'skills:', '  - id: UPPER', '    status: paused', ''].join('\n'),
+  );
+  const { code, out } = await capture([
+    'import',
+    'backups/bad.yaml',
+    '--workspace',
+    root,
+    '--json',
+  ]);
+  assert.equal(code, 3, '契约 4.15：备份格式校验失败返回 3');
+  const result = JSON.parse(out) as {
+    findings: Array<{ code: string }>;
+    data: { rejected?: string; problem_codes?: string[] };
+  };
+  assert.equal(result.data.rejected, 'invalid_format');
+  assert.ok((result.data.problem_codes ?? []).includes('E-FIELD-001'));
+  assert.ok(result.findings.some((item) => item.code === 'E-STATUS-001'));
+
+  assert.equal(await run(['import', '../outside.yaml', '--workspace', root, '--yes']), 1);
+  assert.equal(await run(['import', 'backups/nosuch.yaml', '--workspace', root, '--yes']), 4);
+  assert.equal(
+    await run(['import', 'backups/snapshot.yaml', '--on-conflict', 'keep', '--workspace', root]),
+    2,
+  );
+});

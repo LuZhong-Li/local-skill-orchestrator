@@ -56,6 +56,8 @@ export interface ConfirmPlan {
   writes: Array<{ action: string; kind: string; path: string }>;
   /** 附加提示，例如中心库原件将被永久删除 */
   notes: string[];
+  /** 轻确认的单行摘要；省略时按变更条数呈现 */
+  inline?: string;
 }
 
 /** 交互通道：由宿主注入，便于在无终端环境下测试拒绝路径 */
@@ -110,7 +112,8 @@ export function decideConfirmation(request: ConfirmRequest): ConfirmDecision {
 /** 渲染确认提示：轻确认为单行行内触发，常规与强制为独立的多行影响范围清单 */
 export function buildPrompt(plan: ConfirmPlan, level: ConfirmLevel): string {
   if (level === 'light') {
-    return `${plan.action} ${plan.subject}：将产生 ${plan.writes.length} 处变更，确认执行？[y/N] `;
+    const summary = plan.inline ?? `将产生 ${plan.writes.length} 处变更`;
+    return `${plan.action} ${plan.subject}：${summary}，确认执行？[y/N] `;
   }
   const lines: string[] = [];
   lines.push(`${plan.action} ${plan.subject} 的影响范围：`);

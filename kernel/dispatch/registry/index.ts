@@ -25,7 +25,7 @@ import {
 import { validateWorkspace, type ValidationReport } from '../../core/validation/index.ts';
 import { inspectSkill, listSkills, readConfig, toListEntry } from '../../core/index/query.ts';
 import { analyzeDependencies, splitDeclaration } from '../../core/dependency/index.ts';
-import { exportIndex } from '../../core/backup/index.ts';
+import { exportIndex, importIndex } from '../../core/backup/index.ts';
 import { declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import {
@@ -78,6 +78,7 @@ export const REGISTERED_COMMANDS = [
   'validate',
   'deps',
   'export',
+  'import',
 ] as const;
 
 const handlers = new Map<string, CommandHandler>();
@@ -282,6 +283,7 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   enable: '启用',
   disable: '禁用',
   update: '刷新',
+  import: '导入',
 };
 
 /** 由预览结果与附加提示组装预期变更摘要 */
@@ -995,3 +997,93 @@ register({ name: 'config set', handler: configSetHandler });
 register({ name: 'enable', handler: toggleHandler('enable') });
 register({ name: 'disable', handler: toggleHandler('disable') });
 register({ name: 'update', handler: updateHandler });
+
+const importHandler: CommandHandler = async ({ args, now, interaction }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const source = args.positionals[0];
+  if (source === undefined || source === '') {
+    return buildResult('import', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'path',
+        message: 'import 需要给出备份文件路径',
+        remedy: '请提供工作区之内的相对路径，例如 backups/export.yaml',
+      }),
+    ]);
+  }
+  if (option(args, 'on-conflict') !== undefined) {
+    // 一期导入不覆盖既有记录，冲突一律跳过，因此没有策略维度
+    return buildResult('import', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--on-conflict',
+        message: '一期导入不覆盖既有记录，冲突一律跳过，该选项没有可用语义',
+        remedy: '请省略 --on-conflict；策略化覆盖属二期',
+      }),
+    ]);
+  }
+  const { index, findings, missing } = loadForWrite(layout);
+  if (index === null) return unreadableIndex('import', layout, findings, missing);
+
+  const dryRun = flag(args, 'dry-run');
+  const preview = importIndex({ layout, index, source, now, dryRun: true });
+  if (preview.refused === true) {
+    // 校验失败整体拒绝，且按契约 4.15 的专属口径返回退出码 3
+    return formatRejected('import', [...findings, ...preview.findings], preview.data);
+  }
+
+  if (!dryRun) {
+    const planned = Number(preview.data['imported'] ?? 0);
+    const blocked = await confirmationGate({
+      command: 'import',
+      args,
+      interaction,
+      preview: {
+        index,
+        findings: preview.findings,
+        changes: preview.index.skills
+          .filter((item) => !index.skills.some((old) => old.id === item.id))
+          .map((item) => ({ action: 'add' as const, kind: 'index_record', path: item.path })),
+        data: preview.data,
+      },
+      plan: {
+        action: '导入',
+        subject: source,
+        writes: [],
+        notes: [],
+        inline: `将登记 ${planned} 条记录，冲突条目一律跳过`,
+      },
+    });
+    if (blocked !== null) return blocked;
+  }
+
+  const outcome = importIndex({ layout, index, source, now, dryRun });
+  if (outcome.refused === true) {
+    return formatRejected('import', [...findings, ...outcome.findings], outcome.data);
+  }
+  if (!dryRun && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
+  return buildResult('import', [...findings, ...outcome.findings], [], {
+    data: outcome.data,
+    ...(outcome.preview === true ? { preview: true } : {}),
+  });
+};
+
+/**
+ * 导入的整体拒绝：契约 4.15 规定「备份格式或指纹校验失败时返回 3」，这是本指令的专属规定，
+ * 按结果规范 5.2 的专属优先条款覆盖通用派生——格式类问题的问题码本身按 4.4 的码表取，
+ * 不为凑退出码改码。路径越界与来源不可读不属于格式失败，按通用派生分别返回 1 与 4。
+ */
+function formatRejected(
+  command: string,
+  findings: Finding[],
+  data: Record<string, unknown>,
+): Result<unknown> {
+  const result = buildResult(command, findings, [], { data });
+  if (data['rejected'] === 'invalid_format' && result.exit_code !== 2) {
+    result.exit_code = 3;
+    result.ok = false;
+  }
+  return result;
+}
+
+register({ name: 'import', handler: importHandler });
