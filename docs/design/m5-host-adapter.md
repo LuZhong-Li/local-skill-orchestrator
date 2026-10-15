@@ -53,7 +53,7 @@
 | 宿主 | 实测 / 文档结论 | 证据等级 | 对设计的影响 |
 |---|---|---|---|
 | Claude Code | 认识 16 个字段（含 `when_to_use`、`disable-model-invocation`、`paths` 等扩展），**不认识的字段静默忽略且不报错**；但跨产品路径（claude.ai 上传、Skills API、打包脚本）**只接受标准 6 字段，出现标准外字段硬失败** | [已查证·官方文档] | 渲染层必须支持「标准 6 字段模式」；默认产物即该模式，扩展字段需显式开启 |
-| Codex | 本机扫描 165 个已装载技能文件，出现 **26 种** frontmatter 字段（`name` / `description` 全量，另有 `version`、`metadata`、`disable-model-invocation`、`author`、`allowed-tools`、`license`、`compatibility`、`created`、`provenance`、`dependencies`、`activation` 等）且全部正常装载 → **容纳标准外字段** | [已查证·本机实测] | 允许策略存在，但默认仍走标准字段模式；实测字段仅在显式配置下使用 |
+| Codex | 本机扫描 165 个已装载技能文件，出现 **27 种** frontmatter 字段（`name` / `description` 全量，另有 `version`、`metadata`、`disable-model-invocation`、`author`、`allowed-tools`、`license`、`compatibility`、`created`、`provenance`、`dependencies`、`activation` 等）且全部正常装载 → **容纳标准外字段** | [已查证·本机实测] | 允许策略存在，但默认仍走标准字段模式；实测字段仅在显式配置下使用 |
 | Cursor | 官方文档列出 `name` / `description` / `paths`（`globs` 为旧字段兼容）/ `icon` / `color`，**未说明未知字段处理**；本机未安装该宿主 | [待确认] | 采用白名单裁剪：只发文档列出的字段 [R-2] |
 | 豆包 | 本机扫描 `.skills/` 下 174 个技能文件，出现 **21 种** 字段（`name` / `description` 全量，另有 `metadata`、`version`、`requires`、`bins`、`cliHelp`、`license`、`permissions`、`compatibility` 等）→ **容纳标准外字段**；另有客户端校验文案：上传需含 `SKILL.md`、`SKILL.md` 需含 YAML 技能名与描述、**文件名需严格为 `SKILL.md`** | [已查证·本机实测] | 只发标准字段；平台自有字段（`requires` / `bins` / `cliHelp` / `permissions` 等）**不由本工具生成**（语义未知，属宿主自有契约） |
 
@@ -243,7 +243,7 @@ type Finding       = { level: 'error' | 'warning'; code: string; where: string; 
 
 **透传白名单细则（裁决 DP-04）**：
 
-1. **白名单来源**：各宿主注册表 `render_policy.allowed_extensions[]`，取值来自该宿主的**实测字段集**（Codex 26 种、豆包 21 种，均为本机实测且全部正常装载）或官方规范明示字段；
+1. **白名单来源**：各宿主注册表 `render_policy.allowed_extensions[]`，取值来自该宿主的**实测字段集**（Codex 实测 27 种、豆包实测 21 种，均为本机实测且全部正常装载）。白名单只登记**标准 6 字段之外**的字段：Codex 为 20 项、豆包为 15 项——标准字段由渲染模式直接输出，禁用字段 `disable-model-invocation` 一律排除；
 2. **命中即透传，未命中即忽略并警告**：白名单外的字段不写入产物，且必须回报警告（进入 `droppedFields` 与输出载荷），不得静默丢弃 [R-5]；
 3. **Claude 的白名单为空**：跨产品路径（claude.ai / Skills API / 打包脚本）对标准外字段**硬失败**，故 Claude 适配器一律只发标准 6 字段 [Q-05]；
 4. **`disable-model-invocation` 禁止透传**：该字段在各宿主语义不明（Codex 侧 12 处取值全为 `false`，无法判定是否施加语义），登记为「宿主自有字段、不透传」，任何宿主白名单都不得包含它 [HD-02]；
