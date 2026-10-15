@@ -31,8 +31,10 @@
     "@types/node": "^22.10.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "esbuild": "^0.28.2",
     "eslint": "^9.17.0",
     "globals": "^15.14.0",
+    "postject": "^1.0.0-alpha.6",
     "prettier": "^3.4.2",
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.18.0"

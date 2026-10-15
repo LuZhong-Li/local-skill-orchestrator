@@ -121,8 +121,10 @@ function isEntryPoint(): boolean {
 }
 
 if (isEntryPoint()) {
-  const code = await run(process.argv.slice(2));
-  process.exit(code);
+  // 不用顶层 await：内核也要能被打包成 CommonJS 的单文件可执行形态
+  void run(process.argv.slice(2)).then((code) => {
+    process.exit(code);
+  });
 }
 
 export { CODES, finding, option, optionList };

@@ -1,9 +1,95 @@
 #!/usr/bin/env node
 /**
- * 把内核构建为各平台可执行文件。
+ * 把内核构建为独立可执行文件（AD-09 的分发形态）。
  *
- * 现状：内核源码尚未落地，本脚本为占位实现，直接以非零状态退出，
- * 以免在 CI 中被误认为构建成功。
+ * 三步：
+ *   一、用 esbuild 把内核入口连同依赖打成单个 CommonJS 文件；
+ *   二、用 Node 的单文件可执行配置生成代码块；
+ *   三、把代码块注入当前 Node 运行时的副本，得到 `build/kernel/skill-manager.exe`。
+ *
+ * 产物被 electron-builder 复制到 `resources/kernel/`，主进程按该路径调用。
+ * 中间文件放在 intermediate/ 子目录，成功后清理，避免随包分发。
  */
-console.error('内核构建尚未实现：内核源码落地后，本脚本负责把 kernel/ 构建为各平台可执行文件。');
-process.exit(1);
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const OUT_DIR = join(ROOT, 'build', 'kernel');
+const WORK_DIR = join(OUT_DIR, 'intermediate');
+const BUNDLE = join(WORK_DIR, 'kernel.cjs');
+const BLOB = join(WORK_DIR, 'kernel.blob');
+const SEA_CONFIG = join(WORK_DIR, 'sea-config.json');
+const EXECUTABLE = join(OUT_DIR, 'skill-manager.exe');
+/** Node 的单文件可执行注入所用的哨兵值，取自 Node 文档，非本项目自定 */
+const SEA_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
+
+function fail(message) {
+  console.error(`内核构建失败：${message}`);
+  process.exit(1);
+}
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: ROOT,
+    stdio: options.quiet === true ? 'pipe' : 'inherit',
+    // 全部以可执行文件加参数数组调用，不经 shell，避免参数拼接带来的注入面
+    shell: false,
+    ...(options.quiet === true ? { encoding: 'utf8' } : {}),
+  });
+  if (result.status !== 0) {
+    fail(`${command} ${args.join(' ')} 退出码 ${String(result.status)}`);
+  }
+  return result;
+}
+
+mkdirSync(WORK_DIR, { recursive: true });
+
+// 一、打包：内核只依赖 yaml，一并打进产物，运行期不需要额外的 node_modules
+await build({
+  entryPoints: [join(ROOT, 'kernel', 'entry', 'exe.ts')],
+  outfile: BUNDLE,
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  // 单文件可执行只支持 CommonJS，因此内核的两个入口都不使用顶层 await
+  format: 'cjs',
+  logLevel: 'info',
+  banner: { js: '/* 由 scripts/build-kernel.mjs 生成，请勿手工修改 */' },
+});
+
+// 二、生成代码块
+writeFileSync(
+  SEA_CONFIG,
+  JSON.stringify(
+    {
+      main: BUNDLE,
+      output: BLOB,
+      disableExperimentalSEAWarning: true,
+    },
+    null,
+    2,
+  ),
+);
+run(process.execPath, ['--experimental-sea-config', SEA_CONFIG]);
+if (!existsSync(BLOB)) fail('未生成代码块');
+
+// 三、注入到 Node 运行时的副本
+copyFileSync(process.execPath, EXECUTABLE);
+run(
+  process.execPath,
+  [
+    join(ROOT, 'node_modules', 'postject', 'dist', 'cli.js'),
+    EXECUTABLE,
+    'NODE_SEA_BLOB',
+    BLOB,
+    '--sentinel-fuse',
+    SEA_FUSE,
+  ],
+  { quiet: true },
+);
+
+rmSync(WORK_DIR, { recursive: true, force: true });
+console.log(`内核可执行文件已生成：${EXECUTABLE}`);
