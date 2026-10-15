@@ -47,8 +47,19 @@ export const VALUE_OPTIONS = new Set([
   'host',
 ]);
 
-/** 可重复出现的取值选项 */
+/**
+ * 可重复出现的取值选项（显式声明；默认单值）。
+ *
+ * 当前仅 `scan` 的 `--root` 设计上可重复（语法标记为 `--root <路径>...`）。
+ * 未登记的取值选项与全部布尔选项在同一命令中重复出现时按参数类错误拒绝——
+ * 静默取最后值会悄悄丢弃用户写下的前一个取值。
+ */
 export const REPEATABLE_OPTIONS = new Set(['root']);
+
+/** 该选项是否设计为可重复（可在审计与测试中逐项核对） */
+export function isRepeatableOption(name: string): boolean {
+  return REPEATABLE_OPTIONS.has(name);
+}
 
 export interface ParsedArgs {
   command: string;
@@ -88,6 +99,17 @@ export function parseArgs(argv: string[]): ParseOutcome {
         continue;
       }
       if (BOOLEAN_OPTIONS.has(name)) {
+        if (options[name] === true) {
+          findings.push(
+            finding(CODES.INPUT_INVALID_ARG, {
+              source: 'input',
+              target: `--${name}`,
+              message: `选项重复给出：--${name}`,
+              remedy: '同一命令中每个选项只给一次；重复给出按参数类错误拒绝，不静默取最后值',
+            }),
+          );
+          continue;
+        }
         options[name] = true;
         continue;
       }
@@ -119,6 +141,17 @@ export function parseArgs(argv: string[]): ParseOutcome {
         const bucket = options[name];
         options[name] = Array.isArray(bucket) ? [...bucket, value] : [value];
       } else {
+        if (options[name] !== undefined) {
+          findings.push(
+            finding(CODES.INPUT_INVALID_ARG, {
+              source: 'input',
+              target: `--${name}`,
+              message: `选项重复给出：--${name}`,
+              remedy: '同一命令中每个选项只给一次；重复给出按参数类错误拒绝，不静默取最后值',
+            }),
+          );
+          continue;
+        }
         options[name] = value;
       }
       continue;

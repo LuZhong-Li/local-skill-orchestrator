@@ -80,31 +80,29 @@ test('收口审计：多宿主分发按调用次数独立完成，单次调用�
   assert.equal(existsSync(join(cursorRoot, 'multi-host-skill-two', 'SKILL.md')), true);
   assert.equal(existsSync(join(cursorRoot, 'multi-host-skill')), false, '分发按调用隔离');
 
-  // 同一命令内重复给出 --host：按参数解析的既有口径取最后取值（单值选项，多宿主用多次调用）
+  // 同一命令内重复给出 --host：按参数类错误拒绝，不静默取最后值（解析器硬化批次）
   const third = makeSource('repeated-host-skill');
-  assert.equal(
-    await call([
-      'install',
-      third,
-      '--workspace',
-      ws,
-      '--host',
-      'claude',
-      '--host',
-      'cursor',
-      '--yes',
-    ]),
-    0,
-  );
+  const repeated = await call([
+    'install',
+    third,
+    '--workspace',
+    ws,
+    '--host',
+    'claude',
+    '--host',
+    'cursor',
+    '--yes',
+  ]);
+  assert.notEqual(repeated, 0, '重复给出 --host 应按参数类错误拒绝');
   assert.equal(
     existsSync(join(cursorRoot, 'repeated-host-skill', 'SKILL.md')),
-    true,
-    '重复给出同名取值选项时按最后取值分发',
+    false,
+    '重复给出时不产生任何写入（不取最后值分发）',
   );
   assert.equal(
     existsSync(join(claudeRoot, 'repeated-host-skill')),
     false,
-    '前一个取值不生效（当前口径：单值选项后者覆盖前者）',
+    '重复给出时不产生任何写入（前一个取值同样不生效）',
   );
 });
 
