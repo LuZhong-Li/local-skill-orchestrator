@@ -10,6 +10,7 @@ import { CODES, finding, type Finding } from '../../store/contract.ts';
 import { KernelError } from '../../store/errors.ts';
 import { parseYaml } from '../../store/yaml/index.ts';
 import { META_FILE_NAME } from './constants.ts';
+import type { SkillRuntimeDependency } from './types.ts';
 
 export interface MetaRead {
   /** 解析成功时为顶层映射；失败时为 null */
@@ -39,6 +40,25 @@ export function declaredSkillsOf(raw: Record<string, unknown> | null): string[] 
  * 读取并解析一个 Skill 目录中的元文件。
  * label 用于问题定位，通常取 Skill 标识。
  */
+/**
+ * 取元文件声明的运行时依赖列表（名称 + 约束原文）。
+ *
+ * 返回空数组表示未声明运行时依赖或元文件不可用：运行时条目只影响依赖检查的呈现，
+ * 不参与记录结论，因此缺声明与读不到元文件都不构成问题（读取失败的问题由调用方单独呈现）。
+ * 声明的顺序即呈现顺序，名称相同的重复键在 YAML 解析阶段已被合并。
+ */
+export function declaredRuntimeOf(raw: Record<string, unknown> | null): SkillRuntimeDependency[] {
+  if (raw === null) return [];
+  const dependencies = raw['dependencies'];
+  if (dependencies === null || typeof dependencies !== 'object' || Array.isArray(dependencies)) {
+    return [];
+  }
+  const declared = (dependencies as Record<string, unknown>)['runtime'];
+  if (declared === null || typeof declared !== 'object' || Array.isArray(declared)) return [];
+  return Object.entries(declared as Record<string, unknown>)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    .map(([name, constraint]) => ({ name, constraint }));
+}
 export function readMetaFile(dir: string, label: string): MetaRead {
   const metaFile = join(dir, META_FILE_NAME);
   try {

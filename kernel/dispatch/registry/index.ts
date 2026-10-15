@@ -26,8 +26,9 @@ import {
 import { validateWorkspace, type ValidationReport } from '../../core/validation/index.ts';
 import { inspectSkill, listSkills, readConfig, toListEntry } from '../../core/index/query.ts';
 import { analyzeDependencies, splitDeclaration } from '../../core/dependency/index.ts';
+import { probeRuntimes } from '../../core/dependency/runtime.ts';
 import { exportIndex, importIndex } from '../../core/backup/index.ts';
-import { declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
+import { declaredRuntimeOf, declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import {
   ensureWorkspaceDirs,
@@ -742,12 +743,17 @@ const depsHandler: CommandHandler = async ({ args }) => {
   );
   const report = analyzeDependencies({ id, declared, availability, edges });
 
-  const all = [...findings, ...metaRead.findings, ...report.findings];
+  // 运行时维度：实时探测环境，结果只入载荷与报告，不写入索引与运行期结论
+  const runtime = await probeRuntimes(declaredRuntimeOf(metaRead.raw));
+
+  const all = [...findings, ...metaRead.findings, ...report.findings, ...runtime.findings];
   const result = buildResult('deps', all, [], {
     data: {
       id,
       declared_from: declaredFromMeta === null ? 'index' : 'meta',
       entries: report.entries,
+      runtime: runtime.entries,
+      runtime_probed: runtime.entries.length > 0,
       affected: report.affected,
       cycles: report.cycles,
       ...(flag(args, 'tree') ? { tree: dependencyTreeOf(id, edges, availability) } : {}),
@@ -758,6 +764,7 @@ const depsHandler: CommandHandler = async ({ args }) => {
    * 契约 4.13 规定「存在未满足的依赖时返回 6」，这是本指令的专属规定，
    * 按结果规范 5.2 的专属优先条款覆盖通用派生——通用派生只把 DEP 类别映射到 6，
    * 而「被依赖对象校验不通过」按 4.4 的对照表是校验类问题码，需要在这里一并归入未满足。
+   * 运行时类（`E-RUN-*`）已由通用派生归入依赖档，无需在此重复列出。
    */
   const unmet = all.some(
     (item) =>

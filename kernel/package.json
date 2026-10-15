@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "node-stream-zip": "^1.16.0",
+    "semver": "^7.8.5",
     "tar": "^7.5.22",
     "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/semver": "^7.8.0"
   }
 }

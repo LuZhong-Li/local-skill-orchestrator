@@ -26,6 +26,12 @@ export interface SkillDependencies {
   runtime?: Record<string, string>;
 }
 
+/** 元文件声明的一条外部运行时依赖：名称为可执行文件名，约束为语义化版本范围表达式 */
+export interface SkillRuntimeDependency {
+  name: string;
+  constraint: string;
+}
+
 /** 落位目标（元文件的声明区字段） */
 export interface SkillTarget {
   target: string;

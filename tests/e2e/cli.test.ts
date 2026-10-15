@@ -14,6 +14,8 @@ import { join } from 'node:path';
 import { run } from '../../kernel/entry/cli.ts';
 import type { Interaction } from '../../kernel/dispatch/policy/index.ts';
 import { parseYaml as parseYamlDocument } from '../../kernel/store/yaml/index.ts';
+import semver from 'semver';
+import { spawnSync } from 'node:child_process';
 
 function workspace(): string {
   const root = mkdtempSync(join(tmpdir(), 'sm-cli-'));
@@ -59,6 +61,27 @@ function interactionOf(answer: string, interactive = true) {
     read: (): Promise<string> => Promise.resolve(answer),
   };
   return { written, channel };
+}
+
+const CLI_ENTRY = join(
+  new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+  'kernel',
+  'entry',
+  'cli.ts',
+);
+
+/**
+ * 以真实子进程运行一次命令行入口，返回退出码与标准输出。
+ *
+ * 用于内含子进程的指令（如 `deps` 的运行时探测）：就地替换标准输出会把测试框架自己
+ * 写往同一管道的消息一并捕获进来，因此这类断言走真正独立的进程。
+ */
+function runCli(argv: string[], env?: Record<string, string>): { code: number; out: string } {
+  const result = spawnSync(process.execPath, [CLI_ENTRY, ...argv], {
+    encoding: 'utf8',
+    ...(env !== undefined ? { env: { ...process.env, ...env } } : {}),
+  });
+  return { code: result.status ?? -1, out: `${result.stdout ?? ''}${result.stderr ?? ''}` };
 }
 
 function skill(root: string, dir: string, meta: string, content = '# skill'): void {
@@ -1121,4 +1144,80 @@ test('验收：export 产物不含逐文件摘要，索引内仍保留该基准'
   assert.ok(!document.includes('digests'), '导出物中不含逐文件摘要');
   assert.match(document, /checksum: sha256:/, '聚合指纹仍在导出物中');
   assert.equal(readFileSync(indexPath(root), 'utf8'), indexText, '导出不改动索引');
+});
+
+test('验收：deps 呈现运行时维度，缺失的运行时返回退出码 6', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  skill(root, 'alpha', `${validMeta('alpha')}dependencies:\n  runtime:\n    node: ">=22.0.0"\n`);
+  skill(
+    root,
+    'beta',
+    `${validMeta('beta')}dependencies:\n  runtime:\n    skill-manager-no-such-runtime: ">=1.0.0"\n`,
+  );
+  assert.equal(await run(['scan', '--workspace', root]), 0, '运行时不参与校验结论');
+
+  const satisfied = runCli(['deps', 'alpha', '--workspace', root, '--json']);
+  assert.equal(satisfied.code, 0);
+  const okRuntime = (
+    JSON.parse(satisfied.out) as {
+      data: {
+        runtime: Array<{
+          name: string;
+          constraint: string;
+          status: string;
+          version: string | null;
+          command: string | null;
+          conclusion: string;
+        }>;
+      };
+    }
+  ).data.runtime;
+  assert.equal(okRuntime.length, 1, '载荷给出运行时条目');
+  assert.equal(okRuntime[0]?.name, 'node');
+  assert.equal(okRuntime[0]?.constraint, '>=22.0.0', '载荷保留期望约束原文');
+  assert.equal(okRuntime[0]?.status, 'ok');
+  assert.equal(okRuntime[0]?.version, semver.coerce(process.versions.node)?.version);
+  assert.ok((okRuntime[0]?.command ?? '').length > 0, '命中命令的位置一并呈现');
+
+  const missing = runCli(['deps', 'beta', '--workspace', root, '--json']);
+  assert.equal(missing.code, 6, '运行时缺失归入依赖档');
+  const missingResult = JSON.parse(missing.out) as {
+    findings: Array<{ code: string; target: string }>;
+    data: { runtime: Array<{ status: string; version: string | null }> };
+  };
+  assert.equal(missingResult.data.runtime[0]?.status, 'missing');
+  assert.equal(missingResult.data.runtime[0]?.version, null);
+  assert.deepEqual(
+    missingResult.findings.map((item) => item.code),
+    ['E-RUN-001'],
+  );
+});
+
+test('验收五：运行时缺失不改变 scan 与 validate 的判定，也不写入索引', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  skill(
+    root,
+    'gamma',
+    `${validMeta('gamma')}dependencies:\n  runtime:\n    skill-manager-no-such-runtime: ">=1.0.0"\n`,
+  );
+
+  assert.equal(await run(['scan', '--workspace', root]), 0, '运行时缺失不判失效');
+  const index = readFileSync(indexPath(root), 'utf8');
+  assert.ok(index.includes('status: ok'), '记录结论为校验通过');
+  assert.ok(!index.includes('skill-manager-no-such-runtime'), '探测结果不入索引');
+
+  const validation = await capture(['validate', '--workspace', root, '--json']);
+  assert.equal(validation.code, 0, 'validate 判定不受运行时影响');
+  assert.ok(
+    !(JSON.parse(validation.out) as { findings: Array<{ code: string }> }).findings.some((item) =>
+      item.code.startsWith('E-RUN-'),
+    ),
+    '校验报告不掺入运行时探测结论',
+  );
+
+  // 同一份环境里，依赖检查仍会把运行时问题如实报出来
+  assert.equal(runCli(['deps', 'gamma', '--workspace', root]).code, 6);
+  assert.equal(readFileSync(indexPath(root), 'utf8'), index, 'deps 不改动索引');
 });

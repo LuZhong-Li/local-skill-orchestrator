@@ -16,7 +16,10 @@ export type { Change, Finding, Result } from '../../store/contract.ts';
  *
  * 规则见契约 5.2 节，命中即停：
  * 无错误级问题 → 0；输入类 → 2；版本或索引或语法类 → 3；
- * 来源类 → 4；锁、文件系统与备份类 → 5；依赖类 → 6；其余 → 1。
+ * 来源类 → 4；锁、文件系统与备份类 → 5；依赖类与运行时类 → 6；其余 → 1。
+ *
+ * 运行时类归入依赖档：运行时不可用或版本不满足在语义上就是依赖未满足，
+ * 只是判定依据从索引换成了执行环境（元数据规范 3.3 与 5.3）。
  *
  * 指令另有专属退出码规定时优先于本函数，例如 validate 采用指令契约 4.12 的口径。
  */
@@ -29,7 +32,7 @@ export function exitCodeFor(findings: Finding[]): number {
   if (categories.has('VER') || categories.has('INDEX') || categories.has('YAML')) return 3;
   if (categories.has('SRC')) return 4;
   if (categories.has('LOCK') || categories.has('IO') || categories.has('BAK')) return 5;
-  if (categories.has('DEP')) return 6;
+  if (categories.has('DEP') || categories.has('RUN')) return 6;
   return 1;
 }
 
