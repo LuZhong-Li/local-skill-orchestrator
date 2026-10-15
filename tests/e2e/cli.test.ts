@@ -463,7 +463,8 @@ test('验收：--dry-run 不要求确认也不写盘，载荷含预演信息', a
   };
   assert.equal(result.preview, true);
   assert.equal(result.data.would_remove?.length, 1);
-  assert.equal(result.data.would_remove_file_count, 2, '应给出文件数量');
+  // 元文件的逐文件映射只列出 SKILL.md，副本因此只有一个文件
+  assert.equal(result.data.would_remove_file_count, 1, '应给出文件数量');
   assert.equal(result.data.backup_planned, true);
   assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '预演不得删除内容');
 });
@@ -635,10 +636,7 @@ test('验收：本批五条指令执行前后索引文件字节完全一致', as
 test('验收：enable 按需补齐副本并更新索引状态，disable 只改名', async () => {
   const root = await readonlyWorkspace();
   assert.equal(await run(['enable', 'alpha', '--workspace', root]), 0);
-  assert.deepEqual(readdirSync(join(root, '.claude', 'skills', 'alpha')).sort(), [
-    'SKILL.md',
-    'skill_meta.yaml',
-  ]);
+  assert.deepEqual(readdirSync(join(root, '.claude', 'skills', 'alpha')).sort(), ['SKILL.md']);
   assert.ok(
     readFileSync(indexPath(root), 'utf8').includes('status: enabled'),
     '索引状态应已是已启用',
@@ -647,7 +645,6 @@ test('验收：enable 按需补齐副本并更新索引状态，disable 只改�
   assert.equal(await run(['disable', 'alpha', '--workspace', root]), 0);
   assert.deepEqual(readdirSync(join(root, '.claude', 'skills', 'alpha')).sort(), [
     'SKILL.md.disabled',
-    'skill_meta.yaml',
   ]);
   assert.equal(await run(['disable', 'alpha', '--workspace', root]), 0, '重复禁用幂等');
   assert.equal(await run(['enable', 'alpha', '--workspace', root]), 0);

@@ -25,6 +25,7 @@ import {
   VALIDATION_STATUS_VALUES,
 } from './constants.ts';
 import type { SkillMeta } from './types.ts';
+import { copyPathOf, matchesConvention } from './targets.ts';
 import { CODES, finding, type Finding } from '../../store/contract.ts';
 import { isChecksumFormat } from '../integrity/index.ts';
 
@@ -315,6 +316,18 @@ export function validateTargets(targets: unknown, ctx: MetaContext): Finding[] {
       );
     }
     seen.add(name);
+    // 落位路径必须与目标落位根约定一致：副本定位依赖该约定，不能由元文件自由指定
+    const declaredPath = entry['path'];
+    if (isNonEmptyString(declaredPath) && !matchesConvention(declaredPath, name, ctx.dirName)) {
+      findings.push(
+        finding(CODES.FIELD_INVALID_VALUE, {
+          source: 'meta',
+          target: `${ctx.dirName}.targets.${name}.path`,
+          message: `落位路径与目标落位根约定不一致：${declaredPath}`,
+          remedy: `目标 ${name} 的落位路径应为 ${copyPathOf(name, ctx.dirName)}；副本定位依赖该约定`,
+        }),
+      );
+    }
     if (!TARGET_SCOPE_VALUES.includes(entry['scope'] as (typeof TARGET_SCOPE_VALUES)[number])) {
       findings.push(
         finding(CODES.FIELD_INVALID_VALUE, {

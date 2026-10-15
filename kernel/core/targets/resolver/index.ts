@@ -1,14 +1,12 @@
 /**
  * K-10 目标适配：目标位置解析。
  *
- * 一期只做最小解析：读取元文件中声明的落位目标，把其中的相对落位路径解析为
- * 工作区内的绝对路径，并保持声明顺序。
- *
- * 需要说明的边界：契约规定落位路径必须是相对路径、禁止绝对路径，但**未规定它相对哪个根**。
- * 由于路径防护要求所有路径落在工作区之内，一期把落位路径解析为「相对工作区根目录」，
- * 即受控副本创建在工作区内。真实宿主目录位于工作区之外，其部署方式待落位根的定义明确后再实现。
+ * 副本位置由目标落位根约定推导（工作区根 + 目标标识 + Skill 标识），**不读取元文件中声明的路径**：
+ * 这样即使中心库原件缺失，卸载与启用禁用仍能定位并回收副本。
+ * 元文件声明的路径只用于一致性校验与对外呈现，解析结果与它不一致时由元数据校验负责报告。
  */
 import { join } from 'node:path';
+import { copyPathOf, targetRootOf } from '../../metadata/targets.ts';
 import type { SkillMeta, SkillTarget } from '../../metadata/types.ts';
 import { resolveWithin } from '../../../store/paths/index.ts';
 
@@ -29,11 +27,32 @@ export function resolveTargets(workspaceRoot: string, meta: SkillMeta): Resolved
     target: entry.target,
     scope: entry.scope,
     enabled: entry.enabled === true,
-    absolutePath: resolveWithin(workspaceRoot, entry.path, '工作区'),
+    // 以约定为准，而不是以元文件声明的路径为准
+    absolutePath: resolveWithin(workspaceRoot, copyPathOf(entry.target, meta.id), '工作区'),
     declaredPath: entry.path,
     fileMap: entry.file_map ?? {},
   }));
 }
+
+/** 按约定解析某个目标下的副本位置；不依赖元文件，供原件缺失时的回收路径使用 */
+export function resolveTargetById(
+  workspaceRoot: string,
+  target: string,
+  id: string,
+  scope: SkillTarget['scope'] = 'global',
+  enabled = true,
+): ResolvedTarget {
+  return {
+    target,
+    scope,
+    enabled,
+    absolutePath: resolveWithin(workspaceRoot, copyPathOf(target, id), '工作区'),
+    declaredPath: copyPathOf(target, id),
+    fileMap: {},
+  };
+}
+
+export { targetRootOf, copyPathOf };
 
 /** 中心库中原件的存放路径 */
 export function libraryPathOf(workspaceRoot: string, id: string): string {

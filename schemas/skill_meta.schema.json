@@ -105,7 +105,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["target", "scope", "path", "mode", "enabled", "file_map"],
+        "required": ["target", "scope", "path", "mode", "enabled"],
         "additionalProperties": false,
         "properties": {
           "target": {
@@ -132,7 +132,7 @@
             "type": "object",
             "minProperties": 1,
             "additionalProperties": { "type": "string", "minLength": 1 },
-            "description": "逐文件的来源与落位对应关系，供卸载时精确回收"
+            "description": "逐文件的来源与落位对应关系：键为原件内的相对路径，值为副本目录下的相对路径。缺省表示整目录复制；提供时只落位映射表列出的文件"
           }
         }
       }

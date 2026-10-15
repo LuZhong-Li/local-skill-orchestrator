@@ -8,7 +8,7 @@
  * 本体只提供副本层面的可见性切换原语，不负责决定哪个目录是副本——
  * 该判断由调用方依据索引中的落位目标给出。
  */
-import { cpSync, existsSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { KernelError } from '../errors.ts';
 import { CODES } from '../contract.ts';
@@ -138,4 +138,82 @@ export function removeTree(target: string): void {
       cause: error,
     });
   }
+}
+
+export interface DeliveryPlanEntry {
+  /** 原件内的相对路径 */
+  source: string;
+  /** 副本目录下的相对路径 */
+  destination: string;
+}
+
+/**
+ * 把一次落位计划写进副本目录。
+ *
+ * 计划为空表示整目录复制（元文件未提供 `file_map` 的缺省行为）：保持相对路径不变整体复制。
+ * 计划非空表示逐文件映射：只落位列出的文件。
+ * 返回实际落位的副本内相对路径列表，供载荷逐文件呈现。
+ *
+ * 调用方必须已用 K-07 的冲突检测检查过计划；本函数只负责执行，并在源文件缺失或读写失败时抛错。
+ */
+export function deliverFiles(
+  sourceDir: string,
+  destDir: string,
+  plan: DeliveryPlanEntry[],
+): string[] {
+  if (plan.length === 0) {
+    copyTree(sourceDir, destDir);
+    return listTreeFiles(destDir);
+  }
+
+  const delivered: string[] = [];
+  for (const entry of plan) {
+    const from = join(sourceDir, ...entry.source.split('/'));
+    const to = join(destDir, ...entry.destination.split('/'));
+    try {
+      if (!statSync(from).isFile()) {
+        throw new KernelError({
+          code: CODES.PATH_INVALID,
+          message: `落位计划中的源文件不存在或不是文件：${entry.source}`,
+          source: 'library-fs',
+          target: entry.source,
+          remedy: '请修正 file_map 中的源路径，或把该文件放回原件目录',
+        });
+      }
+      mkdirSync(join(to, '..'), { recursive: true });
+      cpSync(from, to, { force: true });
+      delivered.push(entry.destination);
+    } catch (error) {
+      if (error instanceof KernelError) throw error;
+      throw new KernelError({
+        code: CODES.IO_FAILED,
+        message: `落位失败：${entry.source} → ${entry.destination}：${error instanceof Error ? error.message : String(error)}`,
+        source: 'library-fs',
+        target: entry.destination,
+        remedy: '请检查副本目录是否可写，并确认源文件存在',
+        cause: error,
+      });
+    }
+  }
+  return delivered.sort();
+}
+
+/** 列出目录内的全部普通文件，返回相对路径（正斜杠分隔）并排序 */
+export function listTreeFiles(root: string, base = '', collected: string[] = []): string[] {
+  let entries;
+  try {
+    entries = readdirSync(join(root, base), { withFileTypes: true });
+  } catch {
+    return collected.sort();
+  }
+  for (const entry of entries) {
+    const rel = base === '' ? entry.name : `${base}/${entry.name}`;
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) {
+      listTreeFiles(root, rel, collected);
+      continue;
+    }
+    if (entry.isFile()) collected.push(rel);
+  }
+  return collected.sort();
 }

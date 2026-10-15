@@ -124,7 +124,8 @@ test('K-04 启用：副本缺失时按需补齐，并把索引状态与目标摘
 
   const outcome = enableSkill({ layout, index, id: 'good', now: LATER });
   assert.deepEqual(outcome.findings, []);
-  assert.deepEqual(copyNames(root, 'good'), ['SKILL.md', 'skill_meta.yaml'], '副本被补齐');
+  // 元文件提供的逐文件映射只列出 SKILL.md，因此副本只落这一个文件
+  assert.deepEqual(copyNames(root, 'good'), ['SKILL.md'], '副本按映射被补齐');
   const record = outcome.index.skills.find((item) => item.id === 'good');
   assert.equal(record?.status, 'enabled');
   assert.equal(record?.targets[0]?.enabled, true);
@@ -140,10 +141,10 @@ test('K-04 启用：副本处于禁用态时把技能元数据文件改回原名
   const { root, layout, index } = scenario();
   const enabled = enableSkill({ layout, index, id: 'good', now: LATER });
   const disabled = disableSkill({ layout, index: enabled.index, id: 'good', now: LATER });
-  assert.deepEqual(copyNames(root, 'good'), ['SKILL.md.disabled', 'skill_meta.yaml']);
+  assert.deepEqual(copyNames(root, 'good'), ['SKILL.md.disabled']);
 
   const again = enableSkill({ layout, index: disabled.index, id: 'good', now: LATER });
-  assert.deepEqual(copyNames(root, 'good'), ['SKILL.md', 'skill_meta.yaml']);
+  assert.deepEqual(copyNames(root, 'good'), ['SKILL.md']);
   assert.equal(again.index.skills.find((item) => item.id === 'good')?.status, 'enabled');
 });
 
@@ -171,7 +172,7 @@ test('K-04 禁用：不改动任何内容文件，也不触发内容分发', () 
   assert.deepEqual(logical(after), before, '没有内容文件被增删');
   assert.equal(after.length, before.length, '文件数量不变');
   assert.ok(after.includes('SKILL.md.disabled'), '只把技能元数据文件改为禁用态');
-  assert.ok(after.includes('skill_meta.yaml'), '其余文件保持原名');
+  assert.ok(after.includes('SKILL.md.disabled'), '技能元数据文件改为禁用态');
   assert.equal(
     outcome.changes.filter((item) => item.kind === 'target_copy').length,
     0,

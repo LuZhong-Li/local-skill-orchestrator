@@ -329,6 +329,29 @@ const installHandler: CommandHandler = async ({ args, now, interaction }) => {
       }),
     ]);
   }
+  // --mode 的取值域由契约定义（copy 或 link），但一期只实现副本方式
+  const mode = option(args, 'mode');
+  if (mode !== undefined && mode !== 'copy') {
+    return buildResult('install', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--mode',
+        message: `一期只支持副本落位，不接受 --mode ${mode}`,
+        remedy: '请省略 --mode，或显式给出 copy；链接方式属后续迭代',
+      }),
+    ]);
+  }
+  const scope = option(args, 'scope');
+  if (scope !== undefined && scope !== 'global' && scope !== 'project') {
+    return buildResult('install', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--scope',
+        message: `作用域取值非法：${scope}`,
+        remedy: '仅允许 global 或 project',
+      }),
+    ]);
+  }
   try {
     return await withLock(layout.indexFile, async () => {
       const loaded = loadIndex(layout.indexFile);
@@ -348,6 +371,10 @@ const installHandler: CommandHandler = async ({ args, now, interaction }) => {
         sourcePath: source,
         now,
         libraryOnly: flag(args, 'library-only'),
+        ...(option(args, 'target') !== undefined
+          ? { target: option(args, 'target') as string }
+          : {}),
+        ...(scope !== undefined ? { scope } : {}),
       };
 
       // 需要确认且不是预演时，先跑一次只读预览取得影响范围
@@ -956,23 +983,13 @@ const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
       }),
     ]);
   }
-  if (option(args, 'target') !== undefined) {
-    // 一期 update 只刷新记录，不重分发副本，因此没有目标维度
-    return buildResult('update', [
-      finding(CODES.INPUT_INVALID_ARG, {
-        source: 'input',
-        target: '--target',
-        message: '一期 update 只刷新索引记录，不重分发副本，该选项没有可用语义',
-        remedy: '请省略 --target；副本刷新与来源扩展同批实现',
-      }),
-    ]);
-  }
   const { index, findings, missing } = loadForWrite(layout);
   if (index === null) return unreadableIndex('update', layout, findings, missing);
 
   const check = flag(args, 'check');
+  const updateTarget = option(args, 'target');
   if (!check) {
-    const preview = updateSkill({ layout, index, id, now, check: true });
+    const preview = updateSkill({ layout, index, id, now, check: true, target: updateTarget });
     const blocked = await confirmationGate({
       command: 'update',
       args,
@@ -985,7 +1002,7 @@ const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
     if (blocked !== null) return blocked;
   }
 
-  const outcome = updateSkill({ layout, index, id, now, check });
+  const outcome = updateSkill({ layout, index, id, now, check, target: updateTarget });
   if (!check && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
   return buildResult('update', [...findings, ...outcome.findings], outcome.changes, {
     data: outcome.data,

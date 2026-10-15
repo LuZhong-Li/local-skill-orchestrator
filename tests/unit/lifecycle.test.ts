@@ -30,7 +30,7 @@ function workspace(): string {
 /** 造一份可安装的来源目录 */
 function sourceSkill(
   id: string,
-  options: { extra?: string; content?: string; status?: string } = {},
+  options: { extra?: string; content?: string; status?: string; targetPath?: string } = {},
 ): string {
   const dir = mkdtempSync(join(tmpdir(), 'sm-src-'));
   writeFileSync(join(dir, 'SKILL.md'), options.content ?? '# skill');
@@ -46,7 +46,7 @@ function sourceSkill(
       'targets:',
       '  - target: claude',
       '    scope: global',
-      `    path: .claude/skills/${id}`,
+      `    path: ${options.targetPath ?? `.claude/skills/${id}`}`,
       '    mode: copy',
       '    enabled: true',
       '    file_map:',
@@ -235,10 +235,11 @@ test('验收六：卸载不存在的标识返回输入类错误', () => {
   assert.equal(outcome.index.skills.length, 0);
 });
 
-test('冲突：落位路径重复时拒绝安装', () => {
+test('冲突：逐文件映射把两个来源写到同一目标时拒绝安装', () => {
   const root = workspace();
   const source = mkdtempSync(join(tmpdir(), 'sm-src-dup-'));
   writeFileSync(join(source, 'SKILL.md'), '# x');
+  writeFileSync(join(source, 'extra.md'), '# y');
   writeFileSync(
     join(source, 'skill_meta.yaml'),
     [
@@ -254,11 +255,9 @@ test('冲突：落位路径重复时拒绝安装', () => {
       '    path: .claude/skills/dup-target',
       '    mode: copy',
       '    enabled: true',
-      '  - target: codex',
-      '    scope: global',
-      '    path: .claude/skills/dup-target',
-      '    mode: copy',
-      '    enabled: true',
+      '    file_map:',
+      '      SKILL.md: same.md',
+      '      extra.md: same.md',
       '',
     ].join('\n'),
   );
@@ -270,6 +269,20 @@ test('冲突：落位路径重复时拒绝安装', () => {
   });
   assert.ok(codesOf(outcome.findings).includes(CODES.CONFLICT_MAPPING));
   assert.equal(outcome.data['rejected'], 'conflict');
+});
+
+test('冲突：落位路径与目标落位根约定不一致时拒绝登记', () => {
+  const root = workspace();
+  const outcome = installSkill({
+    layout: layoutOf(root),
+    index: emptyIndex(),
+    sourcePath: sourceSkill('code-review', {
+      targetPath: '.custom/skills/code-review',
+    }),
+    now: NOW,
+  });
+  assert.deepEqual(codesOf(outcome.findings), [CODES.FIELD_INVALID_VALUE]);
+  assert.match(String(outcome.findings[0]?.remedy), /\.claude\/skills\/code-review/);
 });
 
 test('冲突：目标位置已被同名目录占用时拒绝安装', () => {
@@ -385,7 +398,15 @@ test('预演：卸载不删除任何文件，原样返回索引并列出将删�
   assert.equal(outcome.index, installed.index, '预演必须原样返回索引');
   assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '预演不得清理副本');
   assert.ok(existsSync(join(root, 'skills', 'code-review', 'SKILL.md')), '预演不得删除原件');
-  assert.deepEqual(outcome.data['would_remove'], [join(root, '.claude', 'skills', 'code-review')]);
+  // 影响范围统一用相对工作区的路径表达，便于跨机器阅读
+  assert.deepEqual(outcome.data['would_remove'], ['.claude/skills/code-review']);
+  assert.deepEqual(outcome.data['would_remove_detail'], [
+    {
+      path: '.claude/skills/code-review',
+      file_count: 1,
+      files: ['.claude/skills/code-review/SKILL.md'],
+    },
+  ]);
 });
 
 test('备份：卸载默认生成备份，载荷含备份位置、时间戳与文件数', () => {
@@ -489,7 +510,7 @@ test('备份：重复卸载已移除的标识不产生新的备份', () => {
   assert.equal(dirs.length, 1, '只在第一次卸载时产生备份');
 });
 
-test('备份：中心库原件不存在时无备份可做，仍允许清理索引记录', () => {
+test('备份：中心库原件不存在时无备份可做，副本仍按约定被回收', () => {
   const root = workspace();
   const installed = installSkill({
     layout: layoutOf(root),
@@ -508,9 +529,12 @@ test('备份：中心库原件不存在时无备份可做，仍允许清理索�
   assert.equal(outcome.data['backup_path'], undefined);
   assert.match(String(outcome.data['backup_reason']), /没有可备份的内容/);
   assert.equal(outcome.index.skills.length, 0, '记录仍应被移除');
-  // 落位路径只存在于中心库原件的元文件里，原件缺失时无法确定副本位置
-  assert.ok(codesOf(outcome.findings).includes(CODES.HASH_MISSING), '应报告无法确定副本位置');
-  assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review')), '副本位置不可知，保留原状');
+  // 副本位置由目标落位根约定推导，不依赖原件是否存在——这正是 N-09 要解决的场景
+  assert.deepEqual(outcome.findings, [], '不再因为原件缺失而无法定位副本');
+  assert.deepEqual(outcome.data['removed_copies'], ['.claude/skills/code-review']);
+  assert.deepEqual(outcome.data['removed_files'], ['.claude/skills/code-review/SKILL.md']);
+  assert.equal(outcome.data['removed_file_count'], 1);
+  assert.ok(!existsSync(join(root, '.claude', 'skills', 'code-review')), '副本已被回收');
 });
 
 test('备份：预演不产生备份', () => {

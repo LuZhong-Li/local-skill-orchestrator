@@ -1,36 +1,54 @@
 /**
  * K-07 冲突检测服务。
  *
- * 本批次实现安装与卸载路径上必需的三类冲突中的两类：
+ * 三类冲突：
  *   命名冲突：同一标识已存在于索引（由生命周期编排在更早一步拦截并给出专用问题码）；
- *   落位映射冲突：同一 Skill 的多个目标解析到同一路径；
- *   目标占用冲突：目标路径已被既有的非本工具内容占用。
+ *   落位映射冲突：逐文件映射表本身不自洽——同一目标被多个条目占用、或目标越出副本目录；
+ *   目标占用冲突：副本目录已被既有的非本工具内容占用。
  *
  * 本模块只报告，不处置。
  */
+import { isAbsolute } from 'node:path';
 import { isDirectory, pathExists } from '../../store/library-fs/index.ts';
 import { CODES, finding, type Finding } from '../../store/contract.ts';
 import type { ResolvedTarget } from '../targets/resolver/index.ts';
 
-/** 检测同一 Skill 内部的落位路径是否重复 */
+/**
+ * 检测逐文件映射表是否自洽。
+ * 目标落位根约定已经消除了「不同目标解析到同一路径」的可能，因此这里的映射冲突
+ * 只可能来自映射表内部：多个条目写入同一目标，或目标路径越出副本目录。
+ */
 export function detectMappingConflicts(id: string, targets: ResolvedTarget[]): Finding[] {
-  const seen = new Map<string, string>();
   const findings: Finding[] = [];
   for (const target of targets) {
-    const key = target.absolutePath.toLowerCase();
-    const previous = seen.get(key);
-    if (previous !== undefined) {
-      findings.push(
-        finding(CODES.CONFLICT_MAPPING, {
-          source: 'conflict',
-          target: id,
-          message: `落位映射冲突：目标 ${previous} 与 ${target.target} 解析到同一路径`,
-          remedy: '请修改其中一个目标的落位路径后再试',
-        }),
-      );
-      continue;
+    const seen = new Map<string, string>();
+    for (const [source, destination] of Object.entries(target.fileMap)) {
+      const normalized = String(destination).replace(/\\/g, '/');
+      if (normalized === '' || isAbsolute(normalized) || normalized.split('/').includes('..')) {
+        findings.push(
+          finding(CODES.PATH_INVALID, {
+            source: 'conflict',
+            target: `${id}.targets.${target.target}.file_map`,
+            message: `落位映射的目标路径非法：${source} → ${String(destination)}`,
+            remedy: '目标应为副本目录之下的相对路径，禁止绝对路径与上级目录跳转',
+          }),
+        );
+        continue;
+      }
+      const previous = seen.get(normalized);
+      if (previous !== undefined) {
+        findings.push(
+          finding(CODES.CONFLICT_MAPPING, {
+            source: 'conflict',
+            target: `${id}.targets.${target.target}.file_map`,
+            message: `落位映射冲突：${previous} 与 ${source} 都写入 ${normalized}`,
+            remedy: '请让每个目标路径只对应一个源文件',
+          }),
+        );
+        continue;
+      }
+      seen.set(normalized, source);
     }
-    seen.set(key, target.target);
   }
   return findings;
 }

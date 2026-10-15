@@ -17,16 +17,24 @@ import { readMetaFile } from '../metadata/read.ts';
 import { computeChecksum } from '../integrity/index.ts';
 import { detectMappingConflicts, detectOccupationConflicts } from '../conflict/index.ts';
 import { backupBeforeUninstall } from '../backup/index.ts';
-import { libraryPathOf, resolveTargets, type ResolvedTarget } from '../targets/resolver/index.ts';
+import {
+  libraryPathOf,
+  resolveTargetById,
+  resolveTargets,
+  type ResolvedTarget,
+} from '../targets/resolver/index.ts';
 import {
   countTreeFiles,
   copyTree,
+  deliverFiles,
   isCopyDisabled,
+  listTreeFiles,
   pathExists,
   removeTree,
   setCopyVisibility,
 } from '../../store/library-fs/index.ts';
 import { parseYaml } from '../../store/yaml/index.ts';
+import { toPortablePath } from '../../store/paths/index.ts';
 import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
 import { KernelError } from '../../store/errors.ts';
 import { toKernelError } from '../../store/errors.ts';
@@ -47,11 +55,14 @@ export interface InstallInput {
   /** 来源：本地目录，或指向 skill_meta.yaml 的文件路径，均为工作区内或显式给出的路径 */
   sourcePath: string;
   now: string;
+  /** 只向指定目标分发；省略时分发到全部声明的目标 */
   target?: string;
   /** 仅落库：只写中心库与登记记录，不分发到目标位置，状态置为已禁用 */
   libraryOnly?: boolean;
   /** 预演：返回将要发生的变更，不写入任何文件 */
   dryRun?: boolean;
+  /** 只向指定作用域的目标分发 */
+  scope?: string;
 }
 
 export interface UninstallInput {
@@ -91,7 +102,7 @@ function locateMetaFile(sourcePath: string): { metaFile: string; sourceDir: stri
 
 /** 安装：校验、依赖检查、冲突检测、写入中心库、创建副本、登记索引 */
 export function installSkill(input: InstallInput): LifecycleOutcome {
-  const { layout, index, sourcePath, now, libraryOnly, dryRun } = input;
+  const { layout, index, sourcePath, now, libraryOnly, dryRun, target, scope } = input;
   const workspaceRoot = layout.root;
   const findings: Finding[] = [];
   const changes: Change[] = [];
@@ -235,8 +246,30 @@ export function installSkill(input: InstallInput): LifecycleOutcome {
       data: {},
     };
   }
-  findings.push(...detectMappingConflicts(id, targets));
-  findings.push(...detectOccupationConflicts(id, targets));
+  // 五之后：按选项选定本次实际分发的目标
+  const selected = targets.filter(
+    (item) =>
+      (target === undefined || item.target === target) &&
+      (scope === undefined || item.scope === scope),
+  );
+  if ((target !== undefined || scope !== undefined) && selected.length === 0) {
+    return {
+      index,
+      findings: [
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: target ?? scope ?? '',
+          message: '指定的目标或作用域没有匹配到该 Skill 声明的落位目标',
+          remedy: `请从声明的目标中挑选：${targets.map((item) => item.target).join('、') || '（无）'}`,
+        }),
+      ],
+      changes: [],
+      data: {},
+    };
+  }
+
+  findings.push(...detectMappingConflicts(id, selected));
+  findings.push(...detectOccupationConflicts(id, selected));
   if (findings.some((item) => item.severity === 'error')) {
     return {
       index,
@@ -281,7 +314,7 @@ export function installSkill(input: InstallInput): LifecycleOutcome {
       data: {
         preview: true,
         id,
-        library_path: libraryDir,
+        library_path: toPortablePath(layout.root, libraryDir),
         library_only: libraryOnly === true,
         // 契约 4.7 行为 7：安装登记时状态置为已启用；仅落库时置为已禁用
         status: libraryOnly === true ? 'disabled' : 'enabled',
@@ -307,13 +340,22 @@ export function installSkill(input: InstallInput): LifecycleOutcome {
   }
 
   const created: string[] = [];
+  const delivered: Array<Record<string, unknown>> = [];
   // 仅落库：不分发到目标位置，副本留待启用指令补齐
-  for (const target of libraryOnly === true ? [] : targets) {
+  for (const item of libraryOnly === true ? [] : selected) {
     try {
-      copyTree(libraryDir, target.absolutePath);
-      if (!target.enabled) setCopyVisibility(target.absolutePath, false);
-      created.push(target.absolutePath);
-      changes.push({ action: 'add', kind: 'target_copy', path: target.absolutePath });
+      const files = deliverFiles(libraryDir, item.absolutePath, planOf(item.fileMap));
+      if (!item.enabled) setCopyVisibility(item.absolutePath, false);
+      created.push(item.absolutePath);
+      changes.push({ action: 'add', kind: 'target_copy', path: item.absolutePath });
+      delivered.push({
+        target: item.target,
+        scope: item.scope,
+        path: item.declaredPath,
+        file_count: files.length,
+        // 逐文件落位计划：预演与实装呈现同一份列表
+        files: files.map((rel) => `${item.declaredPath}/${rel}`),
+      });
     } catch (error) {
       // 回滚：删掉本次已创建的副本与中心库内容，环境回到起点
       for (const path of created) removeTree(path);
@@ -329,7 +371,7 @@ export function installSkill(input: InstallInput): LifecycleOutcome {
   }
 
   // 九、登记索引：派生区由内核写入
-  const record: IndexRecord = toIndexRecord(meta, targets, checksum, now, libraryOnly === true);
+  const record: IndexRecord = toIndexRecord(meta, selected, checksum, now, libraryOnly === true);
   const next: SkillIndex = {
     ...index,
     generated_at: now,
@@ -342,9 +384,11 @@ export function installSkill(input: InstallInput): LifecycleOutcome {
     changes,
     data: {
       id,
-      library_path: libraryDir,
+      library_path: toPortablePath(layout.root, libraryDir),
       library_only: libraryOnly === true,
-      targets: describeTargets(targets, libraryOnly === true),
+      targets: describeTargets(selected, libraryOnly === true),
+      delivery: delivered,
+      selected_targets: selected.map((item) => item.target),
       checksum,
       status: record.validation.status,
       record_status: record.status,
@@ -378,36 +422,36 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
   const removed: string[] = [];
   let removedFiles = 0;
 
-  // 一、从中心库原件读回落位路径：索引只保留目标摘要，落位路径只存在于元文件里
+  // 一、按目标落位根约定定位副本：只依赖索引中的目标摘要与 Skill 标识，
+  //     因此中心库原件缺失时仍能回收副本（N-09 的解决点）
   const libraryDir = libraryPathOf(workspaceRoot, id);
-  const libraryMetaFile = join(libraryDir, META_FILE_NAME);
-  let copies: ResolvedTarget[] = [];
-  if (existsSync(libraryMetaFile)) {
-    try {
-      const raw = parseYaml(readFileSync(libraryMetaFile, 'utf8'), {
-        source: 'meta',
-        target: libraryMetaFile,
-      });
-      copies = resolveTargets(workspaceRoot, raw as unknown as SkillMeta);
-    } catch (error) {
-      findings.push(toFinding(toKernelError(error, CODES.YAML_INVALID)));
-    }
-  } else {
-    findings.push(
-      finding(CODES.HASH_MISSING, {
-        source: 'lifecycle',
-        target: id,
-        message: '中心库原件中缺少元文件，无法确定副本位置',
-        remedy: '请手工确认并清理该 Skill 在各目标位置的副本',
-      }),
+  let copies: ResolvedTarget[];
+  try {
+    copies = record.targets.map((item) =>
+      resolveTargetById(workspaceRoot, item.target, id, item.scope, item.enabled),
     );
+  } catch (error) {
+    return {
+      index,
+      findings: [toFinding(toKernelError(error, CODES.PATH_INVALID))],
+      changes: [],
+      data: {},
+    };
   }
 
   // 二、预演：列出将被删除与将被保留的路径，不执行任何删除
   if (dryRun === true) {
     const detail = copies
-      .map((item) => ({ path: item.absolutePath, file_count: countTreeFiles(item.absolutePath) }))
-      .filter((item) => pathExists(item.path));
+      .filter((item) => pathExists(item.absolutePath))
+      .map((item) => {
+        const files = listTreeFiles(item.absolutePath);
+        return {
+          path: item.declaredPath,
+          file_count: files.length,
+          // N-06：影响范围落到逐文件粒度
+          files: files.map((rel) => `${item.declaredPath}/${rel}`),
+        };
+      });
     const wouldRemove = detail.map((item) => item.path);
     const planned: Change[] = wouldRemove.map((path): Change => ({
       action: 'remove',
@@ -433,7 +477,7 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
         would_remove_file_count:
           detail.reduce((sum, item) => sum + item.file_count, 0) + libraryFiles,
         library_kept: hard !== true,
-        library_path: libraryDir,
+        library_path: toPortablePath(layout.root, libraryDir),
         system_disabled: isCopyDisabled(libraryDir),
         backup_planned: true,
       },
@@ -452,14 +496,18 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
   }
 
   // 四、清理副本：失败则中止，索引与原件都不动
-  for (const target of copies) {
-    const copyPath = target.absolutePath;
+  const removedFilePaths: string[] = [];
+  for (const item of copies) {
+    const copyPath = item.absolutePath;
     if (!pathExists(copyPath)) continue;
     try {
-      // 文件数量必须在删除前统计
-      removedFiles += countTreeFiles(copyPath);
+      // 逐文件路径必须在删除前统计（N-06）
+      const files = listTreeFiles(copyPath).map((rel) => `${item.declaredPath}/${rel}`);
       removeTree(copyPath);
-      removed.push(copyPath);
+      removedFilePaths.push(...files);
+      removedFiles += files.length;
+      // 载荷里的位置统一用相对工作区的可移植路径，便于跨机器阅读
+      removed.push(item.declaredPath);
       changes.push({ action: 'remove', kind: 'target_copy', path: copyPath });
     } catch (error) {
       const kernelError = toKernelError(error, CODES.IO_FAILED);
@@ -505,9 +553,11 @@ export function uninstallSkill(input: UninstallInput): LifecycleOutcome {
     data: {
       id,
       removed_copies: removed,
+      // N-06：影响范围落到逐文件粒度
+      removed_files: removedFilePaths,
       removed_file_count: removedFiles,
       library_kept: hard !== true,
-      library_path: libraryDir,
+      library_path: toPortablePath(layout.root, libraryDir),
       system_disabled: isCopyDisabled(libraryDir),
       ...backup.data,
     },
@@ -591,28 +641,60 @@ export interface ToggleInput {
   dryRun?: boolean;
 }
 
-/** 读取中心库原件的元文件，解析出落位目标；失败时返回问题清单 */
-function declaredTargetsOf(
-  layout: WorkspaceLayout,
-  id: string,
-  target: string | undefined,
-  scope: string | undefined,
-): { targets: ResolvedTarget[]; findings: Finding[] } {
-  const libraryDir = libraryPathOf(layout.root, id);
-  const read = readMetaFile(libraryDir, id);
-  if (read.raw === null) return { targets: [], findings: read.findings };
-  try {
-    const all = resolveTargets(layout.root, read.raw as unknown as SkillMeta);
-    const selected = all.filter(
-      (item) =>
-        (target === undefined || item.target === target) &&
-        (scope === undefined || item.scope === scope),
-    );
-    return { targets: selected, findings: [] };
-  } catch (error) {
-    const kernelError = toKernelError(error, CODES.PATH_INVALID);
-    return { targets: [], findings: [toFinding(kernelError)] };
+/**
+ * 由索引记录推导落位目标（副本位置按约定算出，不依赖中心库原件是否存在），
+ * 并尽力读取原件元文件补上逐文件映射；元文件缺失不构成失败，此时按整目录复制处理。
+ */
+function targetsOfRecord(input: {
+  layout: WorkspaceLayout;
+  record: IndexRecord;
+  target?: string | undefined;
+  scope?: string | undefined;
+}): { targets: ResolvedTarget[]; findings: Finding[] } {
+  const { layout, record, target, scope } = input;
+  const read = readMetaFile(libraryPathOf(layout.root, record.id), record.id);
+  const maps = new Map<string, Record<string, string>>();
+  if (read.raw !== null) {
+    const declared = read.raw['targets'];
+    if (Array.isArray(declared)) {
+      for (const entry of declared) {
+        if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) continue;
+        const item = entry as Record<string, unknown>;
+        const name = item['target'];
+        const map = item['file_map'];
+        if (typeof name !== 'string') continue;
+        if (map !== null && typeof map === 'object' && !Array.isArray(map)) {
+          maps.set(name, map as Record<string, string>);
+        }
+      }
+    }
   }
+
+  const findings: Finding[] = [];
+  let targets: ResolvedTarget[];
+  try {
+    targets = record.targets
+      .filter(
+        (item) =>
+          (target === undefined || item.target === target) &&
+          (scope === undefined || item.scope === scope),
+      )
+      .map((item) => ({
+        ...resolveTargetById(layout.root, item.target, record.id, item.scope, item.enabled),
+        fileMap: maps.get(item.target) ?? {},
+      }));
+  } catch (error) {
+    return { targets: [], findings: [toFinding(toKernelError(error, CODES.PATH_INVALID))] };
+  }
+  return { targets, findings };
+}
+
+/** 把逐文件映射表转换为投递计划；空表表示整目录复制 */
+function planOf(fileMap: Record<string, string>): Array<{ source: string; destination: string }> {
+  return Object.entries(fileMap).map(([source, destination]) => ({
+    source,
+    destination,
+  }));
 }
 
 /** 由记录与受影响目标构造下一份索引 */
@@ -710,7 +792,7 @@ export function enableSkill(input: ToggleInput): LifecycleOutcome {
     };
   }
 
-  const resolved = declaredTargetsOf(layout, id, target, scope);
+  const resolved = targetsOfRecord({ layout, record, target, scope });
   if (resolved.targets.length === 0 && resolved.findings.length > 0) {
     return {
       index,
@@ -784,8 +866,8 @@ export function enableSkill(input: ToggleInput): LifecycleOutcome {
   for (const item of resolved.targets) {
     try {
       if (!pathExists(item.absolutePath)) {
-        // 按需补齐：文件不存在时按落位方式把中心库原件补到目标位置
-        copyTree(libraryDir, item.absolutePath);
+        // 按需补齐：文件不存在时按落位方式把中心库原件补到目标位置，映射表存在时按逐文件落位
+        deliverFiles(libraryDir, item.absolutePath, planOf(item.fileMap));
         changes.push({ action: 'add', kind: 'target_copy', path: item.absolutePath });
       }
       if (setCopyVisibility(item.absolutePath, true) === 'changed') {
@@ -825,7 +907,7 @@ export function disableSkill(input: ToggleInput): LifecycleOutcome {
   const record = index.skills.find((item) => item.id === id);
   if (record === undefined) return notRegistered(id, index);
 
-  const resolved = declaredTargetsOf(layout, id, target, scope);
+  const resolved = targetsOfRecord({ layout, record, target, scope });
   if (resolved.targets.length === 0 && resolved.findings.length > 0) {
     return {
       index,
@@ -982,6 +1064,8 @@ export interface UpdateInput {
   now: string;
   /** 只检查并报告漂移与版本差异，不写入任何文件 */
   check?: boolean;
+  /** 只刷新指定目标的副本；省略时刷新全部已存在的副本 */
+  target?: string | undefined;
 }
 
 /**
@@ -995,7 +1079,7 @@ export interface UpdateInput {
  * `--check` 只做检查：报告本地漂移与版本差异，不写盘、不改动索引。
  */
 export function updateSkill(input: UpdateInput): LifecycleOutcome {
-  const { layout, index, id, now, check } = input;
+  const { layout, index, id, now, check, target } = input;
   const record = index.skills.find((item) => item.id === id);
   if (record === undefined) return notRegistered(id, index);
 
@@ -1076,7 +1160,7 @@ export function updateSkill(input: UpdateInput): LifecycleOutcome {
       scope: item.scope,
       path: item.declaredPath,
     })),
-    notes: ['刷新只作用于索引记录与派生区；副本内容由后续批次按落位计划刷新'],
+    notes: ['刷新会按落位计划把副本内容一并更新；任一处落位失败则整体不生效'],
   };
 
   if (check === true) {
@@ -1089,6 +1173,36 @@ export function updateSkill(input: UpdateInput): LifecycleOutcome {
     };
   }
 
+  // 先重分发副本，再写索引：顺序反过来会留下「记录已刷新、副本仍是旧内容」的中间态。
+  // 只刷新已存在的副本，不新建副本——分发是安装与启用的职责。
+  const copied: Array<Record<string, unknown>> = [];
+  const refreshable = targets.filter(
+    (item) => (target === undefined || item.target === target) && pathExists(item.absolutePath),
+  );
+  for (const item of refreshable) {
+    const wasEnabled = !isCopyDisabled(item.absolutePath);
+    try {
+      const files = deliverFiles(libraryDir, item.absolutePath, planOf(item.fileMap));
+      // 落位会带回技能元数据文件，按该副本原有可见性恢复状态，避免刷新把禁用态改成启用态
+      setCopyVisibility(item.absolutePath, wasEnabled);
+      copied.push({
+        target: item.target,
+        scope: item.scope,
+        path: item.declaredPath,
+        file_count: files.length,
+        files: files.map((rel) => `${item.declaredPath}/${rel}`),
+      });
+    } catch (error) {
+      const kernelError = toKernelError(error, CODES.IO_FAILED);
+      return {
+        index,
+        findings: [...findings, toFinding(kernelError)],
+        changes: [],
+        data: { rejected: 'redistribute_failed', rolled_back: true },
+      };
+    }
+  }
+
   const next: SkillIndex = {
     ...index,
     generated_at: now,
@@ -1099,8 +1213,15 @@ export function updateSkill(input: UpdateInput): LifecycleOutcome {
   return {
     index: next,
     findings,
-    changes: [{ action: 'modify', kind: 'index_record', path: record.path }],
-    data: summary,
+    changes: [
+      ...copied.map((item): Change => ({
+        action: 'modify',
+        kind: 'target_copy',
+        path: String(item['path']),
+      })),
+      { action: 'modify', kind: 'index_record', path: record.path },
+    ],
+    data: { ...summary, copies: copied },
   };
 }
 
