@@ -20,9 +20,9 @@
  * V-14 与 V-16 的分工：V-14 比对派生区（created_at、updated_at、checksum），
  * V-16 比对声明区投影，两者合起来覆盖元数据规范 5.7 列举的全部字段，且同一字段只报一次。
  */
-import { readFileSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { META_ALLOWED_FIELDS, META_FILE_NAME } from '../metadata/constants.ts';
+import { META_ALLOWED_FIELDS } from '../metadata/constants.ts';
 import type { IndexRecord, SkillIndex, SkillMeta, ValidationStatus } from '../metadata/types.ts';
 import {
   validateDependencies,
@@ -34,7 +34,7 @@ import {
 import { computeChecksum, hasHashableContent } from '../integrity/index.ts';
 import { isDirectory, pathExists } from '../../store/library-fs/index.ts';
 import { resolveWithin } from '../../store/paths/index.ts';
-import { parseYaml } from '../../store/yaml/index.ts';
+import { declaredSkillsOf, readMetaFile, type MetaRead } from '../metadata/read.ts';
 import { CODES, finding, type Finding } from '../../store/contract.ts';
 import { KernelError } from '../../store/errors.ts';
 import { TARGET_MODE_VALUES } from '../metadata/constants.ts';
@@ -102,11 +102,6 @@ export interface ValidateInput {
   subject?: string;
 }
 
-interface MetaRead {
-  raw: Record<string, unknown> | null;
-  findings: Finding[];
-}
-
 /**
  * 校验工作区。不带 subject 时校验整个环境，带 subject 时只报告该对象的问题。
  * 无论哪种范围都只读，不写入任何文件。
@@ -151,7 +146,7 @@ export function validateWorkspace(input: ValidateInput): ValidateOutcome {
 
   const reads = new Map<string, MetaRead>();
   for (const item of scope) {
-    reads.set(item.record.id, readMeta(recordDir(layout, item.record), item.record.id));
+    reads.set(item.record.id, readMetaFile(recordDir(layout, item.record), item.record.id));
   }
 
   // 四、依赖校验：可用性取索引中已有的运行期结论，图的默认来源为索引记录的依赖摘要
@@ -159,7 +154,7 @@ export function validateWorkspace(input: ValidateInput): ValidateOutcome {
     index.skills.map((record) => [record.id, record.validation.status === 'ok']),
   );
   const dependencyMetas: SkillMeta[] = index.skills.map((record) => {
-    const fromLive = readDeclaredSkills(reads.get(record.id)?.raw ?? null);
+    const fromLive = declaredSkillsOf(reads.get(record.id)?.raw ?? null);
     return {
       id: record.id,
       dependencies: { skills: fromLive ?? record.dependencies ?? [] },
@@ -332,29 +327,6 @@ function resolveScope(
       },
     },
   ];
-}
-
-/** 读取并解析一条记录的元文件；label 用于问题定位 */
-function readMeta(dir: string, label: string): MetaRead {
-  const metaFile = join(dir, META_FILE_NAME);
-  try {
-    const raw = parseYaml(readFileSync(metaFile, 'utf8'), { source: 'meta', target: metaFile });
-    return { raw, findings: [] };
-  } catch (error) {
-    const kernelError = error instanceof KernelError ? error : null;
-    return {
-      raw: null,
-      findings: [
-        finding(kernelError?.code ?? CODES.YAML_INVALID, {
-          source: 'meta',
-          target: `${label}/${META_FILE_NAME}`,
-          message:
-            kernelError?.message ?? (error instanceof Error ? error.message : '元文件无法解析'),
-          remedy: '请检查该元文件的语法与结构',
-        }),
-      ],
-    };
-  }
 }
 
 /** 记录对应的技能目录：优先取记录声明的落位路径，不可用时退回 ./skills/<id> */
@@ -661,21 +633,6 @@ function summarize(
   };
   if (single && subject !== undefined) report.subject = subject;
   return report;
-}
-
-/** 从实时元文件中读取依赖声明；无法读取时返回 null，由调用方退回索引摘要 */
-function readDeclaredSkills(raw: Record<string, unknown> | null): string[] | null {
-  if (raw === null) return null;
-  const dependencies = raw['dependencies'];
-  if (dependencies === null || typeof dependencies !== 'object' || Array.isArray(dependencies)) {
-    return null;
-  }
-  const declared = (dependencies as Record<string, unknown>)['skills'];
-  if (!Array.isArray(declared)) return null;
-  return declared
-    .filter((item): item is string => typeof item === 'string')
-    .map((item) => item.trim().split(' ')[0] ?? '')
-    .filter((item) => item !== '');
 }
 
 function safeChecksum(dir: string): string | null {

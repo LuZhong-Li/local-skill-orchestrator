@@ -70,20 +70,37 @@ export function scanWorkspace(input: ScanInput): ScanOutcome {
   const candidates = collectCandidates(layout, index, findings);
 
   // 先判定每条记录的自身问题，得到可用性映射供依赖校验使用
-  const availability: AvailabilityMap = new Map();
+  const ownAvailability: AvailabilityMap = new Map();
   const metas: SkillMeta[] = [];
   for (const candidate of candidates) {
     if (candidate.raw === null) {
-      availability.set(candidate.dirName, false);
+      ownAvailability.set(candidate.dirName, false);
       continue;
     }
     const hasError = candidate.findings.some((item) => item.severity === 'error');
-    availability.set(candidate.dirName, !hasError);
+    ownAvailability.set(candidate.dirName, !hasError);
     metas.push(toMeta(candidate));
   }
 
-  // 依赖校验会产生新问题，需要重新计算可用性
-  const dependencyFindings = validateDependencies(metas, availability);
+  // 依赖校验会产生新问题，而这些问题又会改变依赖方的可用性，因此迭代到可用性不再变化。
+  // 每一轮只可能把可用翻转为不可用，所以最多经过「候选数 + 1」轮必然收敛。
+  let availability: AvailabilityMap = ownAvailability;
+  let dependencyFindings: Finding[] = [];
+  for (let round = 0; round <= candidates.length; round += 1) {
+    dependencyFindings = validateDependencies(metas, availability);
+    const recomputed: AvailabilityMap = new Map();
+    for (const candidate of candidates) {
+      const own = candidate.findings.some((item) => item.severity === 'error');
+      const fromDependencies = dependencyFindings.some(
+        (item) =>
+          item.severity === 'error' && (item.target.split('.')[0] ?? '') === candidate.dirName,
+      );
+      recomputed.set(candidate.dirName, !own && !fromDependencies);
+    }
+    if (sameAvailability(recomputed, availability)) break;
+    availability = recomputed;
+  }
+
   const byOwner = new Map<string, Finding[]>();
   for (const item of dependencyFindings) {
     const owner = item.target.split('.')[0] ?? '';
@@ -390,4 +407,13 @@ function pickOptional(value: unknown, fallback: string | undefined): string | un
 /** 判断两条记录在语义上是否一致，用于避免无谓的更新时间抖动 */
 function sameRecord(a: IndexRecord, b: IndexRecord): boolean {
   return JSON.stringify({ ...a, updated_at: '' }) === JSON.stringify({ ...b, updated_at: '' });
+}
+
+/** 判断两份可用性映射是否一致 */
+function sameAvailability(a: AvailabilityMap, b: AvailabilityMap): boolean {
+  if (a.size !== b.size) return false;
+  for (const [key, value] of a) {
+    if (b.get(key) !== value) return false;
+  }
+  return true;
 }

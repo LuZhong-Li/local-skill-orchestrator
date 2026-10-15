@@ -5,10 +5,16 @@
  * 捕获内核抛出的错误并转换为标准结果封装。领域规则一律不在本层实现。
  */
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { createInitialIndex, loadIndex, saveIndex, TOOL_VERSION } from '../../core/index/index.ts';
 import { scanWorkspace } from '../../core/discovery/index.ts';
 import { installSkill, uninstallSkill, type LifecycleOutcome } from '../../core/lifecycle/index.ts';
 import { validateWorkspace, type ValidationReport } from '../../core/validation/index.ts';
+import { inspectSkill, listSkills, readConfig, toListEntry } from '../../core/index/query.ts';
+import { analyzeDependencies, splitDeclaration } from '../../core/dependency/index.ts';
+import { exportIndex } from '../../core/backup/index.ts';
+import { declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
+import type { SkillIndex } from '../../core/metadata/types.ts';
 import {
   ensureWorkspaceDirs,
   layoutOf,
@@ -44,7 +50,18 @@ export interface CommandSpec {
 }
 
 /** 一期已注册的指令名 */
-export const REGISTERED_COMMANDS = ['init', 'scan', 'install', 'uninstall', 'validate'] as const;
+export const REGISTERED_COMMANDS = [
+  'init',
+  'config get',
+  'scan',
+  'list',
+  'inspect',
+  'install',
+  'uninstall',
+  'validate',
+  'deps',
+  'export',
+] as const;
 
 const handlers = new Map<string, CommandHandler>();
 
@@ -510,3 +527,229 @@ const validateHandler: CommandHandler = async ({ args }) => {
 };
 
 register({ name: 'validate', handler: validateHandler });
+
+/**
+ * 只读指令的公共前置：读取索引。
+ * 与写操作不同，只读指令在索引缺失或损坏时不建立任何东西，只把问题交给调用方。
+ */
+function loadForRead(layout: ReturnType<typeof layoutOf>): {
+  index: SkillIndex | null;
+  findings: Finding[];
+  initialized: boolean;
+} {
+  if (!existsSync(layout.indexFile)) {
+    return { index: null, findings: [], initialized: false };
+  }
+  const loaded = loadIndex(layout.indexFile);
+  return { index: loaded.index, findings: [...loaded.findings], initialized: true };
+}
+
+const listHandler: CommandHandler = async ({ args }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const { index, findings, initialized } = loadForRead(layout);
+  const state = option(args, 'state');
+  const source = option(args, 'source');
+  const target = option(args, 'target');
+
+  const outcome = listSkills({
+    index,
+    filter: {
+      ...(state !== undefined ? { state } : {}),
+      ...(source !== undefined ? { source } : {}),
+      ...(target !== undefined ? { target } : {}),
+    },
+  });
+  const merged = [...findings, ...outcome.findings];
+
+  // 契约 4.5 前置条件：索引不存在时返回引导性结果而非错误
+  if (outcome.summary === null) {
+    const guide =
+      merged.length > 0
+        ? '索引无法读取，请先修复或重建索引'
+        : '工作区尚未初始化，请先执行 init 建立工作区';
+    return buildResult('list', merged, [], {
+      data: { initialized, total: 0, filtered: 0, records: [], guide },
+    });
+  }
+
+  return buildResult('list', merged, [], {
+    data: {
+      initialized,
+      total: outcome.summary.total,
+      filtered: outcome.summary.filtered,
+      by_state: outcome.summary.by_state,
+      by_validation: outcome.summary.by_validation,
+      records: outcome.summary.records.map(toListEntry),
+    },
+  });
+};
+
+const inspectHandler: CommandHandler = async ({ args }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const id = args.positionals[0];
+  if (id === undefined || id === '') {
+    return buildResult('inspect', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'id',
+        message: 'inspect 需要给出 Skill 标识',
+        remedy: '请提供要查看的 Skill 标识',
+      }),
+    ]);
+  }
+  const { index, findings } = loadForRead(layout);
+  if (index === null) {
+    return buildResult('inspect', [
+      ...findings,
+      finding(CODES.ENV_NOT_INITIALIZED, {
+        source: 'workspace',
+        target: layout.root,
+        message: '工作区尚未初始化或索引无法读取',
+        remedy: '请先执行 init 建立工作区，或修复索引文件',
+      }),
+    ]);
+  }
+  const outcome = inspectSkill({ layout, index, id });
+  return buildResult('inspect', [...findings, ...outcome.findings], [], { data: outcome.data });
+};
+
+const configGetHandler: CommandHandler = async ({ args }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const { index, findings } = loadForRead(layout);
+  if (index === null) {
+    return buildResult('config get', [
+      ...findings,
+      finding(CODES.ENV_NOT_INITIALIZED, {
+        source: 'workspace',
+        target: layout.root,
+        message: '工作区尚未初始化或索引无法读取，读不到配置区',
+        remedy: '请先执行 init 建立工作区，或修复索引文件',
+      }),
+    ]);
+  }
+  return buildResult('config get', findings, [], { data: readConfig(index) });
+};
+
+const depsHandler: CommandHandler = async ({ args }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const id = args.positionals[0];
+  if (id === undefined || id === '') {
+    return buildResult('deps', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'id',
+        message: 'deps 需要给出 Skill 标识',
+        remedy: '请提供要检查依赖的 Skill 标识',
+      }),
+    ]);
+  }
+  const { index, findings } = loadForRead(layout);
+  if (index === null) {
+    return buildResult('deps', [
+      ...findings,
+      finding(CODES.ENV_NOT_INITIALIZED, {
+        source: 'workspace',
+        target: layout.root,
+        message: '工作区尚未初始化或索引无法读取',
+        remedy: '请先执行 init 建立工作区，或修复索引文件',
+      }),
+    ]);
+  }
+
+  const record = index.skills.find((item) => item.id === id);
+  if (record === undefined) {
+    return buildResult('deps', [
+      ...findings,
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: id,
+        message: `标识 ${id} 不在索引中`,
+        remedy: '请先用列表指令确认该 Skill 是否已登记',
+      }),
+    ]);
+  }
+
+  // 依赖声明以元文件为准，读取失败时退回索引内的依赖摘要
+  const metaRead = readMetaFile(join(layout.skillsDir, id), id);
+  const declaredFromMeta = declaredSkillsOf(metaRead.raw);
+  const declared = declaredFromMeta ?? record.dependencies ?? [];
+  const availability = new Map(
+    index.skills.map((item) => [item.id, item.validation.status === 'ok']),
+  );
+  const edges = new Map(
+    index.skills.map((item) => [
+      item.id,
+      (item.dependencies ?? []).map((text) => splitDeclaration(text).name),
+    ]),
+  );
+  const report = analyzeDependencies({ id, declared, availability, edges });
+
+  const all = [...findings, ...metaRead.findings, ...report.findings];
+  const result = buildResult('deps', all, [], {
+    data: {
+      id,
+      declared_from: declaredFromMeta === null ? 'index' : 'meta',
+      entries: report.entries,
+      affected: report.affected,
+      cycles: report.cycles,
+    },
+  });
+
+  /**
+   * 契约 4.13 规定「存在未满足的依赖时返回 6」，这是本指令的专属规定，
+   * 按结果规范 5.2 的专属优先条款覆盖通用派生——通用派生只把 DEP 类别映射到 6，
+   * 而「被依赖对象校验不通过」按 4.4 的对照表是校验类问题码，需要在这里一并归入未满足。
+   */
+  const unmet = all.some(
+    (item) =>
+      item.severity === 'error' &&
+      ['E-DEP-001', 'E-DEP-002', 'E-DEP-003', CODES.VALIDATION_DEPENDENCY].includes(item.code),
+  );
+  if (unmet && result.exit_code !== 2) {
+    result.exit_code = 6;
+    result.ok = false;
+  }
+  return result;
+};
+
+const exportHandler: CommandHandler = async ({ args, now }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const target = args.positionals[0];
+  if (target === undefined || target === '') {
+    return buildResult('export', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'path',
+        message: 'export 需要给出目标文件路径',
+        remedy: '请提供工作区之内的相对路径，例如 backups/export.yaml',
+      }),
+    ]);
+  }
+  const { index, findings } = loadForRead(layout);
+  if (index === null) {
+    return buildResult('export', [
+      ...findings,
+      finding(CODES.ENV_NOT_INITIALIZED, {
+        source: 'workspace',
+        target: layout.root,
+        message: '工作区尚未初始化或索引无法读取，没有可导出的内容',
+        remedy: '请先执行 init 建立工作区，或修复索引文件',
+      }),
+    ]);
+  }
+  const outcome = exportIndex({
+    layout,
+    index,
+    target,
+    now,
+    noConfig: flag(args, 'no-config'),
+    noSecrets: flag(args, 'no-secrets'),
+  });
+  return buildResult('export', [...findings, ...outcome.findings], [], { data: outcome.data });
+};
+
+register({ name: 'list', handler: listHandler });
+register({ name: 'inspect', handler: inspectHandler });
+register({ name: 'config get', handler: configGetHandler });
+register({ name: 'deps', handler: depsHandler });
+register({ name: 'export', handler: exportHandler });

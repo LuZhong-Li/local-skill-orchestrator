@@ -165,3 +165,22 @@ test('K-02 缺少元文件的目录被忽略，不产生记录', () => {
   assert.equal(outcome.index.skills.length, 0);
   assert.equal(outcome.summary.available, 0);
 });
+
+test('K-02 依赖失效级联到依赖方，并沿依赖链传递', () => {
+  const root = workspace();
+  putSkill(root, 'alpha', validMeta('alpha'));
+  putSkill(root, 'beta', `${validMeta('beta')}dependencies:\n  skills:\n    - ghost\n`);
+  putSkill(root, 'gamma', `${validMeta('gamma')}dependencies:\n  skills:\n    - beta\n`);
+  putSkill(root, 'delta', `${validMeta('delta')}dependencies:\n  skills:\n    - gamma\n`);
+
+  const outcome = scan(root);
+  const byId = new Map(outcome.index.skills.map((item) => [item.id, item.validation]));
+  assert.equal(byId.get('alpha')?.status, 'ok', '无依赖的 Skill 不受影响');
+  assert.equal(byId.get('beta')?.status, 'invalid', '依赖缺失导致自身不通过');
+  assert.deepEqual(byId.get('beta')?.errors, [CODES.DEP_MISSING]);
+  assert.equal(byId.get('gamma')?.status, 'invalid', '依赖方随之不通过');
+  assert.deepEqual(byId.get('gamma')?.errors, [CODES.VALIDATION_DEPENDENCY]);
+  assert.equal(byId.get('delta')?.status, 'invalid', '级联沿依赖链传递');
+  assert.equal(outcome.summary.available, 1);
+  assert.equal(outcome.summary.invalid, 3);
+});
