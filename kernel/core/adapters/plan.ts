@@ -143,7 +143,11 @@ export function assemblePlan(input: {
  *   目录类落位根（技能根 / 工作区外技能根）：目标目录 = 宿主根 + Skill 标识；
  *   文件类落位根（规则路径）：目标文件 = 宿主根 + 原计划的文件名。
  */
-export function rebasePlan(plan: PlacementPlan, hostRootPath: string): PlacementPlan {
+export function rebasePlan(
+  plan: PlacementPlan,
+  hostRootPath: string,
+  external: boolean,
+): PlacementPlan {
   const entries = plan.entries.map((entry) => {
     const fileType = entry.file_name === '';
     const fileName = fileType ? basename(entry.target_path) : entry.file_name;
@@ -152,6 +156,8 @@ export function rebasePlan(plan: PlacementPlan, hostRootPath: string): Placement
       ...entry,
       root_path: rootPath,
       target_path: join(rootPath, fileName),
+      // 重定基后工作区外标记由解析结果决定：注册表模板是相对形态，真实根可能在工作区之外
+      external,
     };
   });
   const overlaps: OverlapDeclaration[] = entries

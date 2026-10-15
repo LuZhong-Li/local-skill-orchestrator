@@ -229,7 +229,12 @@ function buildHostChannel(input: {
     return { findings };
   }
   return {
-    channel: { hostId: target.hostId, form, resolution, plan: rebasePlan(plan, resolution.path) },
+    channel: {
+      hostId: target.hostId,
+      form,
+      resolution,
+      plan: rebasePlan(plan, resolution.path, resolution.external),
+    },
     findings,
   };
 }
@@ -409,7 +414,21 @@ async function runHostToggle(input: {
   const channel = built.channel;
   const rootPath = channel.resolution?.path ?? '';
   if (rootPath === '') {
-    return buildResult(command, built.findings, [], { data: { host: channel.hostId } });
+    // 该宿主的该形态不落盘（例如指令文件载体只产出片段），没有副本可供切换可见性
+    return buildResult(
+      command,
+      [
+        ...built.findings,
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: '--host',
+          message: `该宿主的该形态不落盘，没有可切换可见性的副本：${hostValue}`,
+          remedy: '按路径类改用会落位的取值（例如宿主标识本身而非其片段形态）',
+        }),
+      ],
+      [],
+      { data: { host: channel.hostId } },
+    );
   }
 
   const copyDir = join(rootPath, id);

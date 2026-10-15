@@ -10,7 +10,7 @@
  * 三、解析结果必须可校验：已存在但不是目录、或父级不是目录时明确报错；
  * 四、根位于工作区之外时标记 external，供落位与确认使用。
  */
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { CODES, finding, type Finding } from '../../store/contract.ts';
 import { isDirectory, pathExists } from '../../store/library-fs/index.ts';
 import { hostById } from '../hosts/index.ts';
@@ -177,14 +177,18 @@ export function resolveHostRoot(input: {
     );
   }
   if (!exists) {
-    const parent = join(path, '..');
-    if (pathExists(parent) && !isDirectory(parent)) {
+    // 向上找到最近的存在祖先：它不是目录时该路径无法创建（隔层父级为文件同样要拦住）
+    let ancestor = dirname(path);
+    while (!pathExists(ancestor) && dirname(ancestor) !== ancestor) {
+      ancestor = dirname(ancestor);
+    }
+    if (pathExists(ancestor) && !isDirectory(ancestor)) {
       findings.push(
         finding(CODES.PATH_INVALID, {
           source: SOURCE,
           target: path,
-          message: '宿主落位根的父级不是目录，无法创建',
-          remedy: '修正配置中的路径层级',
+          message: `宿主落位根无法创建：最近的上级 ${ancestor} 不是目录`,
+          remedy: '修正配置中的路径层级，或先处理占用该路径的文件',
         }),
       );
     }

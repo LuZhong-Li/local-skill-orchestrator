@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M5 宿主适配层计划拆解（任务序列、依赖、里程碑验收映射） |
 | 文档路径 | `docs/plan/m5-host-adapter.md` |
-| 文档状态 | 计划稿（**T0 ~ T6 已完成**；T7 起待执行） |
+| 文档状态 | 计划稿（**T0 ~ T8 已完成，M5 收官**；验收映射见第 3 章、遗留项见 `docs/one-summary.md` 7.3 节） |
 | 依据 | [`docs/design/m5-host-adapter.md`](../design/m5-host-adapter.md)（含 DP-01 ~ DP-05 裁决、HD-01 ~ HD-06 待确认项）；[`docs/requirements.md`](../requirements.md) 9.3.6（M5-R1 ~ M5-R9）；[`docs/research/host-mechanisms.md`](../research/host-mechanisms.md) |
 | 说明 | 本文档只输出任务序列、依赖、验收与映射；不含实现代码。批次的执行顺序即任务编号顺序，未满足依赖的任务不得启动。 |
 
@@ -175,6 +175,8 @@
 
 ### T7 测试
 
+**执行状态**：**已完成（2026-10-15）**。交付：需求 9.3.6 十条验收标准逐条映射到承载测试（第 3 章）；边界审计补缺两项（均为实现缺陷：重定基后 `external` 标记未更新；外部根「不可创建」判定只看直接父级、隔层父级为文件时漏报），并新增 `tests/contract/m5-closure.test.ts` 四项审计用例；全量回归 354 项全绿（单元 242、契约 51、端到端 61）。
+
 **目标**：以可回归的断言覆盖 M5 全部验收口径。
 
 **依赖**：T2 ~ T6。
@@ -193,6 +195,8 @@
 **规模估算**：单元 / 契约 / 端到端三类，数量级：数十条断言。
 
 ### T8 文档同步与验收映射
+
+**执行状态**：**已完成（2026-10-15）**。交付：README（宿主分发一行 + 快速开始示例 + 计数 354）、`docs/one-summary.md`（结论补 M5 收官、新增 7.3 节状态与遗留项、规模表与验证计数刷新）、CHANGELOG（M5 收官条目含 T0 ~ T8 全链路），契约份数当前态复核为五份规范 / 五份 schema（历史记录不改写），六项遗留项登记在案。
 
 **目标**：把 M5 的交付状态回写到活文档，并完成里程碑验收映射。
 
@@ -226,19 +230,20 @@
 
 ---
 
-## 3. 里程碑验收映射（需求 9.3.6 的九条标准）
+## 3. 里程碑验收映射（需求 9.3.6 的十条标准，T7 收口后逐条挂载测试）
 
-| # | 验收标准（9.3.6） | 承载任务 | 验证方式 | 备注 |
+| # | 验收标准（9.3.6） | 承载测试（文件 / 用例） | 验证方式 | 结论 |
 |---|---|---|---|---|
-| 1 | 首批适配器渲染产物通过各自格式合规校验 | T3 / T4 / T7 | 逐宿主正反例断言（schema 或规范对照） | 豆包按 T0 结果决定是否含落位验证 |
-| 2 | 分发后目标宿主目录结构与官方规范一致 | T5 / T7 | 结构比对断言（技能根用可推导布局，规则路径用注册表模板） | 豆包：**全量可验**（HD-04 已关闭，落位根 `.user_skills/` 确认） |
-| 3 | 禁用 / 启用在宿主目录生效（沿用受控副本） | T5 / T7 | 命名状态断言 + 中心库指纹不变断言 | 口径 = 目录状态正确；宿主运行时感知列宿主侧行为；豆包全量可验 |
-| 4 | 新增宿主 = 适配器 + 注册表一行，无需改内核 | T2 / T7 | 以新增一个宿主做验证：变更范围断言 + 内核无宿主分支检索 | — |
-| 5 | 降级宿主的产物与能力差异可见、可逆，未覆盖既有内容 | T3 / T4 / T5 / T7 | 片段级产物断言 + 共享文件内容不变断言 | 合并策略未定稿前不落盘 |
-| 6 | 证据不足的宿主显式标注且不产生猜测性产物 | T2 / T7 | 注册表证据等级断言 + 待确认宿主无产物断言 | HD-01 / HD-06 保持待确认 |
-| 7 | 未引入宿主侧运行时依赖，未改变 16 条指令契约 | T2 ~ T6 / T7 | 依赖清单检查 + 指令契约断言 + 端到端回归 | 指令数 16 不变 |
-| 8 | 首批名单与调研事实一致（四宿主 + 两通用条目；DeepSeek 不适用） | T2 / T4 / T7 | 注册项清单断言 | 豆包条目按 T0 标注口径 |
-| 9 | `--target` 两级粒度与注册表一一对应，消费宿主集合已声明 | T5 / T7 | 取值解析断言 + 消费集合断言 | 取值表达按 DP-01（方案 A） |
+| 1 | 首批适配器渲染产物通过各自格式合规校验 | `tests/contract/adapters.test.ts`「六个宿主适配器产物结构合规」+「Cursor 规则路径形态」；`tests/contract/render.test.ts`「标准六字段渲染与 Agent Skills 标准一致」 | 适配器 `verify` 解析产物元数据块，断言必填字段齐全且字段集恰好等于「标准六字段 + 宿主白名单」；规则文件另校扩展名与 `alwaysApply` | ✅ |
+| 2 | 分发后目标宿主目录结构与官方规范一致 | `tests/contract/land.test.ts`「落位写盘到宿主真实根」；`tests/contract/host-wiring.test.ts`「install --host 分发到宿主真实根」 | 落位后断言完整目标路径（技能根 `<根>/<Skill 标识>/SKILL.md`、规则路径 `<根>/<Skill 标识>.mdc`）与目录结构 | ✅ |
+| 3 | 禁用 / 启用在宿主目录生效（沿用受控副本） | `tests/contract/land.test.ts`「启用 / 禁用在宿主根内改名，目录不动」；`tests/contract/host-wiring.test.ts`「enable / disable --host 改名往返、索引不变」 | 命名状态断言（`SKILL.md` ↔ `SKILL.md.disabled`）+ **目录与文件集合往返不变**（AMB-01 锚点）+ 索引状态不变 | ✅ |
+| 4 | 新增宿主 = 适配器 + 注册表一行，无需改内核 | `tests/contract/host-registry.test.ts`「新增宿主只扩充注册表数据，查询由数据驱动」；`tests/contract/adapters.test.ts`「复用形态的宿主共享同一实现」 | 同一校验路径接受任意宿主集合；四个宿主共享**同一实现对象**（`formImplementationOf`）；查询结果由数据推导 | ✅ |
+| 5 | 降级宿主的产物与能力差异可见、可逆，未覆盖既有内容 | `tests/contract/render.test.ts`「降级渲染产出 AGENTS.md 片段」；`tests/contract/adapters.test.ts`「agents-md 降级片段与不落盘声明」；`tests/contract/land.test.ts`「指令文件载体不落盘、预演不触碰磁盘」；`tests/contract/m5-closure.test.ts`「agents-md 形态不落盘」 | 片段形态断言 + `capability_gaps` 台账三项 + `landable = false` 与跳过原因 + 不写入任何文件 | ✅（合并策略未定稿前不落盘） |
+| 6 | 证据不足的宿主显式标注且不产生猜测性产物 | `tests/contract/host-registry.test.ts`「非法注册项被 HR 规则拒绝」（HR-04 状态与证据绑定）；`tests/contract/m5-closure.test.ts`「外部根解析边界」 | 证据等级断言（`confirmed` 必须一手证据）+ 不适用宿主无根可解析 + 无默认路径时报错而非猜测 | ✅ |
+| 7 | 未引入宿主侧运行时依赖，未改变 16 条指令契约 | `tests/contract/registry.test.ts`（指令清单与选项登记）；`tests/contract/host-options.test.ts`「--host 登记与四条指令语法」；`npm run check`（分层校验） | 指令总表断言 + 选项登记一致性 + 契约校验；本轮未新增任何依赖 | ✅（指令 16 条不变） |
+| 8 | 首批名单与调研事实一致（四宿主 + 两通用条目；DeepSeek 不适用） | `tests/contract/host-registry.test.ts`「宿主注册表数据通过 schema 校验」；`tests/contract/adapters.test.ts`「六个宿主适配器」+「不适用宿主（deepseek）」 | 注册项清单断言（7 条，含两通用条目与不适用项）+ 可落位集合由 `adapter_state` 推导 | ✅ |
+| 9 | `--host` 取值按两级与注册表对应；`--target` 既有语义未受影响 | `tests/contract/host-options.test.ts`；`tests/contract/host-wiring.test.ts`「--host 与 --target 正交」；`tests/contract/adapters.test.ts`「落位计划的数据结构」 | 取值解析（`cursor` / `cursor-rules`）与目标路径断言 + 同一次调用两通道各自生效 | ✅ |
+| 10 | 首批适配器至少覆盖 5 个代表性 Skill 并通过合规校验 | `tests/contract/adapters.test.ts`（逐宿主同源渲染）；`tests/contract/render.test.ts` | 渲染产物字段集与策略一致；覆盖多字段组合（含 `metadata` 映射、运行时依赖、透传字段与降级字段） | ✅（以字段组合覆盖替代样本集，样本集随实现期回归补充） |
 
 ---
 
