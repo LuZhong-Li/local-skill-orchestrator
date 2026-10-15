@@ -541,6 +541,40 @@ test('契约：宿主注册表 schema 接受最小合法注册表，拒绝状态
     render_policy: { field_mode: 'host_declared', allowed_extensions: ['compatibility'] },
   });
   assertValid('host_registry.schema.json', declared, '透传模式 + 合规白名单');
+
+  // 正向：not_applicable 宿主可无落位根与适配器引用（模型提供方一类）
+  const notApplicable = {
+    ...registry,
+    hosts: [
+      {
+        host_id: 'model-provider',
+        display_name: '模型提供方',
+        adapter_state: 'planned',
+        support_state: 'not_applicable',
+        evidence: { level: 'verified_official', sources: ['https://example.invalid/docs'] },
+        classification: { skill_mechanism: false, rules_only: false },
+        capability: {},
+        render_policy: { field_mode: 'standard6', degrade_form: 'none' },
+      },
+    ],
+  };
+  assertValid('host_registry.schema.json', notApplicable, '不适用宿主');
+  assertValid(
+    'host_registry.schema.json',
+    {
+      ...notApplicable,
+      hosts: [{ ...(notApplicable.hosts[0] as Record<string, unknown>), roots: [] }],
+    },
+    '不适用宿主允许空落位根',
+  );
+  // 非 not_applicable 宿主缺少适配器引用应被拒（条件必填）
+  const withoutAdapterRef = { ...entry };
+  delete withoutAdapterRef['adapter_ref'];
+  assertInvalid(
+    'host_registry.schema.json',
+    { ...registry, hosts: [withoutAdapterRef] },
+    '缺少条件必填的适配器引用',
+  );
 });
 
 test('契约：宿主注册表规范的 yaml 示例可通过 schema 校验', () => {

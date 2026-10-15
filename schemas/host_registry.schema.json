@@ -34,10 +34,8 @@
         "support_state",
         "evidence",
         "classification",
-        "roots",
         "capability",
-        "render_policy",
-        "adapter_ref"
+        "render_policy"
       ],
       "additionalProperties": false,
       "properties": {
@@ -62,9 +60,8 @@
         "classification": { "$ref": "#/$defs/classification" },
         "roots": {
           "type": "array",
-          "minItems": 1,
           "items": { "$ref": "#/$defs/root" },
-          "description": "落位根列表；同一宿主内 kind 不得重复（HR-06）"
+          "description": "落位根列表；同一宿主内 kind 不得重复。not_applicable 宿主可省略或为空（HR-06）"
         },
         "capability": { "$ref": "#/$defs/capability" },
         "render_policy": { "$ref": "#/$defs/renderPolicy" },
@@ -94,17 +91,25 @@
           }
         },
         {
-          "not": {
-            "properties": {
-              "classification": {
-                "properties": {
-                  "skill_mechanism": { "const": false },
-                  "rules_only": { "const": false }
-                },
-                "required": ["skill_mechanism", "rules_only"]
-              }
-            },
-            "required": ["classification"]
+          "if": {
+            "properties": { "support_state": { "not": { "const": "not_applicable" } } },
+            "required": ["support_state"]
+          },
+          "then": {
+            "required": ["roots", "adapter_ref"],
+            "properties": { "roots": { "minItems": 1 } },
+            "not": {
+              "properties": {
+                "classification": {
+                  "properties": {
+                    "skill_mechanism": { "const": false },
+                    "rules_only": { "const": false }
+                  },
+                  "required": ["skill_mechanism", "rules_only"]
+                }
+              },
+              "required": ["classification"]
+            }
           }
         }
       ]

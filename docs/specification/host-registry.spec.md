@@ -96,10 +96,10 @@
 | `support_state` | 字符串枚举 | 必填 | 宿主机制支持状态 | 仅允许 `confirmed`、`pending_evidence`、`degrade_only`、`not_applicable` |
 | `evidence` | 映射 | 必填 | 证据等级与来源 | 结构见 3.3 节；与 `support_state` 的绑定见 HR-04 |
 | `classification` | 映射 | 必填 | 三维分类 | 结构见 3.4 节 |
-| `roots` | 映射数组 | 必填 | 落位根列表 | 至少一项；同一宿主内 `kind` 不得重复；结构见 3.5 节 |
+| `roots` | 映射数组 | 条件必填 | 落位根列表 | 至少一项；同一宿主内 `kind` 不得重复；结构见 3.5 节。**`support_state = not_applicable` 时可省略**（表示无任何宿主侧落位根，见 HR-06） |
 | `capability` | 映射 | 必填 | 能力声明 | 结构见 3.6 节；字段均可选 |
 | `render_policy` | 映射 | 必填 | 渲染与透传策略 | 结构见 3.7 节 |
-| `adapter_ref` | 字符串 | 必填 | 适配器引用标识 | 非空；与 `host_id` 一对一 |
+| `adapter_ref` | 字符串 | 条件必填 | 适配器引用标识 | 非空；与 `host_id` 一对一。**`support_state = not_applicable` 时可省略**（不产出适配器） |
 | `open_items` | 字符串数组 | 可选 | 关联的待确认项编号 | 每项形如 `HD-01`（设计文档 2.5 节的编号） |
 
 ### 3.3 `evidence` 结构
@@ -114,7 +114,7 @@
 
 | 字段名 | 数据类型 | 必填/可选 | 描述 | 校验规则 |
 |---|---|---|---|---|
-| `skill_mechanism` | 布尔 | 必填 | 是否支持 skill 机制 | 与 `rules_only` 不得同时为假，见 HR-05 |
+| `skill_mechanism` | 布尔 | 必填 | 是否支持 skill 机制 | 与 `rules_only` 不得同时为假；**`support_state = not_applicable` 的宿主豁免**，见 HR-05 |
 | `rules_only` | 布尔 | 必填 | 是否仅支持规则文件 | 同上 |
 | `root_consumed_by` | 字符串数组 | 可选 | 该宿主**输出去向**被哪些宿主消费 | 取值须为本注册表内的 `host_id`，见 HR-07 |
 
@@ -122,7 +122,7 @@
 
 | 字段名 | 数据类型 | 必填/可选 | 描述 | 校验规则 |
 |---|---|---|---|---|
-| `kind` | 字符串枚举 | 必填 | 落位根类别 | 仅允许 `skill`（技能根）、`rules`（规则路径）、`external`（工作区外技能根） |
+| `kind` | 字符串枚举 | 必填 | 落位根类别 | 仅允许 `skill`（技能根）、`rules`（规则路径）、`external`（工作区外技能根）；**`not_applicable` 宿主的 `roots` 为空数组时不适用** |
 | `path_template` | 字符串 | 必填 | 落位路径模板 | 非空；技能根类须与可推导布局一致或说明工作区外模板；禁止包含凭据 |
 | `scope` | 字符串枚举 | 可选 | 作用域 | 仅允许 `global`、`project` |
 | `consumed_by` | 字符串数组 | 可选 | 会读取该落位根的宿主集合 | 取值须为本注册表内的 `host_id`；登记重叠消费关系 |
@@ -181,8 +181,8 @@
 | HR-02 | `host_id` 命名与唯一性 | 满足命名规范、不超过 64 字符、文档内不重复 |
 | HR-03 | 未知字段 | 注册表由内核维护，出现未登记字段判为不合规（与元文件的宽松策略不同） |
 | HR-04 | 状态与证据绑定 | `support_state=confirmed` 时 `evidence.level` 必须属于一手等级（`verified_official` / `verified_local` / `verified_runtime`） |
-| HR-05 | 三维分类自洽 | `skill_mechanism` 与 `rules_only` 不得同时为假 |
-| HR-06 | 落位根完整 | 每个宿主至少一条落位根；`kind` 不重复；`kind` 与 `classification` 自洽（有 skill 机制则须有 `skill` 根） |
+| HR-05 | 三维分类自洽 | `skill_mechanism` 与 `rules_only` 不得同时为假；**`support_state = not_applicable` 的宿主豁免本规则**（表示两类机制皆无） |
+| HR-06 | 落位根完整 | 每个宿主至少一条落位根；`kind` 不重复；`kind` 与 `classification` 自洽（声明支持 skill 机制时须有 `skill` 或 `external` 类落位根——后者表示技能根位于工作区之外）；**`support_state = not_applicable` 的宿主允许 `roots` 为空** |
 | HR-07 | 消费关系闭合 | `roots[].consumed_by` 与 `classification.root_consumed_by` 的取值必须是本注册表内的 `host_id`；实际已知的消费关系必须登记 |
 | HR-08 | 模式与白名单一致 | `field_mode=host_declared` 时 `allowed_extensions` 非空；`standard6` 时为空或缺省 |
 | HR-09 | 透传禁列 | `allowed_extensions` 不得包含 `disable-model-invocation` |
@@ -298,3 +298,4 @@ hosts:
 | 序号 | 日期 | 说明 |
 |---|---|---|
 | 1 | 2026-10-15 | 建立第五份契约规范：宿主注册表规范。依据需求文档 9.3.6（M5-R1 ~ M5-R9）与设计文档决策点 DP-03 的裁决；同时建立机器可读形态 `schemas/host_registry.schema.json` |
+| 2 | 2026-10-15 | 兼容澄清（T2 实现反馈）：① `support_state = not_applicable` 的宿主豁免 HR-05 与 HR-06，`roots` 与 `adapter_ref` 改为条件必填——「不适用 / 模型提供方」类宿主（如 DeepSeek）在规范中此前无法表达（两类机制皆无且无落位根）；② HR-06 的「技能根」判定同时接受 `skill` 与 `external` 两类落位根——工作区外的技能根（如豆包的用户技能根）此前会被误判为缺技能根。规则编号与其余取值域未变，机器可读形态同步 |
