@@ -3,15 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "description": "Electron 桌面外壳：只承担视图职责，操作经由内核指令完成",
+  "author": "skill-manager",
   "type": "module",
-  "main": "main/index.ts",
+  "main": "out/main/index.js",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build"
+    "build": "electron-vite build",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "pack:win": "electron-vite build && electron-builder --config packaging/electron-builder.yml --win"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^6.0.0",
+    "eslint-plugin-vue": "^10.11.1",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^3.3.13"
+  },
+  "dependencies": {
+    "vue": "^3.5.44"
+  }
 }

@@ -18,8 +18,11 @@
     "check": "npm run check:contract && npm run check:layer",
     "check:contract": "node scripts/check-contract.mjs",
     "check:layer": "node scripts/check-layer.mjs",
-    "typecheck": "tsc --build kernel/tsconfig.json",
+    "typecheck": "npm run typecheck:kernel && npm run typecheck:gui",
+    "typecheck:kernel": "tsc --build kernel/tsconfig.json",
+    "typecheck:gui": "npm run typecheck -w @skill-manager/gui",
     "test": "node --test tests/**/*.test.ts",
+    "smoke:gui": "node scripts/gui-smoke.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

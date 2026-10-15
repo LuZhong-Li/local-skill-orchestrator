@@ -1,0 +1,31 @@
+# 打包配置：Windows 目标（安装包 + 免安装单文件），产物输出到仓库根的 build/ 目录。
+# 内核以独立可执行文件形态随包分发（AD-09）：放到 resources/kernel/ 下，
+# 主进程按 resourcesPath 调用；开发模式则直接用 node 跑仓库内的内核入口。
+appId: local.skill-manager.desktop
+productName: skill-manager
+# 打包器要求固定版本：它按该版本下载对应平台运行时，无法从 semver 范围解析
+electronVersion: 44.7.2
+directories:
+  output: ../build/desktop
+  buildResources: .
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  # 由内核构建脚本产出的可执行文件；缺失时打包仍会成功，但运行期找不到内核会报通道异常
+  # 路径相对项目目录（gui/）解析，因此这里回到仓库根再进 build/
+  - from: ../build/kernel
+    to: kernel
+    filter:
+      - '**/*'
+win:
+  target:
+    - nsis
+    - portable
+  artifactName: ${productName}-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-manager.local/schemas/backup.schema.json",
   "title": "备份文档",
-  "description": "备份相关的两类文档：根模式为导出清单（export 产出、import 消费的可迁移备份，见指令契约第 4.14 与 4.15 节）；$defs.backupManifest 为备份载体清单（卸载前自动备份时写出的 backup_meta.yaml，见存储层备份载体读写）。两者都允许附加属性：契约对未知字段只给警告，不以拒绝处理。",
+  "description": "备份相关的两类文档，两者都允许附加属性：契约对未知字段只给警告，不以拒绝处理。根模式为导出清单（export 产出、import 消费的可迁移备份，见指令契约 4.14 与 4.15 节）；$defs.backupManifest 为备份载体清单（卸载前自动备份写出的 backup_meta.yaml，见指令契约 4.8.1 节）。",
   "type": "object",
   "required": ["backup_format_version", "exported_at", "tool_version", "skills"],
   "properties": {

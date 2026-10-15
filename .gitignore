@@ -4,6 +4,7 @@ node_modules/
 # 构建输出
 build/
 dist/
+out/
 *.tsbuildinfo
 
 # 运行期工作区数据，不入仓库

@@ -1,8 +1,20 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "jsx": "react-jsx",
-    "types": ["node"]
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "preserve",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true
   },
-  "include": ["main/**/*.ts", "preload/**/*.ts", "renderer/**/*.ts", "renderer/**/*.tsx"]
+  "include": [
+    "electron.vite.config.ts",
+    "bridge/**/*.ts",
+    "main/**/*.ts",
+    "preload/**/*.ts",
+    "renderer/env.d.ts",
+    "renderer/src/**/*.ts",
+    "renderer/src/**/*.vue"
+  ]
 }

@@ -1,0 +1,139 @@
+/**
+ * 视觉规范：香槟金为强调色，主色为低饱和中性色系，适合长时间查看。
+ * 变量集中在此，组件只引用变量，便于二期换主题。
+ */
+:root {
+  --accent: #d7b979;
+  --accent-strong: #c2a25f;
+  --accent-soft: #f4ecdc;
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --surface-muted: #faf9f7;
+  --border: #e4e1da;
+  --text: #26241f;
+  --text-muted: #6f6a61;
+  --success: #4f7a52;
+  --warning: #b07d24;
+  --danger: #a8443c;
+  --radius-card: 10px;
+  --radius-dialog: 14px;
+  --shadow-card: 0 1px 2px rgb(38 36 31 / 6%), 0 6px 16px rgb(38 36 31 / 6%);
+  --shadow-dialog: 0 12px 40px rgb(38 36 31 / 18%);
+  --space: 4px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    system-ui,
+    -apple-system,
+    sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: calc(var(--space) * 1.5) calc(var(--space) * 3);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent-strong);
+  color: #33290f;
+  font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+button.danger:hover:not(:disabled) {
+  background: #fbeceb;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+}
+
+input,
+select {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: calc(var(--space) * 1.5) calc(var(--space) * 2);
+  background: var(--surface);
+  width: 100%;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.tag {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 1px calc(var(--space) * 2);
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+
+.tag.enabled {
+  color: var(--success);
+  border-color: #cfe0cf;
+  background: #f2f7f2;
+}
+
+.tag.disabled {
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: var(--surface-muted);
+}
+
+.tag.invalid {
+  color: var(--danger);
+  border-color: #eccbc8;
+  background: #fbeceb;
+}
