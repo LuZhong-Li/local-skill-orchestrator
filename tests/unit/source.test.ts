@@ -323,15 +323,6 @@ test('N-05 安全：git 不可用时给出外部命令缺失错误与安装引�
   }
 });
 
-test('N-05：远程地址在本批次给出明确错误，不静默忽略', async () => {
-  const root = workspace();
-  const stage = mkdtempSync(join(tmpdir(), 'sm-source-remote-'));
-  skillContent(stage, 'remote', { type: 'git', location: 'https://example.com/repo.git' });
-  const outcome = await install(root, stage);
-  assert.equal(outcome.findings[0]?.code, CODES.SRC_UNRESOLVED);
-  assert.match(String(outcome.findings[0]?.remedy), /下一批次/);
-});
-
 test('N-05：归档内容根缺少元文件时给出获取失败错误', async () => {
   const root = workspace();
   const stage = mkdtempSync(join(tmpdir(), 'sm-source-nometa-'));

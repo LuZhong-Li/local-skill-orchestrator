@@ -248,24 +248,21 @@ test('K-04 刷新：元文件缺失时按既有错误码返回且不写索引', 
   assert.equal(outcome.data['rejected'], 'meta_unreadable');
 });
 
-test('K-04 刷新：远端形式的来源按来源类问题返回', async () => {
+test('K-04 刷新：远端来源不可达时按来源类问题返回且不刷新记录', async () => {
   const { root, layout, index } = scenario();
-  // 元文件声明为远端仓库：只有地址与引用，没有本地位置
+  // 元文件声明为远端仓库，地址指向本机一个不会有人在听的端口，失败快且不依赖外网
   const metaFile = join(root, 'skills', 'good', 'skill_meta.yaml');
   writeFileSync(
     metaFile,
     readFileSync(metaFile, 'utf8').replace(
       '  type: local',
-      '  type: git\n  url: https://example.com/repo.git\n  ref: main',
+      '  type: git\n  url: http://127.0.0.1:9/repo.git\n  ref: main',
     ),
   );
   const outcome = await updateSkill({ layout, index, id: 'good', now: LATER });
-  assert.deepEqual(
-    outcome.findings.map((item) => item.code),
-    [CODES.SRC_UNRESOLVED],
-  );
+  const code = String(outcome.findings[0]?.code);
+  assert.ok(code.startsWith('E-SRC-'), `应归入来源类问题，实际：${code}`);
   assert.equal(outcome.data['rejected'], 'source_unavailable');
-  assert.match(String(outcome.findings[0]?.message), /远程来源在本批次不受支持/);
   assert.equal(outcome.index, index, '拒绝时索引原样返回');
 });
 

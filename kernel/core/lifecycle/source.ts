@@ -3,14 +3,15 @@
  *
  * 本文件只做一件事：把「来源声明」变成一棵可以直接复制的本地目录树。
  *   本地目录  → 目录本身就是内容根；
- *   本地仓库  → 用 git 读出该引用下的已提交内容（不含版本控制目录与未提交改动）；
- *   归档文件  → 解压到临时目录。
+ *   仓库      → 用 git 读出该引用下的已提交内容（不含版本控制目录与未提交改动）；远端先克隆到临时目录；
+ *   归档文件  → 解压到临时目录；远端先下载到临时文件。
  *
  * 安全边界：
  *   归档条目逐条校验，拒绝绝对路径、上级目录跳转与符号链接条目；
  *   解压时逐级检查父目录必须是真实目录，堵住「先建符号链接、再借它写出去」的路径；
  *   来源标识按白名单校验，git 命令一律以可执行文件加参数数组调用，不经 shell，不存在注入面；
- *   远程地址在本批次不受支持，返回来源类错误而不是静默忽略。
+ *   远端地址受协议白名单约束，克隆与下载都有超时上限、下载另有体积上限，且都在临时目录内完成；
+ *   认证只支持公开来源，克隆时禁用交互提示以免挂起等待输入。
  */
 import { spawn } from 'node:child_process';
 import {
@@ -23,6 +24,9 @@ import {
   rmSync,
   statSync,
   writeFileSync,
+  closeSync,
+  openSync,
+  writeSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -49,6 +53,8 @@ export interface AcquiredSource {
   dir: string;
   /** 是否为临时目录；为真时调用方使用完毕需要释放 */
   temporary: boolean;
+  /** 解压或克隆出的临时目录；内容根可能是它的下一层，释放时要整体清理 */
+  scratch?: string;
 }
 
 /** 来源标识白名单：允许分支名、标签与十六进制提交，禁止以短横线开头以免被当作命令选项 */
@@ -57,6 +63,185 @@ const REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 /** 判断一个位置是否为远程地址；本批次不接受远程来源 */
 export function looksRemote(location: string): boolean {
   return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(location) || /^[^/\\]+@[^/\\]+:/.test(location);
+}
+
+/** 远端获取的时间与体积上限：超时防挂起，体积上限防无限下载；两者都可用环境变量调整 */
+const REMOTE_TIMEOUT_MS = Number(process.env['SKILL_MANAGER_SOURCE_TIMEOUT_MS'] ?? '') || 60_000;
+const REMOTE_MAX_BYTES =
+  Number(process.env['SKILL_MANAGER_SOURCE_MAX_BYTES'] ?? '') || 128 * 1024 * 1024;
+
+/** 协议白名单：https 与 git 用于远端；http 仅允许指向本机回环地址（本地测试与自建镜像） */
+function assertProtocolAllowed(location: string): void {
+  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\//.exec(location)?.[1]?.toLowerCase() ?? '';
+  if (scheme === 'https' || scheme === 'git') return;
+  if (scheme === 'http') {
+    const host = /^https?:\/\/([^/?#]+)/i.exec(location)?.[1]?.toLowerCase() ?? '';
+    const bare = host.replace(/:\d+$/, '');
+    if (bare === '127.0.0.1' || bare === 'localhost' || bare === '[::1]' || bare === '::1') return;
+  }
+  throw sourceError(
+    CODES.SRC_PROTOCOL_REJECTED,
+    `远端来源的协议不被接受：${location}`,
+    location,
+    '远端来源只允许 https 与 git 协议；指向本机回环地址的 http 也允许。file 协议请改用本地路径来源',
+  );
+}
+
+/** 依据地址形态判断远端来源是仓库还是归档 */
+function remoteKindOf(location: string): 'git' | 'archive' {
+  const path = location.split(/[?#]/)[0]?.toLowerCase() ?? '';
+  return /\.(zip|tar|tar\.gz|tgz)$/.test(path) ? 'archive' : 'git';
+}
+
+/** 从 URL 推断下载文件的扩展名，供归档类型识别使用 */
+function archiveNameOf(location: string, scratch: string): string {
+  const path = (location.split(/[?#]/)[0] ?? '').split('/').pop() ?? '';
+  const name = path.replace(/[^A-Za-z0-9._-]/g, '') || 'archive';
+  return join(scratch, name);
+}
+
+/** 把远端地址下载到本地文件；带超时与体积上限，失败路径清理半截文件 */
+async function fetchRemoteFile(url: string, destFile: string): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS) });
+  } catch (error) {
+    const name = (error as { name?: string }).name;
+    if (name === 'TimeoutError' || name === 'AbortError') {
+      throw sourceError(
+        CODES.SRC_TIMEOUT,
+        `下载超时（上限 ${REMOTE_TIMEOUT_MS / 1000} 秒）：${url}`,
+        url,
+        '请检查网络连通性，或改用本地归档来源',
+      );
+    }
+    throw sourceError(
+      CODES.SRC_DOWNLOAD_FAILED,
+      `下载失败：${error instanceof Error ? error.message : String(error)}`,
+      url,
+      '请确认该地址可达；网络受限时可先手动下载，再用本地归档来源安装',
+    );
+  }
+  if (!response.ok) {
+    throw sourceError(
+      response.status === 401 || response.status === 403
+        ? CODES.SRC_AUTH_REQUIRED
+        : CODES.SRC_DOWNLOAD_FAILED,
+      `远端返回 ${response.status}：${url}`,
+      url,
+      response.status === 401 || response.status === 403
+        ? '该来源需要认证；一期只支持公开来源，可先手动下载后再用本地归档来源'
+        : '请确认该地址指向一个可下载的归档文件',
+    );
+  }
+  const declared = Number(response.headers.get('content-length') ?? '0');
+  if (declared > REMOTE_MAX_BYTES) {
+    throw sourceError(
+      CODES.SRC_TOO_LARGE,
+      `远端来源体积超过上限：${declared} 字节`,
+      url,
+      `上限为 ${Math.round(REMOTE_MAX_BYTES / 1024 / 1024)} MB；请拆分来源或改用本地归档`,
+    );
+  }
+
+  const handle = openSync(destFile, 'w');
+  let received = 0;
+  try {
+    const body = response.body;
+    if (body === null) throw new Error('响应没有内容体');
+    for await (const chunk of body) {
+      const buffer = Buffer.from(chunk as Uint8Array);
+      received += buffer.length;
+      if (received > REMOTE_MAX_BYTES) {
+        throw sourceError(
+          CODES.SRC_TOO_LARGE,
+          `远端来源体积超过上限：已接收 ${received} 字节`,
+          url,
+          `上限为 ${Math.round(REMOTE_MAX_BYTES / 1024 / 1024)} MB；请拆分来源或改用本地归档`,
+        );
+      }
+      writeSync(handle, buffer);
+    }
+  } catch (error) {
+    closeSync(handle);
+    rmSync(destFile, { force: true });
+    if (error instanceof KernelError) throw error;
+    throw sourceError(
+      CODES.SRC_DOWNLOAD_FAILED,
+      `下载中断：${error instanceof Error ? error.message : String(error)}`,
+      url,
+      '请重试；持续失败时可手动下载后再用本地归档来源',
+    );
+  }
+  closeSync(handle);
+}
+
+/** 克隆远端仓库到临时目录；认证失败与超时各归明确问题码 */
+async function cloneRemoteRepo(
+  url: string,
+  ref: string | undefined,
+  destDir: string,
+): Promise<void> {
+  // 不用 --depth 1：浅克隆在 dumb HTTP 上不被支持，而自建镜像常用 dumb 协议。
+  // 代价是克隆体积更大，由超时上限兜底。
+  const args = ['clone', '--quiet'];
+  if (ref !== undefined && ref !== '') args.push('--branch', ref);
+  args.push(url, destDir);
+  const child = spawn('git', args, {
+    shell: false,
+    // 关掉交互提示：私有仓库会立刻失败并归入认证类问题，而不是挂起等输入
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+  });
+  let stderr = '';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data', (chunk: string) => {
+    stderr += chunk;
+  });
+  const timer = setTimeout(() => {
+    child.kill();
+  }, REMOTE_TIMEOUT_MS);
+  const code = await new Promise<number | null>((resolve) => {
+    child.on('error', () => resolve(null));
+    child.on('close', (value) => resolve(value));
+  });
+  clearTimeout(timer);
+  if (code === 0) return;
+
+  const detail = stderr.trim();
+  if (code === null && detail === '') {
+    throw sourceError(
+      CODES.SRC_COMMAND_UNAVAILABLE,
+      '未找到 git 命令',
+      url,
+      '请先安装 git 并确保它在 PATH 中，或改用本地来源',
+    );
+  }
+  if (child.killed) {
+    throw sourceError(
+      CODES.SRC_TIMEOUT,
+      `克隆超时（上限 ${REMOTE_TIMEOUT_MS / 1000} 秒）：${url}`,
+      url,
+      '请检查网络连通性，或改用本地仓库来源',
+    );
+  }
+  if (
+    /authentication failed|could not read username|permission denied|terminal prompts disabled|repository not found/i.test(
+      detail,
+    )
+  ) {
+    throw sourceError(
+      CODES.SRC_AUTH_REQUIRED,
+      `远端仓库需要认证或不可访问：${detail || url}`,
+      url,
+      '一期只支持公开来源；私有仓库请先在本机克隆，再用本地 git 仓库路径安装',
+    );
+  }
+  throw sourceError(
+    CODES.SRC_DOWNLOAD_FAILED,
+    `克隆失败：${detail || `git 退出码 ${String(code)}`}`,
+    url,
+    '请确认该地址是一个公开的 git 仓库，且引用标识存在',
+  );
 }
 
 function sourceError(code: string, message: string, target: string, remedy: string): KernelError {
@@ -327,11 +512,14 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
     );
   }
   if (looksRemote(location)) {
+    assertProtocolAllowed(location);
+    if (type === 'git') return acquireRemoteGit(location, ref);
+    if (type === 'archive') return acquireRemoteArchive(location);
     throw sourceError(
       CODES.SRC_UNRESOLVED,
-      `远程来源在本批次不受支持：${location}`,
+      `来源类型与地址形态不匹配：${type} / ${location}`,
       location,
-      '远程地址（Git 或下载链接）属下一批次；当前可先用本地目录、本地仓库或归档文件',
+      '远端来源的类型应为 git 或 archive',
     );
   }
 
@@ -339,9 +527,9 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
     const dir = tempDir();
     try {
       await extractGit(location, ref, dir);
-      assertEntrySafeRoot(dir, location);
-      assertNoSymlinks(dir);
-      return { dir, temporary: true };
+      const root = assertEntrySafeRoot(dir, location);
+      assertNoSymlinks(root);
+      return { dir: root, temporary: true, scratch: dir };
     } catch (error) {
       rmSync(dir, { recursive: true, force: true });
       throw error;
@@ -370,9 +558,9 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
           '仅支持 zip、tar 与 tar.gz 归档',
         );
       }
-      assertEntrySafeRoot(dir, location);
-      assertNoSymlinks(dir);
-      return { dir, temporary: true };
+      const root = assertEntrySafeRoot(dir, location);
+      assertNoSymlinks(root);
+      return { dir: root, temporary: true, scratch: dir };
     } catch (error) {
       rmSync(dir, { recursive: true, force: true });
       // 解压失败的原因可能是路径不安全，也可能是归档损坏；统一交给分类函数判断
@@ -393,16 +581,28 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
   return { dir: location, temporary: false };
 }
 
-/** 内容根必须直接含元文件：归档不支持外层再套一层目录 */
-function assertEntrySafeRoot(dir: string, target: string): void {
-  if (!existsSync(join(dir, META_FILE_NAME))) {
-    throw sourceError(
-      CODES.SRC_FETCH_FAILED,
-      `来源内容根目录下没有 ${META_FILE_NAME}`,
-      target,
-      '请让归档或仓库的内容根直接包含元文件；本批次不支持外层再套一层目录',
-    );
+/**
+ * 确定内容根：根目录直接含元文件时用它本身；
+ * 否则若根下恰好存在一个子目录且该子目录内直接含元文件，则下钻一层。
+ * 只下钻一层，多个候选或下钻后仍缺失都按获取失败上报。
+ */
+function assertEntrySafeRoot(dir: string, target: string): string {
+  if (existsSync(join(dir, META_FILE_NAME))) return dir;
+  const children = readdirSync(dir, { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory() && !entry.isSymbolicLink(),
+  );
+  if (children.length === 1) {
+    const inner = join(dir, children[0]!.name);
+    if (existsSync(join(inner, META_FILE_NAME))) return inner;
   }
+  throw sourceError(
+    CODES.SRC_FETCH_FAILED,
+    `无法确定唯一内容目录：内容根下没有 ${META_FILE_NAME}`,
+    target,
+    children.length === 1
+      ? `请让 ${children[0]!.name}/ 目录内直接包含元文件`
+      : '请让归档的内容根直接包含元文件，或只在外层保留一个目录',
+  );
 }
 
 /**
@@ -410,6 +610,14 @@ function assertEntrySafeRoot(dir: string, target: string): void {
  * 声明为本地仓库时按仓库读取（读的是已提交内容，不含版本控制目录与未提交改动）。
  */
 export async function acquireFromPath(sourcePath: string): Promise<AcquiredSource> {
+  // 远端地址：按地址形态推断是仓库还是归档——元文件还在远端，此时只能靠地址判断
+  if (looksRemote(sourcePath)) {
+    assertProtocolAllowed(sourcePath);
+    const kind = remoteKindOf(sourcePath);
+    return kind === 'archive'
+      ? acquireRemoteArchive(sourcePath)
+      : acquireRemoteGit(sourcePath, undefined);
+  }
   const absolute = resolve(sourcePath);
   if (!existsSync(absolute)) {
     throw sourceError(
@@ -479,7 +687,55 @@ export function normalizeSource(
   return result;
 }
 
+/** 远端仓库：克隆到临时目录后复用本地仓库的读取路径 */
+async function acquireRemoteGit(url: string, ref: string | undefined): Promise<AcquiredSource> {
+  const scratch = tempDir();
+  const cloneDir = join(scratch, 'repo');
+  const outDir = join(scratch, 'content');
+  try {
+    await cloneRemoteRepo(url, ref, cloneDir);
+    mkdirSync(outDir, { recursive: true });
+    await extractGit(cloneDir, undefined, outDir);
+    const root = assertEntrySafeRoot(outDir, url);
+    assertNoSymlinks(root);
+    return { dir: root, temporary: true, scratch };
+  } catch (error) {
+    rmSync(scratch, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+/** 远端归档：下载到临时文件后复用本地归档解压路径 */
+async function acquireRemoteArchive(url: string): Promise<AcquiredSource> {
+  const lower = (url.split(/[?#]/)[0] ?? '').toLowerCase();
+  if (!/\.(zip|tar|tar\.gz|tgz)$/.test(lower)) {
+    throw sourceError(
+      CODES.SRC_UNRESOLVED,
+      `无法从地址判断归档类型：${url}`,
+      url,
+      '地址需以 .zip、.tar 或 .tar.gz 结尾',
+    );
+  }
+  const scratch = tempDir();
+  const file = archiveNameOf(url, scratch);
+  const outDir = join(scratch, 'content');
+  try {
+    await fetchRemoteFile(url, file);
+    mkdirSync(outDir, { recursive: true });
+    if (file.toLowerCase().endsWith('.zip')) await extractZip(file, outDir);
+    else await extractTar(file, outDir);
+    const root = assertEntrySafeRoot(outDir, url);
+    assertNoSymlinks(root);
+    return { dir: root, temporary: true, scratch };
+  } catch (error) {
+    rmSync(scratch, { recursive: true, force: true });
+    throw classifyArchiveError(error, url);
+  }
+}
+
 /** 释放临时目录 */
 export function releaseSource(acquired: AcquiredSource): void {
-  if (acquired.temporary) rmSync(acquired.dir, { recursive: true, force: true });
+  if (!acquired.temporary) return;
+  // 内容根可能是临时目录本身，也可能是它下钻一层的子目录；按临时目录整体清理
+  rmSync(acquired.scratch ?? acquired.dir, { recursive: true, force: true });
 }
