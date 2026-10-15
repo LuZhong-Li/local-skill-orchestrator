@@ -7,6 +7,7 @@
  *
  * 本模块只做路径展开与声明组装，不含任何写盘动作：写盘由 T5 的落位扩展执行。
  */
+import { basename, join } from 'node:path';
 import { CODES, finding, type Finding } from '../../store/contract.ts';
 import { hostById } from '../hosts/index.ts';
 import type { RootKind } from '../hosts/types.ts';
@@ -132,4 +133,29 @@ export function assemblePlan(input: {
     overlaps,
     findings,
   };
+}
+
+/**
+ * 把落位计划重定基到解析后的宿主真实根。
+ *
+ * 注册表里的 `path_template` 是模板（工作区可推导布局或宿主相对形态），
+ * 真正的落点由外部根解析器给出（默认路径 + 配置覆盖）。重定基规则：
+ *   目录类落位根（技能根 / 工作区外技能根）：目标目录 = 宿主根 + Skill 标识；
+ *   文件类落位根（规则路径）：目标文件 = 宿主根 + 原计划的文件名。
+ */
+export function rebasePlan(plan: PlacementPlan, hostRootPath: string): PlacementPlan {
+  const entries = plan.entries.map((entry) => {
+    const fileType = entry.file_name === '';
+    const fileName = fileType ? basename(entry.target_path) : entry.file_name;
+    const rootPath = fileType ? hostRootPath : join(hostRootPath, plan.skill_id);
+    return {
+      ...entry,
+      root_path: rootPath,
+      target_path: join(rootPath, fileName),
+    };
+  });
+  const overlaps: OverlapDeclaration[] = entries
+    .filter((entry) => entry.consumed_by.length > 1)
+    .map((entry) => ({ root_path: entry.root_path, consumed_by: [...entry.consumed_by] }));
+  return { ...plan, entries, overlaps };
 }

@@ -4,8 +4,8 @@
  * 把参数转成对内核服务的调用，
  * 捕获内核抛出的错误并转换为标准结果封装。领域规则一律不在本层实现。
  */
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import {
   createInitialIndex,
   loadIndex,
@@ -29,7 +29,7 @@ import { analyzeDependencies, splitDeclaration } from '../../core/dependency/ind
 import { probeRuntimes } from '../../core/dependency/runtime.ts';
 import { exportIndex, importIndex } from '../../core/backup/index.ts';
 import { listAllBackups, listBackups } from '../../store/backup-fs/index.ts';
-import { ID_PATTERN } from '../../core/metadata/constants.ts';
+import { ID_PATTERN, META_FILE_NAME } from '../../core/metadata/constants.ts';
 import { declaredRuntimeOf, declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import {
@@ -41,12 +41,23 @@ import {
 import { withLock } from '../../store/locking/index.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { categoryOf, CODES, finding, type Finding } from '../../store/contract.ts';
+import { adapterFor } from '../../core/adapters/index.ts';
+import { landPlan, setHostSkillVisibility } from '../../core/adapters/land.ts';
+import { rebasePlan } from '../../core/adapters/plan.ts';
+import { resolveHostRoot } from '../../core/adapters/roots.ts';
+import type { AdapterForm, PlacementPlan } from '../../core/adapters/types.ts';
+import type { RenderSource } from '../../core/render/types.ts';
+import { hostIds as registeredHostIds } from '../../core/hosts/index.ts';
+import type { HostRootResolution } from '../../core/adapters/roots.ts';
+import type { RootKind } from '../../core/hosts/types.ts';
+import type { DeliveryPlanEntry } from '../../store/library-fs/index.ts';
 import { buildResult, type Change, type Result } from '../result/index.ts';
 import { flag, option, optionList, type ParsedArgs } from '../parsers/index.ts';
 import {
   confirmLevelOf,
   decideConfirmation,
   isAffirmative,
+  type ConfirmLevel,
   type ConfirmPlan,
   type Interaction,
 } from '../policy/index.ts';
@@ -112,6 +123,369 @@ export async function dispatch(context: CommandContext): Promise<Result<unknown>
 /** 解析工作区根目录：命令行选项优先，其次环境变量，最后用户主目录 */
 function workspaceRootOf(args: ParsedArgs): string {
   return resolveWorkspaceRoot(option(args, 'workspace'));
+}
+
+/**
+ * 宿主分发通道（指令契约规范 2.2 与 4.3 节）：`--host <宿主>` 决定分发到哪个宿主的真实根，
+ * 与 `--target` 正交——后者决定工作区内的目标位置，语义与一期完全一致。
+ *
+ * 该通道只在给出 `--host` 时介入：未给出时四条指令的执行路径与一期一字不差。
+ */
+interface HostChannel {
+  hostId: string;
+  form: AdapterForm;
+  /** 解析后的宿主真实根；不可落盘的形态没有该值 */
+  resolution?: HostRootResolution;
+  plan: PlacementPlan;
+}
+
+/** `--host` 的可用取值：注册表内每个有适配器的宿主，按其形态展开（规则路径类加后缀） */
+function hostOptionValues(): string[] {
+  const values: string[] = [];
+  for (const hostId of registeredHostIds()) {
+    const adapter = adapterFor(hostId);
+    if (adapter === undefined) continue;
+    for (const form of adapter.forms) {
+      values.push(form === 'rules' ? `${hostId}-rules` : hostId);
+    }
+  }
+  return values.sort();
+}
+
+/** 解析 `--host` 取值：宿主标识 + 形态；非法取值返回 undefined */
+function hostTargetOf(value: string): { hostId: string; form: AdapterForm } | undefined {
+  const rulesSuffixed = value.endsWith('-rules');
+  const hostId = rulesSuffixed ? value.slice(0, -'-rules'.length) : value;
+  const adapter = adapterFor(hostId);
+  if (adapter === undefined) return undefined;
+  if (rulesSuffixed) {
+    return adapter.forms.includes('rules') ? { hostId, form: 'rules' } : undefined;
+  }
+  const defaultForm = adapter.forms[0];
+  return defaultForm === undefined ? undefined : { hostId, form: defaultForm };
+}
+
+/** 组装宿主分发通道：校验取值 → 渲染与落位计划 → 解析宿主真实根 → 重定基到真实根 */
+function buildHostChannel(input: {
+  value: string;
+  layout: ReturnType<typeof layoutOf>;
+  index: SkillIndex;
+  source: RenderSource;
+  form?: AdapterForm;
+}): { channel?: HostChannel; findings: Finding[] } {
+  const findings: Finding[] = [];
+  const target = hostTargetOf(input.value);
+  if (target === undefined) {
+    findings.push(
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--host',
+        message: `--host 取值非法：${input.value}`,
+        remedy: `可用取值为 ${hostOptionValues().join('、')}`,
+      }),
+    );
+    return { findings };
+  }
+  const adapter = adapterFor(target.hostId);
+  if (adapter === undefined) {
+    findings.push(
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--host',
+        message: `该宿主没有适配器：${input.value}`,
+        remedy: `可用取值为 ${hostOptionValues().join('、')}`,
+      }),
+    );
+    return { findings };
+  }
+  const form = input.form ?? target.form;
+  const plan = adapter.plan(input.source, form);
+  findings.push(...plan.findings);
+
+  // 不可落盘的形态（如指令文件载体）：只登记不落盘，无需解析宿主根
+  if (!plan.entries.some((entry) => entry.landable)) {
+    return { channel: { hostId: target.hostId, form, plan }, findings };
+  }
+
+  const resolution = resolveHostRoot({
+    hostId: target.hostId,
+    workspaceRoot: input.layout.root,
+    config: input.index.config as Record<string, unknown>,
+    ...(form === 'rules' ? { rootKind: 'rules' as RootKind } : {}),
+  });
+  if (resolution === undefined) {
+    findings.push(
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--host',
+        message: `该宿主没有可用于分发的落位根：${input.value}`,
+        remedy: `可用取值为 ${hostOptionValues().join('、')}`,
+      }),
+    );
+    return { findings };
+  }
+  findings.push(...resolution.findings);
+  if (resolution.findings.some((item) => item.severity === 'error') || resolution.path === '') {
+    return { findings };
+  }
+  return {
+    channel: { hostId: target.hostId, form, resolution, plan: rebasePlan(plan, resolution.path) },
+    findings,
+  };
+}
+
+/** 宿主通道将写入的位置清单（供确认与预演呈现） */
+function hostWritesOf(plan: PlacementPlan): ConfirmPlan['writes'] {
+  return plan.entries
+    .filter((entry) => entry.landable)
+    .map((entry) => ({ action: '写入', kind: entry.artifact_kind, path: entry.target_path }));
+}
+
+/** 通道是否涉及工作区之外的写入（用于确认级别升级与提示） */
+function hostWritesOutside(plan: PlacementPlan): boolean {
+  return plan.entries.some((entry) => entry.landable && entry.external);
+}
+
+/** 把落位执行结果转换为结果封装的变更与数据 */
+function hostLandingResult(input: {
+  command: string;
+  channel: HostChannel;
+  layout: ReturnType<typeof layoutOf>;
+  now: string;
+  skillId: string;
+  sourceDir?: string;
+  fileMap?: DeliveryPlanEntry[];
+  dryRun: boolean;
+}): Result<unknown> {
+  const landed = landPlan({
+    plan: input.channel.plan,
+    workspace: input.layout,
+    now: input.now,
+    ...(input.sourceDir === undefined ? {} : { sourceDir: input.sourceDir }),
+    ...(input.fileMap === undefined ? {} : { fileMap: input.fileMap }),
+    ...(input.dryRun ? { dryRun: true } : {}),
+  });
+  const changes: Change[] = landed.changes.map((item) => ({
+    ...item,
+    detail: `${item.detail ?? ''}（宿主分发：${input.channel.hostId}）`.trim(),
+  }));
+  const consumedBy = [
+    ...new Set(input.channel.plan.entries.flatMap((entry) => entry.consumed_by)),
+  ].sort();
+  return buildResult(input.command, landed.findings, changes, {
+    data: {
+      host: input.channel.hostId,
+      host_root: input.channel.resolution?.path ?? '',
+      host_writes_outside_workspace: hostWritesOutside(input.channel.plan),
+      skipped: landed.skipped,
+      backups: landed.backups,
+      consumed_by: consumedBy,
+    },
+    ...(input.dryRun ? { preview: true } : {}),
+  });
+}
+
+/** 读取中心库副本的 SKILL.md 正文（去掉元数据块），作为渲染产物的指令正文 */
+function skillBodyOf(skillDir: string): string | undefined {
+  const file = join(skillDir, 'SKILL.md');
+  if (!existsSync(file)) return undefined;
+  const text = readFileSync(file, 'utf8');
+  const match = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(text);
+  return match === null ? text : text.slice(match[0].length);
+}
+
+/** 由元文件字段与指令正文组装渲染输入 */
+function renderSourceOf(skillDir: string, raw: Record<string, unknown>): RenderSource {
+  const source: RenderSource = { id: String(raw['id']) };
+  for (const key of ['description', 'license', 'version', 'author'] as const) {
+    const value = raw[key];
+    if (typeof value === 'string' && value.trim() !== '') source[key] = value;
+  }
+  const keywords = raw['trigger_keywords'];
+  if (Array.isArray(keywords)) {
+    source.trigger_keywords = keywords.filter((item): item is string => typeof item === 'string');
+  }
+  const dependencies = raw['dependencies'];
+  if (dependencies !== null && typeof dependencies === 'object' && !Array.isArray(dependencies)) {
+    const record = dependencies as Record<string, unknown>;
+    const skills = record['skills'];
+    if (Array.isArray(skills)) {
+      source.skill_dependencies = skills.filter((item): item is string => typeof item === 'string');
+    }
+    const runtime = record['runtime'];
+    if (runtime !== null && typeof runtime === 'object' && !Array.isArray(runtime)) {
+      const map: Record<string, string> = {};
+      for (const [name, constraint] of Object.entries(runtime as Record<string, unknown>)) {
+        if (typeof constraint === 'string') map[name] = constraint;
+      }
+      source.runtime_dependencies = map;
+    }
+  }
+  const body = skillBodyOf(skillDir);
+  if (body !== undefined) source.body = body;
+  return source;
+}
+
+/** 元文件所在目录：安装来源既可以是目录，也可以直接指向元文件 */
+function metaDirOf(sourcePath: string): string {
+  return sourcePath.endsWith(META_FILE_NAME) ? dirname(sourcePath) : sourcePath;
+}
+
+/**
+ * 安装与刷新的宿主分发：把中心库原件按落位计划分发到宿主真实根。
+ *
+ * 调用时机在中心库就位之后（安装完成、刷新完成）；调用前该指令自身的确认门已通过，
+ * 因此这里不再重复确认（指令契约规范 2.4 节：一次调用一次确认）。
+ */
+function runHostLanding(input: {
+  command: 'install' | 'update';
+  hostValue: string;
+  layout: ReturnType<typeof layoutOf>;
+  index: SkillIndex;
+  /** 读取元文件与指令正文的位置：安装完成后的中心库副本，预演时为来源目录 */
+  skillDir: string;
+  now: string;
+  dryRun: boolean;
+}): { findings: Finding[]; changes: Change[]; data: Record<string, unknown> } {
+  const metaRead = readMetaFile(input.skillDir, input.skillDir);
+  if (metaRead.raw === null) {
+    return { findings: metaRead.findings, changes: [], data: {} };
+  }
+  const built = buildHostChannel({
+    value: input.hostValue,
+    layout: input.layout,
+    index: input.index,
+    source: renderSourceOf(input.skillDir, metaRead.raw),
+  });
+  if (built.channel === undefined) {
+    return { findings: built.findings, changes: [], data: {} };
+  }
+  const landed = hostLandingResult({
+    command: input.command,
+    channel: built.channel,
+    layout: input.layout,
+    now: input.now,
+    skillId: String(metaRead.raw['id']),
+    sourceDir: input.skillDir,
+    dryRun: input.dryRun,
+  });
+  return {
+    findings: landed.findings,
+    changes: landed.changes,
+    data: (landed.data ?? {}) as Record<string, unknown>,
+  };
+}
+
+/**
+ * 宿主根内的启用 / 禁用：改名或还原宿主副本内的技能元数据文件，目录一律不动。
+ *
+ * 写工作区之外属高影响操作，因此把确认级别**升到轻确认**（该两条指令在工作区内本为「无需确认」）：
+ * 非终端环境必须给出 `--yes`，否则按参数类错误拒绝；`--dry-run` 只列出将变更的路径。
+ */
+async function runHostToggle(input: {
+  command: 'enable' | 'disable';
+  hostValue: string;
+  id: string;
+  layout: ReturnType<typeof layoutOf>;
+  index: SkillIndex;
+  args: ParsedArgs;
+  interaction: Interaction;
+  dryRun: boolean;
+}): Promise<Result<unknown>> {
+  const { command, hostValue, id, layout, index, args, interaction, dryRun } = input;
+  const metaRead = readMetaFile(join(layout.skillsDir, id), id);
+  if (metaRead.raw === null) {
+    return buildResult(command, metaRead.findings, [], { data: { host: hostValue } });
+  }
+  const built = buildHostChannel({
+    value: hostValue,
+    layout,
+    index,
+    source: renderSourceOf(join(layout.skillsDir, id), metaRead.raw),
+  });
+  if (built.channel === undefined) {
+    return buildResult(command, built.findings, [], { data: { host: hostValue } });
+  }
+  const channel = built.channel;
+  const rootPath = channel.resolution?.path ?? '';
+  if (rootPath === '') {
+    return buildResult(command, built.findings, [], { data: { host: channel.hostId } });
+  }
+
+  const copyDir = join(rootPath, id);
+  const targetPath = join(copyDir, command === 'disable' ? `${'SKILL.md'}.disabled` : 'SKILL.md');
+  const plan: ConfirmPlan = {
+    action: command === 'enable' ? '启用' : '禁用',
+    subject: `${id}（宿主 ${channel.hostId}）`,
+    writes: hostWritesOf(channel.plan),
+    notes: [`目标位于工作区之外：${rootPath}`, '只切换宿主副本的可见性，不改动索引状态与目录结构'],
+  };
+  if (!dryRun) {
+    const blocked = await confirmationGate({
+      command,
+      args,
+      interaction,
+      // 该两条指令在工作区内无需确认，此处传入空的预览结果，只借用统一确认入口；
+      // 级别由 confirmationGate 按「工作区外写入升到轻确认」的规则判定
+      preview: {
+        index,
+        findings: [],
+        changes: [],
+        data: {},
+      } satisfies LifecycleOutcome,
+      plan,
+      escalateTo: 'light',
+    });
+    if (blocked !== null) {
+      return buildResult(command, [...built.findings, ...blocked.findings], [], {
+        data: { host: channel.hostId, host_root: rootPath },
+      });
+    }
+  }
+
+  if (dryRun) {
+    return buildResult(command, built.findings, [], {
+      data: {
+        host: channel.hostId,
+        host_root: rootPath,
+        host_writes_outside_workspace: true,
+        preview_writes: plan.writes,
+      },
+      preview: true,
+    });
+  }
+
+  const visibility = setHostSkillVisibility({
+    rootPath,
+    skillId: id,
+    enabled: command === 'enable',
+  });
+  const changed = visibility === 'changed';
+  return buildResult(
+    command,
+    built.findings,
+    changed
+      ? [
+          {
+            action: 'modify',
+            kind: 'host-copy',
+            path: targetPath,
+            detail: `宿主分发：${channel.hostId}；目录与其余文件未改动`,
+          },
+        ]
+      : [],
+    {
+      data: {
+        host: channel.hostId,
+        host_root: rootPath,
+        host_writes_outside_workspace: true,
+        idempotent: !changed,
+        consumed_by: [
+          ...new Set(channel.plan.entries.flatMap((entry) => entry.consumed_by)),
+        ].sort(),
+      },
+    },
+  );
 }
 
 const initHandler: CommandHandler = async ({ args, now }) => {
@@ -246,8 +620,10 @@ async function confirmationGate(options: {
   interaction: Interaction;
   preview: LifecycleOutcome;
   plan: ConfirmPlan;
+  /** 级别提升：宿主分发写工作区之外时，把「无需确认」的两条指令升到轻确认 */
+  escalateTo?: ConfirmLevel;
 }): Promise<Result<unknown> | null> {
-  const { command, args, interaction, preview, plan } = options;
+  const { command, args, interaction, preview, plan, escalateTo } = options;
 
   if (preview.data['rejected'] !== undefined) {
     return buildResult(command, preview.findings, [], { data: preview.data });
@@ -257,7 +633,7 @@ async function confirmationGate(options: {
   }
 
   const decision = decideConfirmation({
-    level: confirmLevelOf(command, { hard: flag(args, 'hard') }),
+    level: escalateTo ?? confirmLevelOf(command, { hard: flag(args, 'hard') }),
     yes: flag(args, 'yes'),
     dryRun: flag(args, 'dry-run'),
     interaction,
@@ -404,6 +780,40 @@ const installHandler: CommandHandler = async ({ args, now, interaction }) => {
 
       const outcome = await installSkill({ ...installInput, dryRun });
       if (!dryRun && outcome.index !== loaded.index) saveIndex(layout.indexFile, outcome.index);
+
+      // 宿主分发通道：只在给出 --host 且安装本身无错误级问题时介入
+      const hostValue = option(args, 'host');
+      if (hostValue !== undefined && !outcome.findings.some((item) => item.severity === 'error')) {
+        const sourceMeta = readMetaFile(metaDirOf(source), 'install 来源');
+        const skillId =
+          sourceMeta.raw !== null && typeof sourceMeta.raw['id'] === 'string'
+            ? sourceMeta.raw['id']
+            : undefined;
+        if (skillId !== undefined) {
+          // 预演时中心库尚未写入，渲染输入取自来源目录；实装时取自中心库副本
+          const libraryDir = join(layout.skillsDir, skillId);
+          const renderDir = dryRun && !existsSync(libraryDir) ? metaDirOf(source) : libraryDir;
+          const host = runHostLanding({
+            command: 'install',
+            hostValue,
+            layout,
+            index: outcome.index ?? loaded.index,
+            skillDir: renderDir,
+            now,
+            dryRun,
+          });
+          return buildResult(
+            'install',
+            [...outcome.findings, ...host.findings],
+            [...outcome.changes, ...host.changes],
+            {
+              data: { ...(outcome.data as Record<string, unknown>), host: host.data },
+              ...(outcome.preview === true || dryRun ? { preview: true } : {}),
+            },
+          );
+        }
+      }
+
       return buildResult('install', outcome.findings, outcome.changes, {
         data: outcome.data,
         ...(outcome.preview === true ? { preview: true } : {}),
@@ -950,6 +1360,14 @@ function toggleHandler(command: 'enable' | 'disable'): CommandHandler {
     const dryRun = flag(args, 'dry-run');
     const target = option(args, 'target');
     const scope = option(args, 'scope');
+    const hostValue = option(args, 'host');
+
+    // 宿主分发通道：只在给出 --host 时介入，且只作用于宿主真实根内的副本，
+    // 不修改索引状态（索引状态描述工作区内的目标），也不新建副本。
+    if (hostValue !== undefined) {
+      return runHostToggle({ command, hostValue, id, layout, index, args, interaction, dryRun });
+    }
+
     const base = {
       layout,
       index,
@@ -1023,6 +1441,31 @@ const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
 
   const outcome = await updateSkill({ layout, index, id, now, check, target: updateTarget });
   if (!check && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
+
+  // 宿主分发通道：刷新后按落位计划把新内容重分发到宿主真实根（不新建副本）
+  const hostValue = option(args, 'host');
+  if (
+    hostValue !== undefined &&
+    !check &&
+    !outcome.findings.some((item) => item.severity === 'error')
+  ) {
+    const host = runHostLanding({
+      command: 'update',
+      hostValue,
+      layout,
+      index: outcome.index ?? index,
+      skillDir: join(layout.skillsDir, id),
+      now,
+      dryRun: false,
+    });
+    return buildResult(
+      'update',
+      [...findings, ...outcome.findings, ...host.findings],
+      [...outcome.changes, ...host.changes],
+      { data: { ...(outcome.data as Record<string, unknown>), host: host.data } },
+    );
+  }
+
   return buildResult('update', [...findings, ...outcome.findings], outcome.changes, {
     data: outcome.data,
     ...(outcome.preview === true ? { preview: true } : {}),
