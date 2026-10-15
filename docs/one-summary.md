@@ -60,7 +60,8 @@
 | 索引格式规范 | `docs/specification/index-format.md` | 三区结构、投影规则、重建流程 |
 | 指令契约 | `docs/specification/cli-contract.md` | 16 条指令、确认强度、缺口登记表 |
 | 结果与退出码规范 | `docs/specification/result-and-exit-codes.md` | 结果封装 8 字段、问题码 60 个、退出码 7 档 |
-| JSON Schema | `schemas/*.json` | 四份，与四份规范文档逐字段对齐并由测试守住 |
+| 宿主注册表规范 | `docs/specification/host-registry.spec.md` | 宿主注册表字段与 12 条校验规则（HR-01 ~ HR-12） |
+| JSON Schema | `schemas/*.json` | 五份，与五份规范文档逐字段对齐并由测试守住 |
 
 ### 2.1 问题码与退出码
 
@@ -133,7 +134,7 @@
 | 界面冒烟 | 真实窗口与真实内核调用 | `npm run smoke:gui` |
 | 打包验证 | 免安装目录与便携单文件的启动闭环 | `npm run smoke:gui -- --app <产物>` |
 
-当前测试总数 **312 项**（单元 242、契约 9、端到端 61），全部通过。
+当前测试总数 **314 项**（单元 242、契约 11、端到端 61），全部通过。
 
 ### 4.3 工程约定
 
@@ -193,8 +194,8 @@
 | 类别 | 文件 |
 |---|---|
 | 需求与设计 | `docs/requirements.md`、`docs/architecture.md`、`docs/ui-design.md` |
-| 契约规范 | `docs/specification/` 下四份 |
-| 机器可读形态 | `schemas/` 下四份 JSON Schema |
+| 契约规范 | `docs/specification/` 下五份 |
+| 机器可读形态 | `schemas/` 下五份 JSON Schema |
 | 调研记录 | `docs/research/skill-plugin-manager-research.md`（快照，不修改） |
 | 评审记录 | `docs/reviews/` 下五份（快照，不修改；修订以补记承接） |
 | 变更记录 | `CHANGELOG.md` |
@@ -225,4 +226,4 @@
 
 ---
 
-**盘点结论**：16 条指令、四份契约规范与四份 JSON Schema、Electron 桌面外壳与可分发产物均已交付；二期五个批次（来源扩展、备份恢复、漂移定位、运行时探测、界面恢复入口）同样无未实现项，缺口登记表全部关闭。剩余仅 7.2 节列出的内核体积优化（工程项）。
+**盘点结论**：16 条指令、五份契约规范与五份 JSON Schema、Electron 桌面外壳与可分发产物均已交付；二期五个批次（来源扩展、备份恢复、漂移定位、运行时探测、界面恢复入口）同样无未实现项，缺口登记表全部关闭。剩余仅 7.2 节列出的内核体积优化（工程项）。第五份规范（宿主注册表规范）随后续阶段的 M5 交付建立，其条目内容由内核随版本交付。
