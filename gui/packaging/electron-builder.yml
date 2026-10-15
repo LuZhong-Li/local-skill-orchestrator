@@ -19,6 +19,8 @@ extraResources:
     filter:
       - '**/*'
 win:
+  # 显式给出图标路径：默认只在 buildResources 下按约定名查找，本项目把资源放在 packaging/
+  icon: packaging/icon.ico
   target:
     - nsis
     - portable

@@ -55,6 +55,9 @@ function createWindow(): void {
     show: false,
     backgroundColor: '#F6F5F2',
     title: 'skill-manager',
+    // 打包后的窗口与任务栏图标由可执行文件内嵌的图标提供；
+    // 开发模式没有内嵌图标，这里显式指向仓库中的图标资源
+    ...(app.isPackaged ? {} : { icon: resolve(app.getAppPath(), 'packaging', 'icon.png') }),
     webPreferences: {
       // 渲染层不接触 Node，只经预加载脚本暴露的白名单接口调用内核
       contextIsolation: true,
