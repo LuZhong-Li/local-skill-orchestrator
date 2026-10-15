@@ -1076,8 +1076,74 @@ test('验收：restore --dry-run 不要求确认也不写盘，载荷含将写�
     'skills/code-review/skill_meta.yaml',
   ]);
   assert.equal(result.data.library_exists, false);
+  const notes = (JSON.parse(out) as { data: { notes?: string[] } }).data.notes ?? [];
+  assert.ok(
+    notes.some((note) => /没有原件/.test(note)),
+    '预演载荷写明目标位置现状，供确认弹窗如实展示',
+  );
+  assert.ok(
+    notes.some((note) => /扫描/.test(note)),
+    '预演载荷写明结论由扫描判定',
+  );
   assert.ok(!existsSync(join(root, 'skills', 'code-review')), '预演不得写回原件');
   assert.equal(readFileSync(indexPath(root), 'utf8'), before, '预演不得改写索引');
+});
+
+test('验收：restore --list 列出可用备份，空工作区与过滤各归正常结果', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+
+  // 未产生任何备份时：正常结果而不是错误
+  const empty = await capture(['restore', '--list', '--workspace', root, '--json']);
+  assert.equal(empty.code, 0, '列表为空不是失败');
+  const emptyData = JSON.parse(empty.out) as {
+    data: { backups: unknown[]; total: number; filtered_by: string | null; notes: string[] };
+  };
+  assert.equal(emptyData.data.total, 0);
+  assert.deepEqual(emptyData.data.backups, []);
+  assert.equal(emptyData.data.filtered_by, null);
+  assert.ok(
+    emptyData.data.notes.some((note) => /没有可用备份/.test(note)),
+    '无备份时给出引导文案',
+  );
+
+  await run(['install', sourceSkill('code-review'), '--workspace', root, '--yes']);
+  await run(['uninstall', 'code-review', '--workspace', root, '--yes']);
+
+  const all = await capture(['restore', '--list', '--workspace', root, '--json']);
+  assert.equal(all.code, 0);
+  const rows = (
+    JSON.parse(all.out) as {
+      data: {
+        backups: Array<{
+          id: string;
+          timestamp: string;
+          type: string;
+          file_count: number;
+          path: string;
+        }>;
+        total: number;
+      };
+    }
+  ).data;
+  assert.equal(rows.total, 1);
+  assert.equal(rows.backups[0]?.id, 'code-review');
+  assert.equal(rows.backups[0]?.type, 'full');
+  assert.equal(rows.backups[0]?.file_count, 2);
+  assert.match(String(rows.backups[0]?.path), /^backups\/code-review\//);
+  assert.match(String(rows.backups[0]?.timestamp), /^\d{4}-\d{2}-\d{2}T/);
+
+  // 按标识过滤：命中的给出条目，未命中的给出空列表
+  const hit = await capture(['restore', 'code-review', '--list', '--workspace', root, '--json']);
+  assert.equal((JSON.parse(hit.out) as { data: { total: number } }).data.total, 1);
+  const miss = await capture(['restore', 'nosuch', '--list', '--workspace', root, '--json']);
+  assert.equal(miss.code, 0);
+  assert.equal((JSON.parse(miss.out) as { data: { total: number } }).data.total, 0);
+
+  // 标识不合规按参数类问题拒绝，不做路径拼接
+  const bad = await capture(['restore', 'Bad_ID', '--list', '--workspace', root, '--json']);
+  assert.equal(bad.code, 2);
+  assert.match(bad.out, /E-INPUT-002/);
 });
 
 test('验收：validate 的内容漂移报告定位到具体文件并给出新旧摘要', async () => {

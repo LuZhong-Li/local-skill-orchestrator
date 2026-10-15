@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KernelBridge } from '../../gui/bridge/commands.ts';
@@ -141,7 +141,7 @@ test('G-02 桥接：未给出确认回调时，内核的确认拒绝被如实回
   );
 });
 
-test('G-02 桥接：十五条指令的具名门面都能拿到结构完整的结果', async () => {
+test('G-02 桥接：十六条指令的具名门面都能拿到结构完整的结果', async () => {
   const root = workspace();
   const bridge = bridgeFor(root);
   const results = [
@@ -159,9 +159,31 @@ test('G-02 桥接：十五条指令的具名门面都能拿到结构完整的结
     await bridge.uninstall('nosuch'),
     await bridge.install(join(root, 'skills', 'nosuch')),
     await bridge.import('backups/snapshot.yaml'),
+    await bridge.restore('nosuch'),
+    await bridge.restoreList(),
     await bridge.configSet('default_target', 'claude'),
   ];
-  assert.equal(results.length, 15, '十五条指令各对应一个门面方法');
+  // restore 有两条门面方法（恢复与备份列表），因此方法数比指令数多一个
+  assert.equal(results.length, 17, '十六条指令各有门面，restore 另有列表方法');
+  const commands = [...new Set(results.map((item) => item.command))].sort();
+  assert.deepEqual(commands, [
+    'config get',
+    'config set',
+    'deps',
+    'disable',
+    'enable',
+    'export',
+    'import',
+    'init',
+    'inspect',
+    'install',
+    'list',
+    'restore',
+    'scan',
+    'uninstall',
+    'update',
+    'validate',
+  ]);
   for (const result of results) {
     assert.equal(typeof result.command, 'string');
     assert.ok(Array.isArray(result.findings), `${result.command} 的结果应含问题列表`);
@@ -169,6 +191,69 @@ test('G-02 桥接：十五条指令的具名门面都能拿到结构完整的结
     assert.equal(typeof result.exit_code, 'number');
   }
   assert.equal(results[3]?.ok, true, '列表在空工作区可用');
+});
+
+test('G-02 桥接：备份管理的恢复流程——读列表、预览、取消不发写请求、确认后执行', async () => {
+  const root = workspace();
+  const bridge = bridgeFor(root);
+  await bridge.init();
+  putSkill(root, 'alpha');
+  await bridge.scan();
+
+  // 卸载会产出备份载体；这一步带 --yes，模拟界面上已确认过的写操作
+  const removed = await bridge.execute(['uninstall', 'alpha']);
+  assert.equal(removed.ok, true, `卸载应成功：${JSON.stringify(removed.findings)}`);
+
+  // 读列表：界面只经内核拿数据
+  const listed = await bridge.restoreList();
+  assert.equal(listed.ok, true);
+  const rows = (
+    listed.data as { backups: Array<{ id: string; timestamp: string; file_count: number }> }
+  ).backups;
+  assert.equal(rows.length, 1);
+  const backup = rows[0]!;
+  assert.equal(backup.id, 'alpha');
+  assert.equal(backup.file_count, 2);
+
+  // 破坏现场，确认恢复确实由备份重建内容
+  rmSync(join(root, 'skills', 'alpha'), { recursive: true, force: true });
+  assert.ok(!existsSync(join(root, 'skills', 'alpha')), '前置：中心库原件已不在');
+
+  const preview = await bridge.preview(['restore', 'alpha', '--timestamp', backup.timestamp]);
+  assert.equal(preview.preview, true, '预览带预演标记');
+  assert.ok(preview.changes.length > 0, '预览给出将发生的变更');
+  assert.equal((preview.data as { library_exists: boolean }).library_exists, false);
+  assert.ok(
+    ((preview.data as { notes?: string[] }).notes ?? []).length > 0,
+    '预览载荷带覆盖与结论提示，供确认弹窗如实展示',
+  );
+
+  // 取消：不发写请求
+  const cancelled = await bridge.invokeWithConfirmation(['restore', 'alpha'], async () => false);
+  assert.equal(cancelled.kind, 'cancelled');
+  assert.ok(!existsSync(join(root, 'skills', 'alpha')), '取消后不得写回原件');
+
+  // 确认：带 --yes 执行
+  const executed = await bridge.invokeWithConfirmation(['restore', 'alpha'], async () => true);
+  assert.equal(executed.kind, 'result');
+  assert.equal(executed.result.ok, true, `恢复应成功：${JSON.stringify(executed.result.findings)}`);
+  assert.ok(existsSync(join(root, 'skills', 'alpha', 'SKILL.md')), '原件按备份重建');
+
+  // 没有备份的标识：问题码如实回传（界面据此展示可读错误）
+  const degraded = await bridge.restoreList('nosuch');
+  assert.equal(degraded.ok, true);
+  assert.equal((degraded.data as { total: number }).total, 0);
+  const missing = await bridge.run(['restore', 'nosuch', '--yes']);
+  assert.equal(missing.ok, false);
+  assert.deepEqual(
+    missing.findings.map((item) => item.code),
+    ['E-BAK-003'],
+  );
+
+  // 非 TTY 约束在桥接层同样成立：不带 --yes 又无确认回调时，内核拒绝并回传参数类问题
+  const refused = await bridge.restore('alpha');
+  assert.equal(refused.ok, false);
+  assert.equal(isConfirmationRefusal(refused), true, '识别为「需要确认但缺少跳过选项」');
 });
 
 test('G-02 桥接：通道失败映射为宿主通道问题码，不吞诊断信息', async () => {

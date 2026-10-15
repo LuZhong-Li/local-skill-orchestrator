@@ -3,11 +3,20 @@
  * 确认弹窗：内容全部来自内核的预演结果，界面不编造影响范围。
  * 展示退出码与问题码；用户取消时不发任何写请求。
  */
+import { computed } from 'vue';
 import DialogShell from './DialogShell.vue';
 import type { ConfirmRequest } from '../composables/useKernel.ts';
 
-defineProps<{ request: ConfirmRequest }>();
+const props = defineProps<{ request: ConfirmRequest }>();
 defineEmits<{ answer: [approved: boolean] }>();
+
+/** 预演载荷里的逐文件清单（有则展示）：恢复与安装类操作都会给出 */
+const files = computed<string[]>(() => {
+  const value = props.request.result.data?.['files'];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
+});
 </script>
 
 <template>
@@ -36,6 +45,14 @@ defineEmits<{ answer: [approved: boolean] }>();
         </div>
       </template>
     </dl>
+    <template v-if="files.length > 0">
+      <p class="muted">将写回的文件（{{ files.length }} 项）</p>
+      <ul class="files">
+        <li v-for="file in files" :key="file">
+          <code>{{ file }}</code>
+        </li>
+      </ul>
+    </template>
     <ul class="warnings">
       <li v-for="finding in request.result.findings" :key="finding.code + finding.target">
         [{{ finding.severity === 'error' ? '错误' : '警告' }}] {{ finding.code }}
@@ -82,6 +99,16 @@ defineEmits<{ answer: [approved: boolean] }>();
   margin: 0;
   padding-left: calc(var(--space) * 5);
   font-size: 13px;
+}
+
+.files {
+  margin: 0;
+  max-height: 168px;
+  overflow: auto;
+  list-style: none;
+  padding-left: 0;
+  font-size: 13px;
+  word-break: break-all;
 }
 
 .warnings {

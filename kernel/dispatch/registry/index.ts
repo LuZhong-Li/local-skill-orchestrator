@@ -28,6 +28,8 @@ import { inspectSkill, listSkills, readConfig, toListEntry } from '../../core/in
 import { analyzeDependencies, splitDeclaration } from '../../core/dependency/index.ts';
 import { probeRuntimes } from '../../core/dependency/runtime.ts';
 import { exportIndex, importIndex } from '../../core/backup/index.ts';
+import { listAllBackups, listBackups } from '../../store/backup-fs/index.ts';
+import { ID_PATTERN } from '../../core/metadata/constants.ts';
 import { declaredRuntimeOf, declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import {
@@ -1125,6 +1127,45 @@ register({ name: 'import', handler: importHandler });
 const restoreHandler: CommandHandler = async ({ args, now, interaction }) => {
   const layout = layoutOf(workspaceRootOf(args));
   const id = args.positionals[0];
+
+  // 备份列表出口：备份管理界面要列出可用备份，而界面不得直读工作区文件，
+  // 因此由这条既有指令的取值选项给出列表。它不是写操作，不参与确认流程。
+  if (flag(args, 'list')) {
+    if (id !== undefined && id !== '' && !ID_PATTERN.test(id)) {
+      return buildResult('restore', [
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: id,
+          message: `标识不符合命名规范：${id}`,
+          remedy: '标识需为全小写、短横线分隔',
+        }),
+      ]);
+    }
+    const entries =
+      id === undefined || id === ''
+        ? listAllBackups(layout.root, layout.backupsDir)
+        : listBackups(layout.root, layout.backupsDir, id);
+    return buildResult('restore', [], [], {
+      data: {
+        backups: entries.map((entry) => ({
+          id: entry.id,
+          timestamp: entry.timestamp,
+          type: entry.type,
+          file_count: entry.fileCount,
+          path: entry.portableDir,
+        })),
+        total: entries.length,
+        filtered_by: id === undefined || id === '' ? null : id,
+        notes: [
+          '列表只读取备份清单，不校验载体内容；恢复时会逐份校验后再写回',
+          entries.length === 0
+            ? '没有可用备份：卸载 Skill 时会自动生成备份，也可以用 restore 之外的导出/导入流程迁移记录'
+            : '按标识与时间戳恢复：restore <标识> --timestamp <时间戳>',
+        ],
+      },
+    });
+  }
+
   if (id === undefined || id === '') {
     return buildResult('restore', [
       finding(CODES.INPUT_MISSING_ARG, {

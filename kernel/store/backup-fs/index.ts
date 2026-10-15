@@ -302,6 +302,8 @@ function isDirectory(target: string): boolean {
 }
 
 export interface BackupEntry {
+  /** 该载体所属的 Skill 标识 */
+  id: string;
   /** 备份目录绝对路径 */
   dir: string;
   /** 备份目录相对工作区的可移植路径 */
@@ -319,6 +321,8 @@ export interface BackupEntry {
  * 只读取清单，不校验内容——校验在恢复前单独做，避免枚举就被损坏载体拖垮。
  */
 export function listBackups(workspaceRoot: string, backupsDir: string, id: string): BackupEntry[] {
+  // 标识要参与路径拼接：不是单一路径段时一律视为「没有备份」，不越出备份根目录
+  if (!isSafeSegment(id)) return [];
   const root = backupRootOf(backupsDir, id);
   let stampDirs: string[];
   try {
@@ -340,6 +344,7 @@ export function listBackups(workspaceRoot: string, backupsDir: string, id: strin
       raw = null;
     }
     entries.push({
+      id,
       dir,
       portableDir: portableOf(workspaceRoot, dir),
       timestamp: typeof raw?.['timestamp'] === 'string' ? String(raw['timestamp']) : stamp,
@@ -352,6 +357,29 @@ export function listBackups(workspaceRoot: string, backupsDir: string, id: strin
     const b = sortKeyOf(right.timestamp);
     return a < b ? -1 : a > b ? 1 : 0;
   });
+}
+
+/**
+ * 枚举工作区内全部 Skill 的备份载体，按「标识升序、时间戳升序」返回。
+ *
+ * 供备份管理界面使用：界面不直接读工作区文件，列表由本函数（存储层）产出，
+ * 再经指令载荷交给调用方。层级内遇到非目录项或非法路径段一律跳过，不报错——
+ * 备份目录被外部塞进杂物时，列表应照常可用。
+ */
+export function listAllBackups(workspaceRoot: string, backupsDir: string): BackupEntry[] {
+  let ids: string[];
+  try {
+    ids = readdirSync(backupsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && isSafeSegment(entry.name))
+      .map((entry) => entry.name)
+      .sort();
+  } catch {
+    return [];
+  }
+
+  const entries: BackupEntry[] = [];
+  for (const id of ids) entries.push(...listBackups(workspaceRoot, backupsDir, id));
+  return entries;
 }
 
 /**

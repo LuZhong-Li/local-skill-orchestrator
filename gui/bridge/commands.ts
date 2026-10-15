@@ -151,4 +151,9 @@ export class KernelBridge {
       ...(options.timestamp !== undefined ? ['--timestamp', options.timestamp] : []),
     ]);
   }
+
+  /** 备份列表：备份管理页的数据来源。界面不直读工作区文件，列表由内核产出 */
+  restoreList(id?: string): Promise<KernelResult> {
+    return this.run(['restore', ...(id !== undefined && id !== '' ? [id] : []), '--list']);
+  }
 }

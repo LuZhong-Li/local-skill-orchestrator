@@ -74,6 +74,26 @@ function prepareWorkspace() {
       '',
     ].join('\n'),
   );
+
+  // 预置一份备份载体（夹具直写磁盘，界面侧必须经 restore --list 才能看到它）：
+  // 这样「备份管理页渲染真实备份」这项检查才有可比对的真实数据
+  const backup = join(root, 'backups', 'smoke-skill', '2026-01-01T00-00-00Z');
+  mkdirSync(join(backup, 'content'), { recursive: true });
+  writeFileSync(join(backup, 'content', 'SKILL.md'), '# smoke');
+  writeFileSync(join(backup, 'content', 'skill_meta.yaml'), 'id: smoke-skill\nname: smoke-skill\n');
+  writeFileSync(
+    join(backup, 'backup_meta.yaml'),
+    [
+      'type: full',
+      'timestamp: 2026-01-01T00:00:00Z',
+      'skill_id: smoke-skill',
+      'source: skills/smoke-skill',
+      'file_count: 2',
+      `backup_digest: sha256:${'0'.repeat(64)}`,
+      `content_checksum: sha256:${'0'.repeat(64)}`,
+      '',
+    ].join('\n'),
+  );
   return root;
 }
 
@@ -241,6 +261,31 @@ async function main() {
     check(
       '状态栏记录了内核调用',
       (await evaluate("document.querySelector('.statusbar')?.innerText.includes('scan')")) === true,
+    );
+
+    // 备份管理页：列表只能来自内核的 restore --list（界面不得直读备份目录）
+    await evaluate(
+      "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '备份管理')?.click()",
+    );
+    await evaluate(
+      "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('读取备份列表'))?.click()",
+    );
+    await waitFor("document.querySelectorAll('table.backups tbody tr').length > 0");
+    const backupRow = String(
+      await evaluate(
+        "(() => { const row = document.querySelector('table.backups tbody tr'); return row ? row.innerText.replace(/\\s+/g, ' ') : ''; })()",
+      ),
+    );
+    const restoreEntry = await evaluate(
+      "[...document.querySelectorAll('table.backups tbody tr button')].some((b) => b.textContent.trim() === '恢复')",
+    );
+    check(
+      '备份管理页经内核列出真实备份并给出恢复入口',
+      backupRow.includes('smoke-skill') &&
+        backupRow.includes('2026-01-01T00:00:00Z') &&
+        backupRow.includes('2') &&
+        restoreEntry === true,
+      backupRow,
     );
 
     client.close();

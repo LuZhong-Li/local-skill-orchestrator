@@ -55,3 +55,12 @@ export interface LogEntry {
   text: string;
   ok: boolean;
 }
+
+/** 备份条目：内核 restore --list 载荷中的一行 */
+export interface BackupRow {
+  id: string;
+  timestamp: string;
+  type: string;
+  file_count: number;
+  path: string;
+}

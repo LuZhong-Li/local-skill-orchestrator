@@ -1334,6 +1334,7 @@ export function restoreSkill(input: RestoreInput): LifecycleOutcome {
   const contentFiles = listTreeFiles(contentDir);
 
   if (dryRun === true) {
+    const libraryExists = pathExists(libraryDir);
     return {
       index,
       findings: [],
@@ -1345,11 +1346,21 @@ export function restoreSkill(input: RestoreInput): LifecycleOutcome {
         backup_path: selected.portableDir,
         backup_timestamp: selected.timestamp,
         backup_type: selected.type,
-        library_exists: pathExists(libraryDir),
+        library_exists: libraryExists,
         action: record === undefined ? 'rebuild_record' : 'refresh_record',
         files: contentFiles.map((rel) => `${toPortablePath(layout.root, libraryDir)}/${rel}`),
         file_count: contentFiles.length,
         targets: targets.map((item) => item.declaredPath),
+        // 确认弹窗展示的提示：覆盖风险与「结论由扫描判定」都必须写在预演载荷里，界面不自行编造
+        notes: [
+          libraryExists
+            ? '目标位置已有中心库原件：确认后会被备份内容覆盖'
+            : '目标位置当前没有原件：确认后会按备份内容重建',
+          record === undefined
+            ? '该标识未登记：恢复会重建索引记录，运行期结论交由随后的扫描判定'
+            : '该标识已登记：恢复会刷新记录投影与派生区，运行期结论保持不变',
+          '恢复只读消费备份载体，不改动任何备份',
+        ],
       },
     };
   }

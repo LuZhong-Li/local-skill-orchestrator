@@ -16,6 +16,7 @@ import {
   BACKUP_META_FILE_NAME,
   backupRootOf,
   createBackup,
+  listAllBackups,
   listBackups,
   timestampToDirName,
 } from '../../kernel/store/backup-fs/index.ts';
@@ -26,6 +27,7 @@ import { computeChecksum } from '../../kernel/core/integrity/index.ts';
 
 const NOW = '2026-10-14T00:00:00Z';
 const SAME_SECOND = '2026-10-14T00:00:00Z';
+const LATER = '2026-10-14T01:00:00Z';
 
 function workspace(): string {
   const root = mkdtempSync(join(tmpdir(), 'sm-backup-'));
@@ -151,6 +153,31 @@ test('S-08 备份枚举按唯一时间戳升序，同秒内也保持真实先后
     [first.timestamp, second.timestamp, third.timestamp],
     '升序即真实先后：纯秒级取值等价于该秒的 .000',
   );
+});
+
+test('S-08 全量枚举按标识与时间戳升序，非法路径段不越出备份根目录', () => {
+  const root = workspace();
+  library(root, 'beta');
+  library(root, 'alpha');
+  backup(root, 'beta', { now: NOW });
+  backup(root, 'alpha', { now: LATER });
+  backup(root, 'alpha', { now: NOW });
+
+  const entries = listAllBackups(layoutOf(root).root, layoutOf(root).backupsDir);
+  assert.deepEqual(
+    entries.map((item) => `${item.id}@${item.timestamp}`),
+    [`alpha@${NOW}`, `alpha@${LATER}`, `beta@${NOW}`],
+    '先按标识、再按时间戳',
+  );
+  assert.deepEqual(
+    entries.map((item) => item.fileCount),
+    [3, 3, 3],
+  );
+
+  // 非法标识不得越出备份根目录去列别处的目录
+  assert.deepEqual(listBackups(root, layoutOf(root).backupsDir, '..'), []);
+  assert.deepEqual(listBackups(root, layoutOf(root).backupsDir, 'skills/alpha'), []);
+  assert.equal(listAllBackups(root, join(root, 'no-such-dir')).length, 0, '备份目录不存在时返回空');
 });
 
 test('S-08 校验不通过时报 E-BAK-001，并清理半份备份', () => {

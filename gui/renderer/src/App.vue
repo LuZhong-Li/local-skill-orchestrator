@@ -12,7 +12,7 @@ import InstallDialog from './components/InstallDialog.vue';
 import ValidationDialog from './components/ValidationDialog.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import { useKernel } from './composables/useKernel.ts';
-import { cardStateOf, type KernelResult, type SkillSummary } from './types.ts';
+import { cardStateOf, type BackupRow, type KernelResult, type SkillSummary } from './types.ts';
 
 type View = 'dashboard' | 'validation' | 'backup' | 'settings';
 
@@ -29,6 +29,9 @@ const importPath = ref('backups/export.yaml');
 const configResult = ref<KernelResult | null>(null);
 const configKey = ref('default_target');
 const configValue = ref('');
+const backups = ref<BackupRow[]>([]);
+const backupFilter = ref('');
+const backupLoaded = ref(false);
 
 const visibleRecords = computed(() =>
   filterState.value === ''
@@ -65,6 +68,20 @@ async function runExport(): Promise<void> {
 
 async function runImport(): Promise<void> {
   await act(['import', importPath.value.trim()], '导入备份');
+}
+
+/** 读取可用备份列表：数据来自内核的 restore --list，界面不直读备份目录 */
+async function loadBackups(): Promise<void> {
+  const id = backupFilter.value.trim();
+  const result = await kernel.run(['restore', ...(id === '' ? [] : [id]), '--list']);
+  backups.value = (result.data?.['backups'] as BackupRow[] | undefined) ?? [];
+  backupLoaded.value = true;
+}
+
+/** 恢复一份备份：预览 → 确认 → 带 --yes 执行，取消时不发写请求 */
+async function restoreBackup(row: BackupRow): Promise<void> {
+  await act(['restore', row.id, '--timestamp', row.timestamp], `恢复 ${row.id}`);
+  await loadBackups();
 }
 
 async function loadConfig(): Promise<void> {
@@ -177,6 +194,52 @@ onMounted(async () => {
       </section>
 
       <section v-else-if="view === 'backup'" class="content">
+        <div class="panel wide">
+          <h2>可用备份（恢复）</h2>
+          <div class="row">
+            <label>
+              <span class="muted">只看某个 Skill（留空表示全部）</span>
+              <input v-model="backupFilter" placeholder="例如 code-review" />
+            </label>
+            <button :disabled="kernel.busy.value" @click="loadBackups">读取备份列表</button>
+          </div>
+          <p class="muted">
+            列表由内核读取备份清单给出，只读不校验内容；恢复时会逐份校验载体，再把内容写回中心库并重分发副本。
+          </p>
+          <table v-if="backups.length > 0" class="backups">
+            <thead>
+              <tr>
+                <th>Skill</th>
+                <th>时间戳</th>
+                <th>载体</th>
+                <th>文件数</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in backups" :key="`${row.id}@${row.timestamp}`">
+                <td>
+                  <code>{{ row.id }}</code>
+                </td>
+                <td>
+                  <code>{{ row.timestamp }}</code>
+                </td>
+                <td class="muted">{{ row.type }}</td>
+                <td class="muted">{{ row.file_count }}</td>
+                <td>
+                  <button :disabled="kernel.busy.value" @click="restoreBackup(row)">恢复</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else-if="backupLoaded" class="muted">
+            没有可用备份。卸载一个 Skill
+            时会自动生成备份；也可以先在下方导出记录，或从别处导入清单。
+          </p>
+          <p v-else class="muted">
+            还没有读取备份列表：点击「读取备份列表」查看当前工作区里的备份。
+          </p>
+        </div>
         <div class="panel">
           <h2>导出备份</h2>
           <label>
@@ -196,9 +259,6 @@ onMounted(async () => {
           </p>
           <button :disabled="kernel.busy.value" @click="runImport">导入</button>
         </div>
-        <p class="muted">
-          提示：一期没有列出既有备份的指令，备份载体目录需要自行查看；该能力尚未在契约中定义。
-        </p>
       </section>
 
       <section v-else class="content">
@@ -399,6 +459,43 @@ main {
 
 .panel h2 {
   font-size: 14px;
+}
+
+.panel.wide {
+  justify-self: stretch;
+  width: 100%;
+}
+
+.row {
+  display: flex;
+  gap: calc(var(--space) * 3);
+  align-items: flex-end;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.row label {
+  flex: 1;
+  min-width: 220px;
+}
+
+.backups {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.backups th,
+.backups td {
+  text-align: left;
+  padding: calc(var(--space) * 2) calc(var(--space) * 2);
+  border-bottom: 1px solid var(--border);
+  word-break: break-all;
+}
+
+.backups th {
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .panel label {
