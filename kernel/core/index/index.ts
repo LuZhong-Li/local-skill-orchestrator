@@ -7,6 +7,7 @@
  *   写回时按区块顺序输出，保证文本稳定、便于版本控制逐行比对。
  */
 import { INDEX_SCHEMA_VERSION } from '../metadata/constants.ts';
+import { hostById } from '../hosts/index.ts';
 import type { IndexConfig, IndexRecord, SkillIndex } from '../metadata/types.ts';
 import { readRawIndex, writeRawIndex } from '../../store/registry-store/index.ts';
 import { CODES, finding, type Finding } from '../../store/contract.ts';
@@ -112,6 +113,12 @@ function isRecordLike(value: unknown): boolean {
 /** 可由 `config set` 修改的配置项 */
 export const CONFIG_KEYS = ['skill_roots', 'default_target', 'default_mode'] as const;
 
+/**
+ * 宿主真实根的配置键形态：`host.<宿主标识>.root` 与 `host.<宿主标识>.rules_root`。
+ * 依据指令契约规范 4.3 节（`--host` 的落点覆盖）；宿主标识必须是注册表内已登记的标识。
+ */
+export const HOST_ROOT_KEY_PATTERN = /^host\.([a-z0-9-]+)\.(root|rules_root)$/;
+
 export interface SetConfigOutcome {
   /** 校验通过时为新的索引；失败时为 null，调用方不得写入 */
   index: SkillIndex | null;
@@ -132,7 +139,8 @@ export function setConfig(input: {
   const { index, key, value, workspaceRoot } = input;
   const previous = (index.config as unknown as Record<string, unknown>)[key];
 
-  if (!(CONFIG_KEYS as readonly string[]).includes(key)) {
+  const hostRootKey = HOST_ROOT_KEY_PATTERN.exec(key);
+  if (hostRootKey === null && !(CONFIG_KEYS as readonly string[]).includes(key)) {
     return {
       index: null,
       findings: [
@@ -140,11 +148,49 @@ export function setConfig(input: {
           source: 'input',
           target: key,
           message: `配置键不在可修改范围内：${key}`,
-          remedy: `可修改的配置项为 ${CONFIG_KEYS.join('、')}`,
+          remedy: `可修改的配置项为 ${CONFIG_KEYS.join('、')}，以及宿主真实根键 host.<宿主标识>.root 与 host.<宿主标识>.rules_root`,
         }),
       ],
       data: { key },
     };
+  }
+
+  // 宿主真实根：宿主标识必须在注册表内，取值非空，类别须有对应的落位根
+  if (hostRootKey !== null) {
+    const hostId = hostRootKey[1] as string;
+    const slot = hostRootKey[2] as string;
+    const entry = hostById(hostId);
+    if (entry === undefined) {
+      return invalidValue(
+        key,
+        previous,
+        `宿主标识不在宿主注册表内：${hostId}`,
+        '请使用宿主注册表中已登记的标识；未登记取值不写入配置',
+      );
+    }
+    if (entry.roots === undefined) {
+      return invalidValue(
+        key,
+        previous,
+        `该宿主没有落位根，不接受宿主根配置：${hostId}`,
+        '不适用宿主（如模型提供方）不参与分发，无需配置落位根',
+      );
+    }
+    const kinds = entry.roots.map((root) => root.kind);
+    const wanted = slot === 'rules_root' ? 'rules' : 'skill';
+    const satisfied = kinds.includes(wanted) || (wanted === 'skill' && kinds.includes('external'));
+    if (!satisfied) {
+      return invalidValue(
+        key,
+        previous,
+        `该宿主没有 ${wanted} 类落位根：${hostId}`,
+        `请改用该宿主支持的落位根类别；注册表中登记的类别为 ${kinds.join('、')}`,
+      );
+    }
+    if (value.trim() === '') {
+      return invalidValue(key, previous, '宿主落位根不能为空', '请给出宿主真实根的路径');
+    }
+    return accepted(index, key, previous, value.trim());
   }
 
   if (key === 'skill_roots') {
