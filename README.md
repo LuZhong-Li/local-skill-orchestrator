@@ -6,10 +6,36 @@ Skill 元信息管理器：统一管理环境内已安装 Skill 的元数据，�
 
 ## 当前状态
 
-处于**一期实现阶段**。文档基线已完成并冻结，仓库骨架已建立，内核已落地存储层、元数据模型、
-生命周期编排、校验引擎、依赖分析、备份与导入导出，**一期指令清单的 15 条指令全部可用**。
+**一期已收官**：功能面没有已知的未实现项，交付盘点见 [一期收官盘点](docs/one-summary.md)。
 
-尚未落地的部分：`schemas/` 下的 JSON Schema、以及 Electron 桌面外壳。
+| 交付面   | 内容                                                                                 |
+| -------- | ------------------------------------------------------------------------------------ |
+| 指令     | 契约清单的 15 条全部实现：环境与配置、登记与查询、生命周期、校验与依赖、备份导入导出 |
+| 内核     | TypeScript，零界面依赖，编译为独立可执行文件随应用分发                               |
+| 桌面外壳 | Electron + Vue 3：仪表盘、详情、安装、校验报告与确认流程；可打包为安装包与便携单文件 |
+| 契约     | 四份规范文档与四份 JSON Schema，字段一致性由测试守住                                 |
+| 验证     | 254 项测试（单元 195、契约 9、端到端 50）、构建期检查、界面冒烟                      |
+
+## 快速开始
+
+内核为 TypeScript，可直接以 Node 运行，无需安装依赖之外的任何环境：
+
+```bash
+node kernel/entry/cli.ts init --workspace <工作区路径>   # 建立工作区与索引
+node kernel/entry/cli.ts scan --workspace <工作区路径>   # 扫描并把已有 Skill 登记进索引
+node kernel/entry/cli.ts list --workspace <工作区路径>   # 列出已管理的 Skill
+```
+
+写操作（安装、卸载、启用、禁用、刷新、导入、配置写入）在非交互环境下需要显式给出 `--yes`；
+不确定影响范围时先用 `--dry-run` 预演。
+
+桌面外壳：
+
+```bash
+npm run dev -w @skill-manager/gui    # 开发模式启动界面
+npm run smoke:gui                    # 启动应用并经调试协议校验界面
+npm run pack:win -w @skill-manager/gui   # 打包 Windows 安装包与便携单文件
+```
 
 ## 仓库结构
 
@@ -31,10 +57,9 @@ npm run typecheck     # 类型检查
 npm run lint          # 静态检查
 npm run format        # 格式化
 npm run format:check  # 格式检查
-npm run build         # 构建内核与桌面外壳
+npm run build         # 构建内核可执行文件与桌面外壳
+npm run smoke:gui     # 界面冒烟（需图形会话）
 ```
-
-内核为 TypeScript，可直接以 Node 运行，例如 `node kernel/entry/cli.ts scan --workspace <路径>`。
 
 ## 文档入口
 
@@ -42,6 +67,7 @@ npm run build         # 构建内核与桌面外壳
 - [系统架构](docs/architecture.md)
 - [界面设计](docs/ui-design.md)
 - [契约规范](docs/specification/)
+- [一期收官盘点](docs/one-summary.md)
 - [文档阶段小结](docs/reviews/2026-10-13-documentation-milestone.md)
 
 ## 许可证
