@@ -154,7 +154,11 @@ export function scanWorkspace(input: ScanInput): ScanOutcome {
     summary.invalid += 1;
     records.push({
       ...previous,
-      validation: { status: 'invalid', errors: [CODES.INDEX_RECORD_INVALID] },
+      validation: {
+        status: 'invalid',
+        errors: [CODES.INDEX_RECORD_INVALID],
+        last_scan_at: now,
+      },
       updated_at: now,
     });
     findings.push(
@@ -330,7 +334,7 @@ function buildRecord(
     created_at: createdAt,
     updated_at: changed ? now : (previous?.updated_at ?? now),
     checksum,
-    validation: { status, errors },
+    validation: { status, errors, last_scan_at: now },
   };
 
   const version = pickOptional(raw['version'], previous?.version);
@@ -404,9 +408,19 @@ function pickOptional(value: unknown, fallback: string | undefined): string | un
   return fallback;
 }
 
-/** 判断两条记录在语义上是否一致，用于避免无谓的更新时间抖动 */
+/**
+ * 判断两条记录在语义上是否一致，用于避免无谓的更新时间抖动。
+ * 忽略最近变更时间与结论时间戳：前者本身就是判定对象，后者每次扫描都会刷新，
+ * 二者参与比较会让每次扫描都被记成一次更新。结论取值（status 与问题码）仍参与比较。
+ */
 function sameRecord(a: IndexRecord, b: IndexRecord): boolean {
-  return JSON.stringify({ ...a, updated_at: '' }) === JSON.stringify({ ...b, updated_at: '' });
+  const normalize = (record: IndexRecord): string =>
+    JSON.stringify({
+      ...record,
+      updated_at: '',
+      validation: { ...record.validation, last_scan_at: '' },
+    });
+  return normalize(a) === normalize(b);
 }
 
 /** 判断两份可用性映射是否一致 */

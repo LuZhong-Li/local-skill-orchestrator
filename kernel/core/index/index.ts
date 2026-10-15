@@ -9,7 +9,10 @@
 import { INDEX_SCHEMA_VERSION } from '../metadata/constants.ts';
 import type { IndexConfig, IndexRecord, SkillIndex } from '../metadata/types.ts';
 import { readRawIndex, writeRawIndex } from '../../store/registry-store/index.ts';
-import type { Finding } from '../../store/contract.ts';
+import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { KernelError } from '../../store/errors.ts';
+import { resolveWithin } from '../../store/paths/index.ts';
+import { TARGET_MODE_VALUES } from '../metadata/constants.ts';
 import { validateIndexVersion, validateValidationBlock } from '../metadata/validate.ts';
 
 /** 一期默认的 Skill 根目录，相对于工作区根目录 */
@@ -104,4 +107,127 @@ function isRecordLike(value: unknown): boolean {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const id = (value as Record<string, unknown>)['id'];
   return typeof id === 'string' && id !== '';
+}
+
+/** 可由 `config set` 修改的配置项 */
+export const CONFIG_KEYS = ['skill_roots', 'default_target', 'default_mode'] as const;
+
+export interface SetConfigOutcome {
+  /** 校验通过时为新的索引；失败时为 null，调用方不得写入 */
+  index: SkillIndex | null;
+  findings: Finding[];
+  data: Record<string, unknown>;
+}
+
+/**
+ * 修改单个配置项（契约 4.3）。
+ * 只做校验与取值改写，写入与加锁由调用方负责；不触发重新登记，配置变更在下次登记时生效。
+ */
+export function setConfig(input: {
+  index: SkillIndex;
+  key: string;
+  value: string;
+  workspaceRoot: string;
+}): SetConfigOutcome {
+  const { index, key, value, workspaceRoot } = input;
+  const previous = (index.config as unknown as Record<string, unknown>)[key];
+
+  if (!(CONFIG_KEYS as readonly string[]).includes(key)) {
+    return {
+      index: null,
+      findings: [
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: key,
+          message: `配置键不在可修改范围内：${key}`,
+          remedy: `可修改的配置项为 ${CONFIG_KEYS.join('、')}`,
+        }),
+      ],
+      data: { key },
+    };
+  }
+
+  if (key === 'skill_roots') {
+    const roots = value
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item !== '');
+    if (roots.length === 0) {
+      return invalidValue(
+        key,
+        previous,
+        'Skill 根目录列表不能为空',
+        '请至少给出一个根目录，多个目录用逗号分隔',
+      );
+    }
+    for (const item of roots) {
+      try {
+        // 路径防护：根目录必须落在工作区之内
+        resolveWithin(workspaceRoot, item, '工作区');
+      } catch (error) {
+        const kernelError = error instanceof KernelError ? error : null;
+        return {
+          index: null,
+          findings: [
+            finding(kernelError?.code ?? CODES.PATH_INVALID, {
+              source: 'input',
+              target: item,
+              message: kernelError?.message ?? `根目录不可用：${item}`,
+              remedy: '请把根目录限定在工作区之内，多个目录用逗号分隔',
+            }),
+          ],
+          data: { key, previous_value: previous ?? null },
+        };
+      }
+    }
+    return accepted(index, key, previous, roots);
+  }
+
+  if (key === 'default_mode') {
+    if (!TARGET_MODE_VALUES.includes(value as 'copy')) {
+      return invalidValue(
+        key,
+        previous,
+        `落位方式取值非法：${value}`,
+        `仅允许 ${TARGET_MODE_VALUES.join(' 或 ')}`,
+      );
+    }
+    return accepted(index, key, previous, value);
+  }
+
+  if (value.trim() === '') {
+    return invalidValue(
+      key,
+      previous,
+      '默认目标不能为空',
+      '请给出默认目标标识；一期的目标标识没有登记表，取值域校验仅覆盖非空',
+    );
+  }
+  return accepted(index, key, previous, value.trim());
+}
+
+function accepted(
+  index: SkillIndex,
+  key: string,
+  previous: unknown,
+  value: unknown,
+): SetConfigOutcome {
+  return {
+    index: { ...index, config: { ...index.config, [key]: value } },
+    findings: [],
+    data: { key, previous_value: previous ?? null, new_value: value },
+  };
+}
+
+function invalidValue(
+  key: string,
+  previous: unknown,
+  message: string,
+  remedy: string,
+): SetConfigOutcome {
+  return {
+    index: null,
+    findings: [finding(CODES.INPUT_INVALID_ARG, { source: 'input', target: key, message, remedy })],
+    data: { key, previous_value: previous ?? null },
+  };
 }

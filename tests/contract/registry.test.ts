@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CODES } from '../../kernel/store/contract.ts';
 import { REGISTERED_COMMANDS } from '../../kernel/dispatch/registry/index.ts';
+import { BOOLEAN_OPTIONS, VALUE_OPTIONS } from '../../kernel/dispatch/parsers/index.ts';
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
@@ -38,4 +39,21 @@ test('契约：已注册指令是契约指令清单的子集', () => {
   for (const command of REGISTERED_COMMANDS) {
     assert.ok(declared.has(command), `指令 ${command} 不在契约指令清单中`);
   }
+});
+
+test('契约：契约中写明的每个选项都已登记为布尔选项或取值选项', () => {
+  const contract = read('docs/specification/cli-contract.md');
+  const declared = new Set(
+    (contract.match(/--[a-z][a-z-]*/g) ?? []).map((item) => item.replace(/^--/, '')),
+  );
+  assert.ok(declared.size > 0, '未从契约中解析出任何选项');
+
+  const unregistered = [...declared].filter(
+    (name) => !BOOLEAN_OPTIONS.has(name) && !VALUE_OPTIONS.has(name),
+  );
+  assert.deepEqual(
+    unregistered,
+    [],
+    `契约已写明但实现未登记的选项：${unregistered.join('、')}；未登记的选项会在解析阶段报未知选项`,
+  );
 });

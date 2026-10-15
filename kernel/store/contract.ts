@@ -75,6 +75,10 @@ export const CODES = {
   // 版本类
   VERSION_UNSUPPORTED: 'E-VER-001',
 
+  // 来源类
+  SRC_UNRESOLVED: 'E-SRC-001',
+  SRC_REMOTE_FAILED: 'E-SRC-002',
+
   // 备份类
   BACKUP_FAILED: 'E-BAK-001',
   BACKUP_UNAVAILABLE: 'E-BAK-002',

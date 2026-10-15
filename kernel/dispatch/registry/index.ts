@@ -1,14 +1,27 @@
 /**
  * L2 指令注册与路由。
  *
- * 一期只注册 init 与 scan 两条指令的最小闭环：把参数转成对内核服务的调用，
+ * 把参数转成对内核服务的调用，
  * 捕获内核抛出的错误并转换为标准结果封装。领域规则一律不在本层实现。
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { createInitialIndex, loadIndex, saveIndex, TOOL_VERSION } from '../../core/index/index.ts';
+import {
+  createInitialIndex,
+  loadIndex,
+  saveIndex,
+  setConfig,
+  TOOL_VERSION,
+} from '../../core/index/index.ts';
 import { scanWorkspace } from '../../core/discovery/index.ts';
-import { installSkill, uninstallSkill, type LifecycleOutcome } from '../../core/lifecycle/index.ts';
+import {
+  disableSkill,
+  enableSkill,
+  installSkill,
+  uninstallSkill,
+  updateSkill,
+  type LifecycleOutcome,
+} from '../../core/lifecycle/index.ts';
 import { validateWorkspace, type ValidationReport } from '../../core/validation/index.ts';
 import { inspectSkill, listSkills, readConfig, toListEntry } from '../../core/index/query.ts';
 import { analyzeDependencies, splitDeclaration } from '../../core/dependency/index.ts';
@@ -53,11 +66,15 @@ export interface CommandSpec {
 export const REGISTERED_COMMANDS = [
   'init',
   'config get',
+  'config set',
   'scan',
   'list',
   'inspect',
   'install',
   'uninstall',
+  'enable',
+  'disable',
+  'update',
   'validate',
   'deps',
   'export',
@@ -258,6 +275,15 @@ async function confirmationGate(options: {
   });
 }
 
+/** 确认提示中的动作名称：与指令名一一对应，不得互相借用 */
+const ACTION_LABELS: Readonly<Record<string, string>> = {
+  install: '安装',
+  uninstall: '卸载',
+  enable: '启用',
+  disable: '禁用',
+  update: '刷新',
+};
+
 /** 由预览结果与附加提示组装预期变更摘要 */
 function planOf(
   command: string,
@@ -266,7 +292,7 @@ function planOf(
   notes: string[],
 ): ConfirmPlan {
   return {
-    action: command === 'install' ? '安装' : '卸载',
+    action: ACTION_LABELS[command] ?? command,
     subject,
     writes: preview.changes.map((item) => ({
       action: item.action,
@@ -692,6 +718,7 @@ const depsHandler: CommandHandler = async ({ args }) => {
       entries: report.entries,
       affected: report.affected,
       cycles: report.cycles,
+      ...(flag(args, 'tree') ? { tree: dependencyTreeOf(id, edges, availability) } : {}),
     },
   });
 
@@ -753,3 +780,218 @@ register({ name: 'inspect', handler: inspectHandler });
 register({ name: 'config get', handler: configGetHandler });
 register({ name: 'deps', handler: depsHandler });
 register({ name: 'export', handler: exportHandler });
+
+/**
+ * 依赖树：按 `--tree` 展开该标识的依赖层级。
+ * 只呈现已登记的依赖关系，遇到环或已展开的节点即止，避免无限递归。
+ */
+function dependencyTreeOf(
+  id: string,
+  edges: Map<string, string[]>,
+  availability: Map<string, boolean>,
+): Record<string, unknown> {
+  const expand = (name: string, seen: string[]): Record<string, unknown> => {
+    const verdict = !availability.has(name) ? 'missing' : availability.get(name) ? 'ok' : 'invalid';
+    const children = seen.includes(name)
+      ? []
+      : (edges.get(name) ?? []).map((child) => expand(child, [...seen, name]));
+    return { name, status: verdict, children };
+  };
+  return expand(id, []);
+}
+
+/** 读写共用的路径：载入索引并在需要时写回 */
+function loadForWrite(layout: ReturnType<typeof layoutOf>): {
+  index: SkillIndex | null;
+  findings: Finding[];
+  missing: boolean;
+} {
+  if (!existsSync(layout.indexFile)) return { index: null, findings: [], missing: true };
+  const loaded = loadIndex(layout.indexFile);
+  return { index: loaded.index, findings: [...loaded.findings], missing: false };
+}
+
+/** 索引缺失或损坏时的统一回应：按写操作处理，索引不可用即不能继续 */
+function unreadableIndex(
+  command: string,
+  layout: ReturnType<typeof layoutOf>,
+  findings: Finding[],
+  missing: boolean,
+): Result<unknown> {
+  return buildResult(command, [
+    ...findings,
+    missing
+      ? finding(CODES.ENV_NOT_INITIALIZED, {
+          source: 'workspace',
+          target: layout.root,
+          message: '工作区尚未初始化',
+          remedy: '请先执行 init',
+        })
+      : finding(CODES.ENV_INCOMPLETE, {
+          source: 'workspace',
+          target: layout.indexFile,
+          message: '索引无法读取，不能执行写操作',
+          remedy: '请先修复或重建索引',
+        }),
+  ]);
+}
+
+const configSetHandler: CommandHandler = async ({ args }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const key = args.positionals[0];
+  const value = args.positionals[1];
+  if (key === undefined || key === '') {
+    return buildResult('config set', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'key',
+        message: 'config set 需要给出配置键',
+        remedy: '用法：config set <配置键> <配置值>',
+      }),
+    ]);
+  }
+  if (value === undefined) {
+    return buildResult('config set', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'value',
+        message: 'config set 需要给出配置值',
+        remedy: '用法：config set <配置键> <配置值>',
+      }),
+    ]);
+  }
+  const { index, findings, missing } = loadForWrite(layout);
+  if (index === null) return unreadableIndex('config set', layout, findings, missing);
+
+  const outcome = setConfig({ index, key, value, workspaceRoot: layout.root });
+  if (outcome.index === null) {
+    return buildResult('config set', [...findings, ...outcome.findings], [], {
+      data: outcome.data,
+    });
+  }
+  try {
+    return await withLock(layout.indexFile, () => {
+      saveIndex(layout.indexFile, outcome.index as SkillIndex);
+      return buildResult('config set', findings, [], { data: outcome.data });
+    });
+  } catch (error) {
+    const kernelError = toKernelError(error, CODES.IO_FAILED);
+    return buildResult('config set', [
+      ...findings,
+      finding(kernelError.code, {
+        source: kernelError.source,
+        target: kernelError.target,
+        message: kernelError.message,
+        remedy: kernelError.remedy,
+      }),
+    ]);
+  }
+};
+
+/** 启用与禁用共用同一套参数与载荷形状 */
+function toggleHandler(command: 'enable' | 'disable'): CommandHandler {
+  return async ({ args, now, interaction }) => {
+    const layout = layoutOf(workspaceRootOf(args));
+    const id = args.positionals[0];
+    if (id === undefined || id === '') {
+      return buildResult(command, [
+        finding(CODES.INPUT_MISSING_ARG, {
+          source: 'input',
+          target: 'id',
+          message: `${command} 需要给出 Skill 标识`,
+          remedy: `请提供要${command === 'enable' ? '启用' : '禁用'}的 Skill 标识`,
+        }),
+      ]);
+    }
+    const { index, findings, missing } = loadForWrite(layout);
+    if (index === null) return unreadableIndex(command, layout, findings, missing);
+
+    const dryRun = flag(args, 'dry-run');
+    const target = option(args, 'target');
+    const scope = option(args, 'scope');
+    const base = {
+      layout,
+      index,
+      id,
+      now,
+      ...(target !== undefined ? { target } : {}),
+      ...(scope !== undefined ? { scope } : {}),
+    };
+    const run = command === 'enable' ? enableSkill : disableSkill;
+
+    // 启用与禁用的确认级别为「无需确认」，策略层判定为跳过后仍保留统一入口
+    if (!dryRun) {
+      const preview = run({ ...base, dryRun: true });
+      const blocked = await confirmationGate({
+        command,
+        args,
+        interaction,
+        preview,
+        plan: planOf(command, id, preview, []),
+      });
+      if (blocked !== null) return blocked;
+    }
+
+    const outcome = run({ ...base, dryRun });
+    if (!dryRun && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
+    return buildResult(command, [...findings, ...outcome.findings], outcome.changes, {
+      data: outcome.data,
+      ...(outcome.preview === true ? { preview: true } : {}),
+    });
+  };
+}
+
+const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const id = args.positionals[0];
+  if (id === undefined || id === '') {
+    return buildResult('update', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'id',
+        message: 'update 需要给出 Skill 标识',
+        remedy: '请提供要刷新的 Skill 标识',
+      }),
+    ]);
+  }
+  if (option(args, 'target') !== undefined) {
+    // 一期 update 只刷新记录，不重分发副本，因此没有目标维度
+    return buildResult('update', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--target',
+        message: '一期 update 只刷新索引记录，不重分发副本，该选项没有可用语义',
+        remedy: '请省略 --target；副本刷新与来源扩展同批实现',
+      }),
+    ]);
+  }
+  const { index, findings, missing } = loadForWrite(layout);
+  if (index === null) return unreadableIndex('update', layout, findings, missing);
+
+  const check = flag(args, 'check');
+  if (!check) {
+    const preview = updateSkill({ layout, index, id, now, check: true });
+    const blocked = await confirmationGate({
+      command: 'update',
+      args,
+      interaction,
+      preview,
+      plan: planOf('update', id, preview, [
+        '刷新会按磁盘现状更新索引记录与派生区字段，不改写元文件与用户源文件',
+      ]),
+    });
+    if (blocked !== null) return blocked;
+  }
+
+  const outcome = updateSkill({ layout, index, id, now, check });
+  if (!check && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
+  return buildResult('update', [...findings, ...outcome.findings], outcome.changes, {
+    data: outcome.data,
+    ...(outcome.preview === true ? { preview: true } : {}),
+  });
+};
+
+register({ name: 'config set', handler: configSetHandler });
+register({ name: 'enable', handler: toggleHandler('enable') });
+register({ name: 'disable', handler: toggleHandler('disable') });
+register({ name: 'update', handler: updateHandler });

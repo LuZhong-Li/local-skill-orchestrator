@@ -15,6 +15,38 @@ export interface AtomicWriteOptions {
   onBeforeRename?: (tempPath: string) => void;
 }
 
+/** 替换目标的重试次数；仅用于消除瞬时占用，不掩盖真实占用 */
+const RENAME_ATTEMPTS = 5;
+/** 重试的基础间隔，按尝试次数线性退避 */
+const RENAME_BACKOFF_MS = 10;
+
+/**
+ * 替换目标文件。
+ *
+ * 在 Windows 上覆盖既有文件时，换名可能瞬时失败并报 EPERM、EACCES 或 EBUSY——
+ * 通常是安全软件或索引服务短暂持有目标文件，与目标是否真的不可写无关。
+ * 这类瞬时失败在有限次数内重试即可消除；重试用尽后仍原样抛出，
+ * 真实占用不会被掩盖，调用方照常收到 E-IO-002。
+ */
+function renameWithRetry(from: string, to: string): void {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      const transient = code === 'EPERM' || code === 'EACCES' || code === 'EBUSY';
+      if (!transient || attempt >= RENAME_ATTEMPTS) throw error;
+      sleepSync(RENAME_BACKOFF_MS * attempt);
+    }
+  }
+}
+
+/** 同步等待：本函数位于同步写入路径，用 Atomics.wait 阻塞而不空转 CPU */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 /**
  * 原子写入文本内容。失败时清理临时文件并抛出 E-IO-002，
  * 目标文件保持调用前的状态，不产生半写内容。
@@ -33,7 +65,7 @@ export function atomicWriteFile(
     closeSync(handle);
     handle = undefined;
     options.onBeforeRename?.(tempPath);
-    renameSync(tempPath, targetPath);
+    renameWithRetry(tempPath, targetPath);
   } catch (error) {
     if (handle !== undefined) {
       try {

@@ -631,3 +631,141 @@ test('验收：本批五条指令执行前后索引文件字节完全一致', as
   await run(['export', 'backups/readonly.yaml', '--workspace', root]);
   assert.equal(readFileSync(indexPath(root), 'utf8'), before, '只读指令不得写入索引');
 });
+
+test('验收：enable 按需补齐副本并更新索引状态，disable 只改名', async () => {
+  const root = await readonlyWorkspace();
+  assert.equal(await run(['enable', 'alpha', '--workspace', root]), 0);
+  assert.deepEqual(readdirSync(join(root, '.claude', 'skills', 'alpha')).sort(), [
+    'SKILL.md',
+    'skill_meta.yaml',
+  ]);
+  assert.ok(
+    readFileSync(indexPath(root), 'utf8').includes('status: enabled'),
+    '索引状态应已是已启用',
+  );
+
+  assert.equal(await run(['disable', 'alpha', '--workspace', root]), 0);
+  assert.deepEqual(readdirSync(join(root, '.claude', 'skills', 'alpha')).sort(), [
+    'SKILL.md.disabled',
+    'skill_meta.yaml',
+  ]);
+  assert.equal(await run(['disable', 'alpha', '--workspace', root]), 0, '重复禁用幂等');
+  assert.equal(await run(['enable', 'alpha', '--workspace', root]), 0);
+  assert.ok(readdirSync(join(root, '.claude', 'skills', 'alpha')).includes('SKILL.md'));
+});
+
+test('验收：enable 拒绝校验不通过的记录，且不表述为已禁用', async () => {
+  const root = await readonlyWorkspace();
+  const { code, out } = await capture(['enable', 'beta', '--workspace', root, '--json']);
+  assert.equal(code, 1, '校验类问题按错误级返回');
+  const findings = (JSON.parse(out) as { findings: Array<{ code: string; remedy: string }> })
+    .findings;
+  assert.equal(findings[0]?.code, 'E-VALIDATION-001');
+  assert.ok(!JSON.stringify(findings).includes('该 Skill 已被禁用'));
+  assert.equal(await run(['enable', 'nosuch', '--workspace', root]), 2);
+});
+
+test('验收：update 需要确认，--check 只报告不写盘', async () => {
+  const root = await readonlyWorkspace();
+  const checked = await capture(['update', 'alpha', '--workspace', root, '--check', '--json']);
+  assert.equal(checked.code, 0, '检查模式不需要确认');
+  assert.equal((JSON.parse(checked.out) as { preview?: boolean }).preview, true);
+
+  assert.equal(await run(['update', 'alpha', '--workspace', root]), 2, '非终端且未给 --yes');
+  assert.equal(await run(['update', 'alpha', '--workspace', root, '--yes']), 0);
+  assert.equal(await run(['update', 'alpha', '--workspace', root, '--target', 'claude']), 2);
+  assert.equal(await run(['update', 'nosuch', '--workspace', root, '--yes']), 2);
+});
+
+test('验收：update 刷新版本与指纹，首次登记时间不变', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root, '--yes']);
+  const meta = join(root, 'skills', 'code-review', 'skill_meta.yaml');
+  writeFileSync(
+    meta,
+    readFileSync(meta, 'utf8').replace('id: code-review', 'id: code-review\nversion: 2.0.0'),
+  );
+  writeFileSync(join(root, 'skills', 'code-review', 'SKILL.md'), '# code-review changed');
+
+  const before = await capture(['inspect', 'code-review', '--workspace', root, '--json']);
+  const recordBefore = (
+    JSON.parse(before.out) as { data: { record: { created_at: string; checksum: string } } }
+  ).data.record;
+
+  const { code, out } = await capture([
+    'update',
+    'code-review',
+    '--workspace',
+    root,
+    '--yes',
+    '--json',
+  ]);
+  assert.equal(code, 0);
+  const data = (JSON.parse(out) as { data: Record<string, unknown> }).data;
+  assert.equal(data['version_after'], '2.0.0');
+  assert.equal(data['version_changed'], true);
+  assert.equal(data['created_at'], recordBefore.created_at, '首次登记时间不变');
+  assert.notEqual(data['checksum_after'], recordBefore.checksum, '指纹按磁盘重算');
+});
+
+test('验收：config set 写入并拒绝非法取值，写入前后索引可解析', async () => {
+  const root = await readonlyWorkspace();
+  const set = await capture([
+    'config',
+    'set',
+    'default_target',
+    'codex',
+    '--workspace',
+    root,
+    '--json',
+  ]);
+  assert.equal(set.code, 0);
+  const data = (JSON.parse(set.out) as { data: Record<string, unknown> }).data;
+  assert.equal(data['previous_value'], 'claude');
+  assert.equal(data['new_value'], 'codex');
+
+  const read = await capture(['config', 'get', '--workspace', root, '--json']);
+  assert.equal(
+    (JSON.parse(read.out) as { data: { default_target: string } }).data.default_target,
+    'codex',
+  );
+  assert.equal(await run(['config', 'set', 'default_mode', '硬链接', '--workspace', root]), 2);
+  assert.equal(await run(['config', 'set', 'nosuchkey', 'x', '--workspace', root]), 2);
+  assert.equal(await run(['config', 'set', 'default_target', '--workspace', root]), 2);
+});
+
+test('验收：export --no-config 不含配置区并记入剥离清单', async () => {
+  const root = await readonlyWorkspace();
+  const { code, out } = await capture([
+    'export',
+    'backups/no-config.yaml',
+    '--no-config',
+    '--workspace',
+    root,
+    '--json',
+  ]);
+  assert.equal(code, 0);
+  const data = (JSON.parse(out) as { data: { config_included: boolean; stripped: string[] } }).data;
+  assert.equal(data.config_included, false);
+  assert.deepEqual(data.stripped, ['config']);
+  assert.ok(!readFileSync(join(root, 'backups', 'no-config.yaml'), 'utf8').includes('skill_roots'));
+});
+
+test('验收：deps --tree 给出嵌套依赖树', async () => {
+  const root = await readonlyWorkspace();
+  const { code, out } = await capture(['deps', 'beta', '--tree', '--workspace', root, '--json']);
+  assert.equal(code, 6, '依赖未满足仍按专属口径返回 6');
+  const tree = (
+    JSON.parse(out) as { data: { tree: { name: string; status: string; children: unknown[] } } }
+  ).data.tree;
+  assert.equal(tree.name, 'beta');
+  assert.equal(tree.status, 'invalid', '该记录自身的运行期结论为校验不通过');
+  assert.deepEqual(tree.children, [{ name: 'ghost', status: 'missing', children: [] }]);
+});
+
+test('验收：未知选项按参数类错误拒绝', async () => {
+  const root = await readonlyWorkspace();
+  assert.equal(await run(['list', '--workspace', root, '--sttae', 'enabled']), 2);
+  assert.equal(await run(['scan', '--workspace', root, '--frobnicate']), 2);
+});

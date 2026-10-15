@@ -67,6 +67,11 @@ export interface IndexTargetSummary {
 export interface IndexValidation {
   status: ValidationStatus;
   errors: string[];
+  /**
+   * 最近一次扫描写入运行期结论的时间，只有扫描动作维护。
+   * 可选：安装新登记的记录在首次扫描之前没有该取值，缺失按「尚未扫描」处理。
+   */
+  last_scan_at?: string;
 }
 
 /** 索引中的单条 Skill 记录 */

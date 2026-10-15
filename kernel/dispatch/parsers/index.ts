@@ -20,6 +20,27 @@ export const BOOLEAN_OPTIONS = new Set([
   'hard',
   'keep-library',
   'library-only',
+  'all',
+  'check',
+  'no-config',
+  'no-secrets',
+  'tree',
+]);
+
+/**
+ * 取值选项：必须带一个值。
+ * 未登记的选项一律判为参数问题——把未知选项当成取值选项会静默吞掉后面的位置参数，
+ * 这类缺陷曾经让「文档里写明、实现里没登记」的选项在解析阶段直接报错或悄悄改变语义。
+ */
+export const VALUE_OPTIONS = new Set([
+  'workspace',
+  'root',
+  'state',
+  'source',
+  'target',
+  'scope',
+  'mode',
+  'on-conflict',
 ]);
 
 /** 可重复出现的取值选项 */
@@ -66,6 +87,17 @@ export function parseArgs(argv: string[]): ParseOutcome {
         options[name] = true;
         continue;
       }
+      if (!VALUE_OPTIONS.has(name)) {
+        findings.push(
+          finding(CODES.INPUT_INVALID_ARG, {
+            source: 'input',
+            target: `--${name}`,
+            message: `未知选项：--${name}`,
+            remedy: `请检查选项拼写；可用选项见 --help`,
+          }),
+        );
+        continue;
+      }
       const value = argv[index + 1];
       if (value === undefined || value.startsWith('--')) {
         findings.push(
@@ -93,9 +125,10 @@ export function parseArgs(argv: string[]): ParseOutcome {
       command = token;
       continue;
     }
-    if (group.length === 0 && token === 'get') {
+    // 两层指令只在 config 下成立：config get 与 config set
+    if (group.length === 0 && command === 'config' && (token === 'get' || token === 'set')) {
       group.push(token);
-      command = `${command} get`;
+      command = `config ${token}`;
       continue;
     }
     positionals.push(token);

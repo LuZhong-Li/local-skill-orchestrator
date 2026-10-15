@@ -4,14 +4,17 @@
  * 面向 `deps` 指令的报告式分析：逐条给出依赖对象的名称、版本约束、当前状态与检查结论，
  * 并给出影响面——哪些其他 Skill 会因该 Skill 被卸载或被禁用而受影响。
  *
- * 与 K-01 的分工：K-01 的依赖判定服务于登记与校验，产出的是问题码；
- * 本模块服务于查询与报告，产出的是条目与传染范围，两者输入相同、输出形态不同。
+ * 职责边界（单一判定源）：
+ *   依赖**判定**的唯一实现在 K-01（judgeDependency 与 findCycles），本模块只做**呈现**——
+ *   把判定结果组织成条目、问题码与影响面，不重写任何判定逻辑；
+ *   影响面分析是本模块自己的职责，但同样建立在 K-01 给出的判定结果之上。
  * 本模块只分析、只报告，不自动安装任何依赖，只接收纯数据，不读写文件。
  */
 import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { findCycles, judgeDependency, type AvailabilityMap } from '../metadata/validate.ts';
 
 /** 依赖目标的可用性：在索引中且运行期结论为校验通过 */
-export type Availability = Map<string, boolean>;
+export type Availability = AvailabilityMap;
 
 export interface DependencyEntry {
   name: string;
@@ -63,7 +66,8 @@ export function analyzeDependencies(input: {
   for (const raw of declared) {
     const { name, constraint } = splitDeclaration(raw);
     if (name === '') continue;
-    if (!availability.has(name)) {
+    const verdict = judgeDependency(name, availability);
+    if (verdict === 'missing') {
       entries.push({ name, constraint, status: 'missing', conclusion: '不在索引中' });
       findings.push(
         finding(CODES.DEP_MISSING, {
@@ -75,7 +79,7 @@ export function analyzeDependencies(input: {
       );
       continue;
     }
-    if (availability.get(name) !== true) {
+    if (verdict === 'invalid') {
       entries.push({ name, constraint, status: 'invalid', conclusion: '已登记但校验不通过' });
       findings.push(
         finding(CODES.VALIDATION_DEPENDENCY, {
@@ -128,22 +132,7 @@ export function collectDependents(id: string, edges: Map<string, string[]>): str
   return [...affected].sort();
 }
 
-/** 找出所有经过该标识的依赖环，同一个环只保留一次 */
+/** 从 K-01 的环检测结果中筛出经过该标识的环 */
 export function cyclesThrough(id: string, edges: Map<string, string[]>): string[][] {
-  const found = new Map<string, string[]>();
-
-  const walk = (node: string, path: string[]): void => {
-    if (path.includes(node)) {
-      if (node === id || path.includes(id)) {
-        const cycle = [...path.slice(path.indexOf(node)), node];
-        const key = [...new Set(cycle)].sort().join('>');
-        if (!found.has(key)) found.set(key, cycle);
-      }
-      return;
-    }
-    for (const next of edges.get(node) ?? []) walk(next, [...path, node]);
-  };
-
-  walk(id, []);
-  return [...found.values()];
+  return findCycles(edges).filter((cycle) => cycle.includes(id));
 }

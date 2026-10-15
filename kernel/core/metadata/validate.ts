@@ -218,6 +218,18 @@ export { isNonEmptyString };
 /** 依赖可用性映射：标识到是否校验通过 */
 export type AvailabilityMap = Map<string, boolean>;
 
+/** 单个被依赖对象的判定结论：可用、已登记但校验不通过、不在索引中 */
+export type DependencyVerdict = 'ok' | 'invalid' | 'missing';
+
+/**
+ * 依赖判定的唯一实现。
+ * 其它服务（登记与刷新、校验、依赖分析）一律引用本函数，不得各自重写判定逻辑。
+ */
+export function judgeDependency(name: string, availability: AvailabilityMap): DependencyVerdict {
+  if (!availability.has(name)) return 'missing';
+  return availability.get(name) === true ? 'ok' : 'invalid';
+}
+
 export type { SkillMeta };
 
 /** 校验来源信息块：类型枚举与条件必填 */
@@ -454,7 +466,8 @@ export function validateDependencies(metas: SkillMeta[], availability: Availabil
     for (const raw of declared) {
       const name = raw.trim().split(' ')[0] ?? '';
       if (name === '') continue;
-      if (!availability.has(name)) {
+      const verdict = judgeDependency(name, availability);
+      if (verdict === 'missing') {
         findings.push(
           finding(CODES.DEP_MISSING, {
             source: 'meta',
@@ -465,7 +478,7 @@ export function validateDependencies(metas: SkillMeta[], availability: Availabil
         );
         continue;
       }
-      if (availability.get(name) !== true) {
+      if (verdict === 'invalid') {
         findings.push(
           finding(CODES.VALIDATION_DEPENDENCY, {
             source: 'meta',
@@ -485,29 +498,20 @@ export function validateDependencies(metas: SkillMeta[], availability: Availabil
   return findings;
 }
 
-/** 深度优先检测依赖环，同一个环只报告一次 */
-export function detectCycles(edges: Map<string, string[]>): Finding[] {
-  const findings: Finding[] = [];
+/**
+ * 依赖环检测的唯一实现：返回全部环，每项以回到起点收尾，同一个环只保留一次。
+ */
+export function findCycles(edges: Map<string, string[]>): string[][] {
+  const found = new Map<string, string[]>();
   const visiting = new Set<string>();
   const done = new Set<string>();
-  const reported = new Set<string>();
 
   const walk = (node: string, path: string[]): void => {
     if (done.has(node)) return;
     if (visiting.has(node)) {
       const cycle = [...path, node];
       const key = [...new Set(cycle)].sort().join('>');
-      if (!reported.has(key)) {
-        reported.add(key);
-        findings.push(
-          finding(CODES.DEP_CYCLE, {
-            source: 'meta',
-            target: node,
-            message: `依赖关系成环：${cycle.join(' -> ')}`,
-            remedy: '请打断环中的任意一条依赖声明',
-          }),
-        );
-      }
+      if (!found.has(key)) found.set(key, cycle);
       return;
     }
     visiting.add(node);
@@ -517,5 +521,21 @@ export function detectCycles(edges: Map<string, string[]>): Finding[] {
   };
 
   for (const node of edges.keys()) walk(node, []);
+  return [...found.values()];
+}
+
+/** 深度优先检测依赖环，同一个环只报告一次 */
+export function detectCycles(edges: Map<string, string[]>): Finding[] {
+  const findings: Finding[] = [];
+  for (const cycle of findCycles(edges)) {
+    findings.push(
+      finding(CODES.DEP_CYCLE, {
+        source: 'meta',
+        target: cycle[0] ?? '',
+        message: `依赖关系成环：${cycle.join(' -> ')}`,
+        remedy: '请打断环中的任意一条依赖声明',
+      }),
+    );
+  }
   return findings;
 }
