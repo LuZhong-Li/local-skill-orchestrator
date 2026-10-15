@@ -8,12 +8,26 @@ electronVersion: 44.7.2
 directories:
   output: ../build/desktop
   buildResources: .
+# 实测记录：compression 由 normal 调到 maximum 后，安装包与便携产物体积只差 63 字节
+# （125,519,722 → 125,519,785），收益为零而打包耗时增加，因此维持默认档位，不做无依据的调整。
 files:
   - out/**/*
   - package.json
+  # 渲染层已由 Vite 打包（Vue 内联进 out/renderer 的产物），主进程与预加载只引用
+  # electron 与 Node 内置模块；gui 的 dependencies 全是构建期依赖，随包只会白占体积。
+  # 排除后 app.asar 从约 15 MB 降到数百 KB，运行期不需要任何 node_modules。
+  - '!node_modules/**'
+# 只保留界面实际用得到的语言包：Electron 默认携带 55 个 locale（约 48 MiB）。
+# 系统语言不在列表时 Chromium 回退到 en-US，因此中文与英文之外的语言包可以安全裁剪。
+electronLanguages:
+  - zh-CN
+  - en-US
 extraResources:
   # 由内核构建脚本产出的可执行文件；缺失时打包仍会成功，但运行期找不到内核会报通道异常
   # 路径相对项目目录（gui/）解析，因此这里回到仓库根再进 build/
+  # 实测记录：内核可执行文件（= Node 运行时 87.2 MiB + 0.7 MB 内核包）在安装包与便携产物中
+  # 各占约 23 MB（119.7 → 97.8 MiB），解包后占 92 MB；这是 AD-09 独立可执行文件形态的代价，
+  # 换形态需先改架构决议，不在体积优化批次内擅动。
   - from: ../build/kernel
     to: kernel
     filter:

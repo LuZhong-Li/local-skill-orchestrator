@@ -10,10 +10,12 @@
  */
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// 夹具用真实的 S-08 实现产出备份载体，避免在冒烟脚本里重写一份载体摘要算法
+import { createBackup } from '../kernel/store/backup-fs/index.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GUI = join(ROOT, 'gui');
@@ -75,25 +77,20 @@ function prepareWorkspace() {
     ].join('\n'),
   );
 
-  // 预置一份备份载体（夹具直写磁盘，界面侧必须经 restore --list 才能看到它）：
-  // 这样「备份管理页渲染真实备份」这项检查才有可比对的真实数据
-  const backup = join(root, 'backups', 'smoke-skill', '2026-01-01T00-00-00Z');
-  mkdirSync(join(backup, 'content'), { recursive: true });
-  writeFileSync(join(backup, 'content', 'SKILL.md'), '# smoke');
-  writeFileSync(join(backup, 'content', 'skill_meta.yaml'), 'id: smoke-skill\nname: smoke-skill\n');
-  writeFileSync(
-    join(backup, 'backup_meta.yaml'),
-    [
-      'type: full',
-      'timestamp: 2026-01-01T00:00:00Z',
-      'skill_id: smoke-skill',
-      'source: skills/smoke-skill',
-      'file_count: 2',
-      `backup_digest: sha256:${'0'.repeat(64)}`,
-      `content_checksum: sha256:${'0'.repeat(64)}`,
-      '',
-    ].join('\n'),
-  );
+  // 预置一份备份载体（夹具经 S-08 真实产出，界面侧只能经 restore --list 看到它）：
+  // 这样「备份管理页渲染真实备份」与「恢复弹窗展示预演」两项检查才有可用的真实数据
+  mkdirSync(join(root, 'backups'), { recursive: true });
+  createBackup({
+    workspaceRoot: root,
+    backupsDir: join(root, 'backups'),
+    id: 'smoke-skill',
+    sourceDir: skill,
+    now: '2026-01-01T00:00:00Z',
+    checksum: '',
+  });
+  // 备份造好之后改动原件：恢复若真的执行，磁盘上的内容必须回到备份里的取值——
+  // 这是「界面点恢复 → 预览 → 确认 → 真的写回」这条链路唯一无法伪装的证据
+  writeFileSync(join(skill, 'SKILL.md'), '# tampered after backup');
   return root;
 }
 
@@ -286,6 +283,47 @@ async function main() {
         backupRow.includes('2') &&
         restoreEntry === true,
       backupRow,
+    );
+
+    // 恢复是覆盖性写操作：确认弹窗必须展示内核预演的真实影响范围（覆盖提示 + 逐文件清单）
+    await evaluate(
+      "[...document.querySelectorAll('table.backups tbody tr button')].find((b) => b.textContent.trim() === '恢复')?.click()",
+    );
+    await waitFor("document.querySelector('.dialog') !== null");
+    const dialogText = String(
+      await evaluate(
+        "(() => { const dialog = document.querySelector('.dialog'); return dialog ? dialog.innerText.replace(/\\s+/g, ' ') : ''; })()",
+      ),
+    );
+    check(
+      '恢复确认弹窗展示预演的覆盖提示与文件清单',
+      dialogText.includes('覆盖') &&
+        dialogText.includes('skills/smoke-skill/') &&
+        dialogText.includes('确认执行'),
+      dialogText.slice(0, 160),
+    );
+
+    await evaluate(
+      "[...document.querySelectorAll('.dialog footer button')].find((b) => b.textContent.includes('确认执行'))?.click()",
+    );
+    // 等原件被写回：预览与执行之间隔着一次确认，因此按「磁盘效果」等待，不看状态栏文案
+    let restored = false;
+    for (let index = 0; index < 60; index += 1) {
+      if (
+        readFileSync(join(workspace, 'skills', 'smoke-skill', 'SKILL.md'), 'utf8') === '# smoke'
+      ) {
+        restored = true;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    const statusText = String(
+      await evaluate("document.querySelector('.statusbar')?.innerText.replace(/\\s+/g, ' ') ?? ''"),
+    );
+    check(
+      '确认后恢复执行并写回原件',
+      restored && statusText.includes('restore'),
+      `原件内容 ${JSON.stringify(readFileSync(join(workspace, 'skills', 'smoke-skill', 'SKILL.md'), 'utf8'))}`,
     );
 
     client.close();
