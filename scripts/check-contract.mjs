@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** 一期指令契约：十五条指令的规范名 */
+/** 指令契约：十六条指令的规范名 */
 const EXPECTED_COMMANDS = [
   'init',
   'config get',
@@ -29,6 +29,7 @@ const EXPECTED_COMMANDS = [
   'deps',
   'export',
   'import',
+  'restore',
 ];
 
 /** 结果封装的必填顶层字段 */

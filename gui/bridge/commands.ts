@@ -75,7 +75,7 @@ export class KernelBridge {
     return { kind: 'result', result };
   }
 
-  // ── 十五条指令的具名门面：参数与指令契约的语法一一对应 ──
+  // ── 十六条指令的具名门面：参数与指令契约的语法一一对应 ──
 
   init(scope?: string): Promise<KernelResult> {
     return this.run(['init', ...(scope !== undefined ? ['--scope', scope] : [])]);
@@ -142,5 +142,13 @@ export class KernelBridge {
 
   import(target: string): Promise<KernelResult> {
     return this.run(['import', target]);
+  }
+
+  restore(id: string, options: { timestamp?: string } = {}): Promise<KernelResult> {
+    return this.run([
+      'restore',
+      id,
+      ...(options.timestamp !== undefined ? ['--timestamp', options.timestamp] : []),
+    ]);
   }
 }

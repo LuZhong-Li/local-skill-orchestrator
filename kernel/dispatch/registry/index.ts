@@ -18,6 +18,7 @@ import {
   disableSkill,
   enableSkill,
   installSkill,
+  restoreSkill,
   uninstallSkill,
   updateSkill,
   type LifecycleOutcome,
@@ -79,6 +80,7 @@ export const REGISTERED_COMMANDS = [
   'deps',
   'export',
   'import',
+  'restore',
 ] as const;
 
 const handlers = new Map<string, CommandHandler>();
@@ -284,6 +286,7 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   disable: '禁用',
   update: '刷新',
   import: '导入',
+  restore: '恢复',
 };
 
 /** 由预览结果与附加提示组装预期变更摘要 */
@@ -1111,3 +1114,55 @@ function formatRejected(
 }
 
 register({ name: 'import', handler: importHandler });
+
+const restoreHandler: CommandHandler = async ({ args, now, interaction }) => {
+  const layout = layoutOf(workspaceRootOf(args));
+  const id = args.positionals[0];
+  if (id === undefined || id === '') {
+    return buildResult('restore', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'id',
+        message: 'restore 需要给出 Skill 标识',
+        remedy: '请提供要恢复的 Skill 标识；省略时间戳时取该标识最新的备份',
+      }),
+    ]);
+  }
+  const { index, findings, missing } = loadForWrite(layout);
+  if (index === null) return unreadableIndex('restore', layout, findings, missing);
+
+  const dryRun = flag(args, 'dry-run');
+  const timestamp = option(args, 'timestamp');
+  const base = {
+    layout,
+    index,
+    id,
+    now,
+    ...(timestamp !== undefined ? { timestamp } : {}),
+  };
+
+  // 恢复是覆盖性写操作：常规确认级别，预演先给出将写回的文件清单
+  if (!dryRun) {
+    const preview = restoreSkill({ ...base, dryRun: true });
+    const blocked = await confirmationGate({
+      command: 'restore',
+      args,
+      interaction,
+      preview,
+      plan: planOf('restore', id, preview, [
+        '恢复会把备份内容写回中心库，覆盖该位置现有的原件',
+        '恢复不判定校验结论，完成后请执行扫描',
+      ]),
+    });
+    if (blocked !== null) return blocked;
+  }
+
+  const outcome = restoreSkill({ ...base, dryRun });
+  if (!dryRun && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
+  return buildResult('restore', [...findings, ...outcome.findings], outcome.changes, {
+    data: outcome.data,
+    ...(outcome.preview === true ? { preview: true } : {}),
+  });
+};
+
+register({ name: 'restore', handler: restoreHandler });

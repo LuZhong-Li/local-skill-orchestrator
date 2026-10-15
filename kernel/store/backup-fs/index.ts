@@ -28,10 +28,14 @@ import { atomicWriteFile } from '../atomic/index.ts';
 import { CODES } from '../contract.ts';
 import { KernelError } from '../errors.ts';
 import { resolveWithin } from '../paths/index.ts';
-import { stringifyYaml } from '../yaml/index.ts';
+import { parseYaml, stringifyYaml } from '../yaml/index.ts';
 
 export const BACKUP_META_FILE_NAME = 'backup_meta.yaml';
 export const BACKUP_CONTENT_DIR_NAME = 'content';
+
+/** 备份载体类型：本批次只定义完整文件载体，其余取值留给二期 */
+export const BACKUP_TYPE_VALUES = ['full'] as const;
+export type BackupType = (typeof BACKUP_TYPE_VALUES)[number];
 
 export interface BackupRequest {
   /** 工作区根目录，用于路径防护与生成可移植路径 */
@@ -137,6 +141,7 @@ export function createBackup(request: BackupRequest): BackupResult {
     atomicWriteFile(
       join(backupDir, BACKUP_META_FILE_NAME),
       stringifyYaml({
+        type: 'full',
         timestamp: now,
         skill_id: id,
         source: portableOf(workspaceRoot, sourceDir),
@@ -275,6 +280,101 @@ function isDirectory(target: string): boolean {
   } catch {
     return false;
   }
+}
+
+export interface BackupEntry {
+  /** 备份目录绝对路径 */
+  dir: string;
+  /** 备份目录相对工作区的可移植路径 */
+  portableDir: string;
+  /** 清单里记录的契约格式时间戳 */
+  timestamp: string;
+  /** 载体类型 */
+  type: string;
+  /** 副本内的文件数 */
+  fileCount: number;
+}
+
+/**
+ * 枚举某个 Skill 的备份载体，按时间戳升序。
+ * 只读取清单，不校验内容——校验在恢复前单独做，避免枚举就被损坏载体拖垮。
+ */
+export function listBackups(workspaceRoot: string, backupsDir: string, id: string): BackupEntry[] {
+  const root = backupRootOf(backupsDir, id);
+  let stampDirs: string[];
+  try {
+    stampDirs = readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+
+  const entries: BackupEntry[] = [];
+  for (const stamp of stampDirs) {
+    const dir = join(root, stamp);
+    const metaFile = join(dir, BACKUP_META_FILE_NAME);
+    let raw: Record<string, unknown> | null = null;
+    try {
+      raw = parseYaml(readFileSync(metaFile, 'utf8'), { source: 'backup', target: metaFile });
+    } catch {
+      raw = null;
+    }
+    entries.push({
+      dir,
+      portableDir: portableOf(workspaceRoot, dir),
+      timestamp: typeof raw?.['timestamp'] === 'string' ? String(raw['timestamp']) : stamp,
+      type: typeof raw?.['type'] === 'string' ? String(raw['type']) : 'unknown',
+      fileCount: typeof raw?.['file_count'] === 'number' ? Number(raw['file_count']) : 0,
+    });
+  }
+  return entries.sort((a, b) =>
+    a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+  );
+}
+
+/**
+ * 校验一个备份载体自身是否完整：载体摘要与文件数须与清单一致，
+ * 清单里记有内容指纹时一并重算比对。恢复只读消费载体，因此校验的是载体而不是磁盘现状。
+ */
+export function verifyBackup(entry: BackupEntry): { ok: boolean; problem: string } {
+  if (!BACKUP_TYPE_VALUES.includes(entry.type as BackupType)) {
+    return { ok: false, problem: `载体类型不受支持：${entry.type}` };
+  }
+  const contentDir = join(entry.dir, BACKUP_CONTENT_DIR_NAME);
+  if (!isDirectory(contentDir)) {
+    return { ok: false, problem: '备份载体缺少内容目录' };
+  }
+
+  let raw: Record<string, unknown>;
+  try {
+    raw = parseYaml(readFileSync(join(entry.dir, BACKUP_META_FILE_NAME), 'utf8'), {
+      source: 'backup',
+      target: entry.portableDir,
+    });
+  } catch {
+    return { ok: false, problem: '备份清单无法读取或格式不合规' };
+  }
+
+  const content = digestTree(contentDir);
+  const actualCount = content.size;
+  const declaredCount = typeof raw['file_count'] === 'number' ? Number(raw['file_count']) : -1;
+  if (declaredCount >= 0 && declaredCount !== actualCount) {
+    return {
+      ok: false,
+      problem: `载体文件数与清单不一致：清单记 ${declaredCount}，实际 ${actualCount}`,
+    };
+  }
+  const actualDigest = summarize(content);
+  const declaredDigest =
+    typeof raw['backup_digest'] === 'string' ? String(raw['backup_digest']) : '';
+  if (declaredDigest !== '' && declaredDigest !== actualDigest) {
+    return {
+      ok: false,
+      problem: `载体摘要与清单不一致：清单 ${declaredDigest}，重算 ${actualDigest}`,
+    };
+  }
+  return { ok: true, problem: '' };
 }
 
 /** 判断一个字符串能否安全地作为单一路径段 */

@@ -877,3 +877,181 @@ test('验收：import 格式非法时返回退出码 3 且详情可见', async (
     2,
   );
 });
+
+/** 造出「已安装并留下一份卸载备份」的现场，供恢复指令用例复用 */
+async function restoreScenario(options: { hard?: boolean } = {}): Promise<string> {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root, '--yes']);
+  const argv = ['uninstall', 'code-review', '--workspace', root, '--yes'];
+  if (options.hard === true) argv.push('--hard');
+  assert.equal(await run(argv), 0);
+  return root;
+}
+
+/** 取该 Skill 单个备份载体的绝对路径 */
+function backupDirOf(root: string, id: string): string {
+  const stamps = readdirSync(join(root, 'backups', id));
+  assert.equal(stamps.length, 1, '前置：应恰好有一份备份');
+  return join(root, 'backups', id, stamps[0]!);
+}
+
+test('验收：restore 需要常规确认，非终端未给 --yes 时拒绝执行且不写盘', async () => {
+  const root = await restoreScenario({ hard: true });
+  assert.ok(!existsSync(join(root, 'skills', 'code-review')), '前置：原件已被硬卸载删除');
+
+  const { code, out } = await capture(['restore', 'code-review', '--workspace', root]);
+  assert.equal(code, 2, '参数类退出码');
+  assert.match(out, /E-INPUT-001/);
+  assert.match(out, /--yes/);
+  assert.ok(!existsSync(join(root, 'skills', 'code-review')), '拒绝后不得写回原件');
+  assert.ok(!existsSync(join(root, '.claude', 'skills', 'code-review')), '拒绝后不得创建副本');
+
+  assert.equal(await run(['restore', 'code-review', '--workspace', root, '--yes']), 0);
+});
+
+test('验收：restore 的确认提示写明覆盖现有原件，答 n 时中止', async () => {
+  const root = await restoreScenario();
+  const { written, channel } = interactionOf('n');
+  const outcome = await capture(['restore', 'code-review', '--workspace', root, '--json'], channel);
+  assert.equal(outcome.code, 0, '用户取消不是执行失败');
+  assert.match(written[0] ?? '', /覆盖/);
+  assert.match(written[0] ?? '', /扫描/);
+  assert.match(written[0] ?? '', /确认执行？\[y\/N\]/);
+  const result = JSON.parse(outcome.out) as { data: { aborted?: string } };
+  assert.equal(result.data.aborted, 'user_declined');
+
+  const { channel: accept } = interactionOf('y');
+  assert.equal(
+    await run(['restore', 'code-review', '--workspace', root], accept),
+    0,
+    '答 y 后应执行',
+  );
+});
+
+test('验收：restore 缺省取最新备份，重建记录后由 scan 判定为合格', async () => {
+  const root = await restoreScenario({ hard: true });
+
+  const { code, out } = await capture([
+    'restore',
+    'code-review',
+    '--workspace',
+    root,
+    '--yes',
+    '--json',
+  ]);
+  assert.equal(code, 0);
+  const result = JSON.parse(out) as {
+    data: {
+      record_action?: string;
+      file_count?: number;
+      files?: string[];
+      backup_timestamp?: string;
+      backup_type?: string;
+      library_path?: string;
+    };
+  };
+  assert.equal(result.data.record_action, 'rebuilt', '已卸载的标识应重建记录');
+  assert.equal(result.data.file_count, 2);
+  assert.deepEqual(result.data.files, [
+    'skills/code-review/SKILL.md',
+    'skills/code-review/skill_meta.yaml',
+  ]);
+  assert.equal(result.data.backup_type, 'full');
+  assert.equal(result.data.library_path, 'skills/code-review');
+  assert.match(String(result.data.backup_timestamp), /^\d{4}-\d{2}-\d{2}T/);
+
+  assert.ok(existsSync(join(root, 'skills', 'code-review', 'SKILL.md')), '内容应写回中心库');
+  assert.ok(existsSync(join(root, '.claude', 'skills', 'code-review', 'SKILL.md')), '副本应重分发');
+  const index = readFileSync(indexPath(root), 'utf8');
+  assert.ok(index.includes('id: code-review'), '索引记录应重建');
+  assert.ok(index.includes('E-INDEX-002'), '重建记录的结论取保守值');
+
+  assert.equal(await run(['scan', '--workspace', root]), 0, '扫描后应无不合格项');
+  assert.ok(readFileSync(indexPath(root), 'utf8').includes('status: ok'), '扫描应把结论刷新为合格');
+});
+
+test('验收：restore 无备份返回 5，时间戳不存在返回 2', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  await run(['install', sourceSkill('code-review'), '--workspace', root, '--yes']);
+
+  const missing = await capture(['restore', 'code-review', '--workspace', root, '--yes', '--json']);
+  assert.equal(missing.code, 5, '备份类问题按通用派生落 5');
+  assert.match(missing.out, /E-BAK-003/);
+
+  await run(['uninstall', 'code-review', '--workspace', root, '--yes']);
+  const stamped = await capture([
+    'restore',
+    'code-review',
+    '--timestamp',
+    '2020-01-01T00:00:00Z',
+    '--workspace',
+    root,
+    '--yes',
+    '--json',
+  ]);
+  assert.equal(stamped.code, 2, '时间戳不存在属参数类');
+  const result = JSON.parse(stamped.out) as { data: { rejected?: string; available?: string[] } };
+  assert.equal(result.data.rejected, 'timestamp_not_found');
+  assert.equal(result.data.available?.length, 1, '应列出可用时间戳');
+});
+
+test('验收：restore 载体损坏返回 5，目标被占用返回 1', async () => {
+  const damaged = await restoreScenario({ hard: true });
+  rmSync(join(backupDirOf(damaged, 'code-review'), 'content', 'SKILL.md'), { force: true });
+  const broken = await capture([
+    'restore',
+    'code-review',
+    '--workspace',
+    damaged,
+    '--yes',
+    '--json',
+  ]);
+  assert.equal(broken.code, 5);
+  assert.match(broken.out, /E-BAK-004/);
+  assert.ok(!existsSync(join(damaged, 'skills', 'code-review')), '载体不可信时不得写回');
+
+  const occupied = await restoreScenario({ hard: true });
+  writeFileSync(join(occupied, 'skills', 'code-review'), 'occupied');
+  const conflict = await capture([
+    'restore',
+    'code-review',
+    '--workspace',
+    occupied,
+    '--yes',
+    '--json',
+  ]);
+  assert.equal(conflict.code, 1, '目标占用冲突按默认档落 1');
+  assert.match(conflict.out, /E-CONFLICT-003/);
+  assert.equal(readFileSync(join(occupied, 'skills', 'code-review'), 'utf8'), 'occupied');
+});
+
+test('验收：restore --dry-run 不要求确认也不写盘，载荷含将写回的清单', async () => {
+  const root = await restoreScenario({ hard: true });
+  const before = readFileSync(indexPath(root), 'utf8');
+
+  const { code, out } = await capture([
+    'restore',
+    'code-review',
+    '--workspace',
+    root,
+    '--dry-run',
+    '--json',
+  ]);
+  assert.equal(code, 0, '预演不要求确认');
+  const result = JSON.parse(out) as {
+    preview?: boolean;
+    data: { preview?: boolean; file_count?: number; files?: string[]; library_exists?: boolean };
+  };
+  assert.equal(result.preview, true);
+  assert.equal(result.data.preview, true);
+  assert.equal(result.data.file_count, 2);
+  assert.deepEqual(result.data.files, [
+    'skills/code-review/SKILL.md',
+    'skills/code-review/skill_meta.yaml',
+  ]);
+  assert.equal(result.data.library_exists, false);
+  assert.ok(!existsSync(join(root, 'skills', 'code-review')), '预演不得写回原件');
+  assert.equal(readFileSync(indexPath(root), 'utf8'), before, '预演不得改写索引');
+});

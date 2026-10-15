@@ -41,6 +41,7 @@ export const VALUE_OPTIONS = new Set([
   'scope',
   'mode',
   'on-conflict',
+  'timestamp',
 ]);
 
 /** 可重复出现的取值选项 */
