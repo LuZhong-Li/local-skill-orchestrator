@@ -6,13 +6,14 @@
  * 这条检查补的是自动化盲区：单元测试覆盖内核与桥接层，但「窗口是否真的画出来、
  * 渲染层能否经预加载脚本调通内核」只有把应用跑起来才能确认。
  * 用法：node scripts/gui-smoke.mjs（开发产物）
- *       node scripts/gui-smoke.mjs --app <可执行文件路径>（针对打包产物，需要图形会话）
+ *       node scripts/gui-smoke.mjs --app <可执行文件路径>（针对打包产物，需要图形会话；
+ *       相对路径按当前目录解析，例如 build/desktop/win-unpacked/skill-manager.exe）
  */
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 // 夹具用真实的 S-08 实现产出备份载体，避免在冒烟脚本里重写一份载体摘要算法
 import { createBackup } from '../kernel/store/backup-fs/index.ts';
@@ -48,7 +49,17 @@ function killTree(child) {
 
 /** 指定 --app 时直接运行打包后的可执行文件，否则运行开发产物 */
 const appIndex = process.argv.indexOf('--app');
-const packagedApp = appIndex >= 0 ? process.argv[appIndex + 1] : undefined;
+const appArgument = appIndex >= 0 ? process.argv[appIndex + 1] : undefined;
+if (appIndex >= 0 && (appArgument === undefined || appArgument.startsWith('--'))) {
+  console.error('--app 需要一个可执行文件路径');
+  process.exit(2);
+}
+/**
+ * `--app` 既接受绝对路径，也接受相对当前目录的路径。
+ * 必须在这里解析成绝对路径：Electron 子进程以 gui/ 为工作目录启动，
+ * 相对路径交给 spawn 会按 gui/ 解析，得到「明明存在却 ENOENT」的假象。
+ */
+const packagedApp = appArgument === undefined ? undefined : resolve(appArgument);
 
 function prepareWorkspace() {
   const root = mkdtempSync(join(tmpdir(), 'sm-gui-smoke-'));
