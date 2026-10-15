@@ -243,8 +243,8 @@ test('契约：查询接口按标识与三维分类过滤正确', () => {
   const consumedByCursor = listHosts({ consumedBy: 'cursor' }).map((entry) => entry.host_id);
   assert.deepEqual(
     [...consumedByCursor].sort(),
-    ['claude', 'codex', 'cursor'],
-    'Cursor 兼容读取 Claude 与 Codex 的技能根（含自身的落位根）',
+    ['agents-md', 'claude', 'codex', 'cursor'],
+    'Cursor 读取 Claude / Codex 的技能根、通用指令文件与自身落位根',
   );
   const consumedByDoubao = listHosts({ consumedBy: 'doubao' }).map((entry) => entry.host_id);
   assert.deepEqual(consumedByDoubao, ['doubao'], '豆包的用户技能根只被自身消费（无重叠）');
@@ -261,8 +261,12 @@ test('契约：查询接口按标识与三维分类过滤正确', () => {
     '规则路径宿主应含 Cursor 与通用指令文件载体',
   );
 
-  // HR-10：planned 宿主不进可落位集合
-  assert.deepEqual(selectableHostIds(), [], 'T2 阶段适配器均为 planned，可落位集合应为空');
+  // HR-10：可落位集合由 adapter_state 决定（T4 落地适配器后六个宿主生效，deepseek 仍不适用）
+  assert.deepEqual(
+    [...selectableHostIds()].sort(),
+    ['agents-md', 'agentskills', 'claude', 'codex', 'cursor', 'doubao'],
+    'T4 后六个宿主可落位；deepseek 为不适用宿主，不进该集合',
+  );
 });
 
 test('契约：新增宿主只扩充注册表数据，查询由数据驱动且事实源只读', () => {

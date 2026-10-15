@@ -9,8 +9,9 @@
  *   一、整份数据通过 schemas/host_registry.schema.json 校验；
  *   二、加载时的 HR-01 ~ HR-12 校验全部通过。
  *
- * 适配器实现状态（adapter_state）：本批为 planned——T2 只交付注册表，
- * 适配器在 T4 落地时置为 implemented，届时落位取值集合开放（HR-10）。
+ * 适配器实现状态（adapter_state）：T4 落地适配器后，六个有适配器的宿主置为 implemented，
+ * 可落位集合随之开放（HR-10）；`deepseek` 为「不适用 / 模型提供方」，保持 planned 且
+ * 不产出适配器（其登记依赖 not_applicable 豁免）。
  */
 import type { HostRegistry } from './types.ts';
 
@@ -79,7 +80,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
     {
       host_id: 'claude',
       display_name: 'Claude Code',
-      adapter_state: 'planned',
+      adapter_state: 'implemented',
       support_state: 'confirmed',
       evidence: {
         level: 'verified_official',
@@ -141,7 +142,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
     {
       host_id: 'codex',
       display_name: 'Codex',
-      adapter_state: 'planned',
+      adapter_state: 'implemented',
       support_state: 'confirmed',
       evidence: {
         level: 'verified_local',
@@ -190,7 +191,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
     {
       host_id: 'cursor',
       display_name: 'Cursor',
-      adapter_state: 'planned',
+      adapter_state: 'implemented',
       support_state: 'confirmed',
       evidence: {
         level: 'verified_official',
@@ -238,7 +239,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
     {
       host_id: 'doubao',
       display_name: '豆包（Doubao）',
-      adapter_state: 'planned',
+      adapter_state: 'implemented',
       support_state: 'confirmed',
       evidence: {
         level: 'verified_runtime',
@@ -287,7 +288,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
     {
       host_id: 'agentskills',
       display_name: '通用 Agent Skills 标准目标',
-      adapter_state: 'planned',
+      adapter_state: 'implemented',
       support_state: 'confirmed',
       evidence: {
         level: 'verified_official',
@@ -329,7 +330,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
     {
       host_id: 'agents-md',
       display_name: '通用指令文件载体（AGENTS.md）',
-      adapter_state: 'planned',
+      adapter_state: 'implemented',
       support_state: 'confirmed',
       evidence: {
         level: 'verified_official',
@@ -339,12 +340,14 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
       classification: {
         skill_mechanism: false,
         rules_only: true,
+        root_consumed_by: ['codex', 'cursor'],
       },
       roots: [
         {
           kind: 'rules',
           path_template: 'AGENTS.md',
           scope: 'project',
+          consumed_by: ['codex', 'cursor'],
           platform_notes:
             '写入宿主既有文件前必须具备合并策略；策略未定稿前只产出待合并片段、不落盘',
         },

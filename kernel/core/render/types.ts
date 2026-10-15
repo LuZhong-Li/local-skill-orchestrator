@@ -36,8 +36,8 @@ export interface RenderSource {
   body?: string;
 }
 
-/** 产物形态 */
-export type ArtifactKind = 'skill_md' | 'agents_md_fragment';
+/** 产物形态：技能形态、规则文件形态、指令文件降级形态 */
+export type ArtifactKind = 'skill_md' | 'rule_file' | 'agents_md_fragment';
 
 /** 渲染产物：单个文件（路径为宿主侧相对路径模板，落位由 T5 完成） */
 export interface ArtifactFile {
