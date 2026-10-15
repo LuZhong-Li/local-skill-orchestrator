@@ -24,6 +24,8 @@
     "typecheck:gui": "npm run typecheck -w @skill-manager/gui",
     "test": "node --test tests/**/*.test.ts",
     "smoke:gui": "node scripts/gui-smoke.mjs",
+    "smoke:kernel": "node scripts/smoke-kernel.mjs",
+    "check:node": "node scripts/check-node-version.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

@@ -1,0 +1,122 @@
+name: CI
+
+# 触发策略（需求 9.3.1 M1-R1、设计 3 章）：
+#   - 推送到主干与长期维护分支；
+#   - 针对主干的合并请求在打开、提交同步与重新打开时；
+#   - 手工触发入口，用于复现与排查；
+#   - 同一分支的连续提交取消旧运行，结论只以最新提交为准。
+# 夜间完整流水线按设计 11 章 DP-A 的处置**默认不启用**（CI-Q-01）：需要长耗时检查时再单独加入。
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+      - 'hotfix/**'
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # 读取版本声明：矩阵的 Node 取值以 .nvmrc 为唯一来源（设计 4 章的「同源」要求）
+  prepare:
+    name: 读取版本声明
+    runs-on: ubuntu-latest
+    outputs:
+      node_versions: ${{ steps.nvmrc.outputs.versions }}
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+      - name: 从 .nvmrc 生成矩阵取值
+        id: nvmrc
+        shell: bash
+        run: |
+          version="$(tr -d ' \t\r\n' < .nvmrc)"
+          if [[ ! "$version" =~ ^[0-9]+$ ]]; then
+            echo "::error::.nvmrc 内容不是单个主版本号：$version"
+            exit 1
+          fi
+          echo "versions=[\"$version\"]" >> "$GITHUB_OUTPUT"
+          echo "矩阵 Node 版本取自 .nvmrc：$version"
+
+  verify:
+    name: 验证（${{ matrix.os }} / Node ${{ matrix.node }}）
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    # 硬上限 60 分钟（设计 8 章）；目标为 30 分钟以内
+    timeout-minutes: 60
+    strategy:
+      # 一个组合失败不掩盖其他组合的结果；任一组合失败即整次运行失败
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        node: ${{ fromJSON(needs.prepare.outputs.node_versions) }}
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 安装 Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          # 依赖缓存：键由平台、Node 版本与依赖锁文件的哈希共同决定（设计 6 章）
+          cache: npm
+
+      - name: 版本声明一致性守卫（矩阵取值与 .nvmrc）
+        run: node scripts/check-node-version.mjs --expect ${{ matrix.node }}
+
+      - name: 一、安装依赖（按锁文件）
+        run: npm ci
+
+      - name: 二、契约校验与分层校验
+        run: npm run check
+
+      - name: 三、类型检查
+        run: npm run typecheck
+
+      - name: 四、代码规范
+        run: npm run lint
+
+      - name: 五、格式检查（只读）
+        run: npm run format:check
+
+      - name: 六、测试（单元 / 契约 / 端到端，含用例数核对）
+        run: npm test
+
+      - name: 七、构建（内核独立可执行文件 + 桌面外壳构建）
+        run: npm run build
+
+      - name: 八、缩减冒烟（内核侧，不启动 Electron）
+        run: npm run smoke:kernel
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-manager-${{ runner.os }}-${{ runner.arch }}-run${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            build/kernel/skill-manager.exe
+            gui/out/**
+
+      # 失败时保留已产出的部分产物，便于诊断（日志由运行记录本身保留）
+      - name: 失败时的诊断产物
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-${{ runner.os }}-run${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            build/**
+            gui/out/**
