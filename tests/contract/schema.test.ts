@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-// 四份 schema 声明的是 2020-12 草案，需用对应的 Ajv 入口
+// 五份 schema 声明的是 2020-12 草案，需用对应的 Ajv 入口
 import Ajv from 'ajv/dist/2020.js';
 import { parse as parseYaml } from 'yaml';
 import { run } from '../../kernel/entry/cli.ts';
@@ -162,6 +162,68 @@ function workspace(): string {
     ].join('\n'),
   );
   return dir;
+}
+
+/** 取规范文档中指定章节后的第一段 yaml 示例，用于保证文档示例始终合法。 */
+function yamlExampleAfter(from: string, marker: string): unknown {
+  const document = read('docs/specification/' + from);
+  const start = document.indexOf(marker);
+  assert.ok(start >= 0, `未找到章节标记：${marker}`);
+  const fence = document.indexOf('```yaml', start);
+  assert.ok(fence >= 0, `章节 ${marker} 缺少 yaml 示例`);
+  const bodyStart = document.indexOf('\n', fence) + 1;
+  const bodyEnd = document.indexOf('```', bodyStart);
+  assert.ok(bodyEnd > bodyStart, `章节 ${marker} 的 yaml 示例未闭合`);
+  return parseYaml(document.slice(bodyStart, bodyEnd));
+}
+
+/** 宿主注册表的最小合法样本：一个技能根宿主 + 一个指令文件载体。 */
+function registryFixture(): Record<string, unknown> {
+  return {
+    registry_version: '1',
+    generated_at: '2026-10-15T00:00:00Z',
+    hosts: [
+      {
+        host_id: 'claude',
+        display_name: 'Claude Code',
+        adapter_state: 'implemented',
+        support_state: 'confirmed',
+        evidence: {
+          level: 'verified_official',
+          sources: ['https://docs.claude.com/en/docs/claude-code/skills'],
+        },
+        classification: { skill_mechanism: true, rules_only: false, root_consumed_by: ['cursor'] },
+        roots: [
+          {
+            kind: 'skill',
+            path_template: '.<目标标识>/skills/<Skill 标识>',
+            scope: 'project',
+            consumed_by: ['claude', 'cursor'],
+          },
+        ],
+        capability: {
+          auto_discovery: true,
+          progressive_loading: true,
+          strict_filename: true,
+          max_description_chars: 1024,
+        },
+        render_policy: { field_mode: 'standard6', allowed_extensions: [], degrade_form: 'none' },
+        adapter_ref: 'claude',
+      },
+      {
+        host_id: 'agents-md',
+        display_name: '通用指令文件载体',
+        adapter_state: 'implemented',
+        support_state: 'confirmed',
+        evidence: { level: 'verified_official', sources: ['https://agents.md/'] },
+        classification: { skill_mechanism: false, rules_only: true },
+        roots: [{ kind: 'rules', path_template: 'AGENTS.md' }],
+        capability: {},
+        render_policy: { field_mode: 'standard6', degrade_form: 'entry' },
+        adapter_ref: 'agents-md',
+      },
+    ],
+  };
 }
 
 test('契约：元数据 schema 接受真实元文件，拒绝必填缺失、类型不符与枚举非法', () => {
@@ -411,6 +473,84 @@ test('契约：备份 schema 接受导出清单与备份载体清单', () => {
   );
 });
 
+test('契约：宿主注册表 schema 接受最小合法注册表，拒绝状态、枚举与透传违规', () => {
+  const registry = registryFixture();
+  assertValid('host_registry.schema.json', registry, '最小合法注册表');
+
+  const entry = (registry['hosts'] as Array<Record<string, unknown>>)[0] as Record<string, unknown>;
+  const withEntry = (patch: Record<string, unknown>): Record<string, unknown> => ({
+    ...registry,
+    hosts: [{ ...entry, ...patch }],
+  });
+
+  const withoutHostId = { ...entry };
+  delete withoutHostId['host_id'];
+  assertInvalid(
+    'host_registry.schema.json',
+    { ...registry, hosts: [withoutHostId] },
+    '缺少必填的宿主标识',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    { ...registry, registry_version: '2' },
+    '注册表格式版本不受支持',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    withEntry({ adapter_state: 'archived' }),
+    '适配器实现状态枚举非法',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    withEntry({
+      support_state: 'confirmed',
+      evidence: { level: 'pending' },
+    }),
+    '机制已确认却只有待确认级证据',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    withEntry({ classification: { skill_mechanism: false, rules_only: false } }),
+    '三维分类两项同时为假',
+  );
+  assertInvalid('host_registry.schema.json', withEntry({ roots: [] }), '落位根为空');
+  assertInvalid(
+    'host_registry.schema.json',
+    withEntry({ render_policy: { field_mode: 'host_declared' } }),
+    '透传模式却未给出白名单',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    withEntry({
+      render_policy: {
+        field_mode: 'host_declared',
+        allowed_extensions: ['compatibility', 'disable-model-invocation'],
+      },
+    }),
+    '白名单包含禁止透传的字段',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    withEntry({ contract_note: '未经登记的字段' }),
+    '出现未登记字段',
+  );
+  assertInvalid('host_registry.schema.json', { ...registry, hosts: [] }, '宿主条目为空');
+
+  // 正向：host_declared 模式在给出白名单时合法
+  const declared = withEntry({
+    render_policy: { field_mode: 'host_declared', allowed_extensions: ['compatibility'] },
+  });
+  assertValid('host_registry.schema.json', declared, '透传模式 + 合规白名单');
+});
+
+test('契约：宿主注册表规范的 yaml 示例可通过 schema 校验', () => {
+  assertValid(
+    'host_registry.schema.json',
+    yamlExampleAfter('host-registry.spec.md', '## 6.'),
+    '规范文档的示例',
+  );
+});
+
 test('契约：schema 的字段集与规范文档逐字段一致', () => {
   const metaDoc = tableFields('skill-meta-spec.md', '## 3.');
   const metaSchema = propertyNames(loadSchema('skill_meta.schema.json'));
@@ -444,4 +584,30 @@ test('契约：schema 的字段集与规范文档逐字段一致', () => {
   const resultRequired = (resultSchema['required'] as string[]).slice().sort();
   const documentedRequired = resultTop.required.slice().sort();
   assert.deepEqual(resultRequired, documentedRequired, '结果封装的必填集合应与规范一致');
+
+  const registrySchema = loadSchema('host_registry.schema.json');
+  const registrySchemaNames = propertyNames(registrySchema);
+  const registryDoc = tableFields('host-registry.spec.md', '## 3.');
+  const registryMissing = registryDoc.names.filter((name) => !registrySchemaNames.has(name));
+  assert.deepEqual(
+    registryMissing,
+    [],
+    `宿主注册表规范声明但 schema 未覆盖的字段：${registryMissing.join('、')}`,
+  );
+
+  const registryTop = tableFields('host-registry.spec.md', '### 3.1', '### 3.2');
+  assert.deepEqual(
+    (registrySchema['required'] as string[]).slice().sort(),
+    registryTop.required.slice().sort(),
+    '宿主注册表的顶层必填集合应与规范一致',
+  );
+
+  const defs = registrySchema['$defs'] as Record<string, Record<string, unknown>>;
+  const entryDef = defs['hostEntry'] as Record<string, unknown>;
+  const documentedEntry = tableFields('host-registry.spec.md', '### 3.2', '### 3.3');
+  assert.deepEqual(
+    (entryDef['required'] as string[]).slice().sort(),
+    documentedEntry.required.slice().sort(),
+    '宿主注册表条目的必填集合应与规范一致',
+  );
 });
