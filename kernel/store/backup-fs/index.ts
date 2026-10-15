@@ -9,6 +9,10 @@
  * 时间戳目录名把协调世界时时间戳中的冒号替换为短横线，因为冒号在部分文件系统上非法；
  * 清单里保存的 `timestamp` 字段仍是契约规定的原始时间戳，可读性与可比较性不丢失。
  *
+ * 时间戳还是该份备份的对外标识（`restore --timestamp` 按它寻址），因此必须唯一：
+ * 同一 Skill 同秒产出多份备份时，从第二份起把时间戳按毫秒精度扩展，清单与目录名同步，
+ * 读取侧按唯一取值匹配，不再出现「一个取值对应多份载体」。
+ *
  * 原子性：副本写入后必须逐文件核对相对路径与内容摘要，核对通过才写入清单；
  * 任何一步失败都清理本次产生的整个备份目录，不留下半份备份。
  */
@@ -108,14 +112,16 @@ export function createBackup(request: BackupRequest): BackupResult {
   // 路径防护：标识与时间戳都参与拼接，必须解析后仍落在工作区之内
   let parentDir: string;
   let backupDir: string;
+  let timestamp: string;
   try {
     parentDir = resolveWithin(
       workspaceRoot,
       join(portableOf(workspaceRoot, backupsDir), id),
       '工作区',
     );
-    // 同一秒内重复备份时另起一个目录，绝不覆盖或清空已有的备份
-    backupDir = join(parentDir, uniqueDirName(parentDir, timestampToDirName(now)));
+    // 同一秒内重复备份时把时间戳按毫秒精度扩展，绝不覆盖或清空已有的备份
+    timestamp = uniqueTimestamp(parentDir, now);
+    backupDir = join(parentDir, timestampToDirName(timestamp));
   } catch (error) {
     throw toBackupError(error, id);
   }
@@ -142,7 +148,7 @@ export function createBackup(request: BackupRequest): BackupResult {
       join(backupDir, BACKUP_META_FILE_NAME),
       stringifyYaml({
         type: 'full',
-        timestamp: now,
+        timestamp,
         skill_id: id,
         source: portableOf(workspaceRoot, sourceDir),
         file_count: manifest.fileCount,
@@ -153,7 +159,7 @@ export function createBackup(request: BackupRequest): BackupResult {
     return {
       dir: backupDir,
       portableDir: portableOf(workspaceRoot, backupDir),
-      timestamp: now,
+      timestamp,
       fileCount: manifest.fileCount,
       digest: manifest.digest,
     };
@@ -170,14 +176,27 @@ interface CopyVerdict {
   digest: string;
 }
 
-/** 在父目录下取一个未被占用的目录名；已被占用时追加序号 */
-function uniqueDirName(parentDir: string, base: string): string {
-  if (!existsSync(join(parentDir, base))) return base;
-  for (let index = 2; index < 1000; index += 1) {
-    const candidate = `${base}-${index}`;
-    if (!existsSync(join(parentDir, candidate))) return candidate;
+/**
+ * 取一个在该 Skill 的备份集合内唯一的时间戳。
+ *
+ * 首个取值就是调用方给的时间戳；被占用时按毫秒精度逐个试探（001 至 999），
+ * 时间戳与目录名一一对应，因此「唯一时间戳」同时意味着「唯一目录」。
+ * 毫秒形式只出现在这一处，其余时间字段仍为契约规定的秒级精度（元数据规范 2.2）。
+ */
+function uniqueTimestamp(parentDir: string, base: string): string {
+  if (!existsSync(join(parentDir, timestampToDirName(base)))) return base;
+  const head = base.endsWith('Z') ? base.slice(0, -1) : base;
+  for (let ms = 1; ms < 1000; ms += 1) {
+    const candidate = `${head}.${String(ms).padStart(3, '0')}Z`;
+    if (!existsSync(join(parentDir, timestampToDirName(candidate)))) return candidate;
   }
-  return `${base}-${Date.now()}`;
+  throw new KernelError({
+    code: CODES.BACKUP_UNAVAILABLE,
+    message: `同一秒内的备份数量超出上限：${base}`,
+    source: 'backup-fs',
+    target: parentDir,
+    remedy: '请稍后重试；单个 Skill 在同一秒内最多保留 1000 份备份',
+  });
 }
 
 /**
@@ -328,9 +347,22 @@ export function listBackups(workspaceRoot: string, backupsDir: string, id: strin
       fileCount: typeof raw?.['file_count'] === 'number' ? Number(raw['file_count']) : 0,
     });
   }
-  return entries.sort((a, b) =>
-    a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
-  );
+  return entries.sort((left, right) => {
+    const a = sortKeyOf(left.timestamp);
+    const b = sortKeyOf(right.timestamp);
+    return a < b ? -1 : a > b ? 1 : 0;
+  });
+}
+
+/**
+ * 排序键：把纯秒级取值补成毫秒形式再比较，使同一秒内的多份备份按真实先后排列。
+ * 直接比较字符串会把 `…T12:00:00.001Z` 排在 `…T12:00:00Z` 之前（`.` 的编码小于 `Z`），
+ * 而后者才是这一秒里更早的一份。
+ */
+function sortKeyOf(timestamp: string): string {
+  return timestamp.endsWith('Z') && !timestamp.includes('.')
+    ? `${timestamp.slice(0, -1)}.000Z`
+    : timestamp;
 }
 
 /**

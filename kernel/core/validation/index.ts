@@ -31,7 +31,7 @@ import {
   type AvailabilityMap,
   type MetaContext,
 } from '../metadata/validate.ts';
-import { computeChecksum, hasHashableContent } from '../integrity/index.ts';
+import { computeChecksum, computeDigests, hasHashableContent } from '../integrity/index.ts';
 import { isDirectory, pathExists } from '../../store/library-fs/index.ts';
 import { resolveWithin } from '../../store/paths/index.ts';
 import { declaredSkillsOf, readMetaFile, type MetaRead } from '../metadata/read.ts';
@@ -464,6 +464,7 @@ function validateRecord(
           remedy: '如为有意修改，请重新扫描以刷新指纹；否则请检查内容是否被意外改动',
         }),
       );
+      findings.push(...locateDrift(dir, record, id));
     }
   }
 
@@ -513,6 +514,63 @@ function validateRecord(
     findings,
     verdict: { id, status, errors, warnings, stored, stale },
   };
+}
+
+/**
+ * V-07 的定位部分：把漂移落到具体文件（元数据规范 5.4 输出要求）。
+ *
+ * 判据是索引派生区的 `digests` 与磁盘重算的逐文件摘要：
+ *   索引里没有该基准（旧索引尚未回填）→ 返回空，上层只给聚合级报告，不猜测文件；
+ *   基准存在 → 逐条列出内容变化、新增与删除，每条给出文件相对路径与两侧摘要。
+ * 键的排序沿用契约的字节序，保证同一份差异每次报告的次序一致。
+ */
+function locateDrift(dir: string, record: IndexRecord, id: string): Finding[] {
+  const baseline = record.digests;
+  if (baseline === undefined || Object.keys(baseline).length === 0) return [];
+
+  let current: Record<string, string>;
+  try {
+    if (!statSync(dir).isDirectory()) return [];
+    current = computeDigests(dir);
+  } catch {
+    return [];
+  }
+
+  const paths = [...new Set([...Object.keys(baseline), ...Object.keys(current)])].sort((a, b) =>
+    Buffer.compare(Buffer.from(a, 'utf8'), Buffer.from(b, 'utf8')),
+  );
+
+  const findings: Finding[] = [];
+  for (const rel of paths) {
+    const before = baseline[rel];
+    const after = current[rel];
+    if (before === after) continue;
+    findings.push(
+      finding(CODES.DRIFT, {
+        source: 'meta',
+        target: `${id}/${rel}`,
+        message: describeFileDrift(rel, before, after),
+        remedy:
+          before === undefined
+            ? '如为有意新增，请重新扫描以刷新内容摘要；否则请确认该文件为何出现在这里'
+            : after === undefined
+              ? '如为有意删除，请重新扫描以刷新内容摘要；否则请从备份或来源恢复该文件'
+              : '如为有意修改，请重新扫描以刷新内容摘要；否则请检查该文件是否被意外改动',
+      }),
+    );
+  }
+  return findings;
+}
+
+/** 单个文件的漂移描述：区分内容变化、新增与删除，均给出相对路径与两侧摘要 */
+function describeFileDrift(
+  rel: string,
+  before: string | undefined,
+  after: string | undefined,
+): string {
+  if (before === undefined) return `新增文件 ${rel}：现有摘要 ${String(after)}`;
+  if (after === undefined) return `文件已删除 ${rel}：原摘要 ${before}`;
+  return `文件内容已变化 ${rel}：原摘要 ${before}，现有摘要 ${after}`;
 }
 
 /** V-14：元文件派生区字段与索引内取值不一致时判定为被用户改写 */

@@ -14,7 +14,7 @@ import type { IndexRecord, SkillIndex, SkillMeta } from '../metadata/types.ts';
 import { validateMetaRecord, type MetaContext } from '../metadata/validate.ts';
 import { judgeDependency } from '../metadata/validate.ts';
 import { readMetaFile } from '../metadata/read.ts';
-import { computeChecksum } from '../integrity/index.ts';
+import { computeChecksum, computeDigests } from '../integrity/index.ts';
 import { detectMappingConflicts, detectOccupationConflicts } from '../conflict/index.ts';
 import { backupBeforeUninstall } from '../backup/index.ts';
 import {
@@ -411,8 +411,15 @@ function installFromSource(input: InstallInput, sourceDir: string): LifecycleOut
     }
   }
 
-  // 九、登记索引：派生区由内核写入
-  const record: IndexRecord = toIndexRecord(meta, selected, checksum, now, libraryOnly === true);
+  // 九、登记索引：派生区由内核写入（聚合指纹与逐文件摘要两级共存）
+  const record: IndexRecord = toIndexRecord(
+    meta,
+    selected,
+    checksum,
+    safeDigests(libraryDir),
+    now,
+    libraryOnly === true,
+  );
   const next: SkillIndex = {
     ...index,
     generated_at: now,
@@ -610,6 +617,7 @@ function toIndexRecord(
   meta: SkillMeta,
   targets: ResolvedTarget[],
   checksum: string,
+  digests: Record<string, string> | undefined,
   now: string,
   libraryOnly: boolean,
 ): IndexRecord {
@@ -628,6 +636,7 @@ function toIndexRecord(
     created_at: normalizeTimestamp(meta.created_at, now),
     updated_at: now,
     checksum,
+    ...(digests !== undefined ? { digests } : {}),
     validation: { status: 'ok', errors: [] },
   };
   if (meta.version !== undefined) record.version = meta.version;
@@ -656,6 +665,15 @@ function describeTargets(targets: ResolvedTarget[], libraryOnly: boolean): unkno
 
 function normalizeTimestamp(value: unknown, fallback: string): string {
   return typeof value === 'string' && value !== '' ? value : fallback;
+}
+
+/** 逐文件摘要：与聚合指纹同源同范围；重算失败时返回 undefined，表示待回填而非伪造取值 */
+function safeDigests(dir: string): Record<string, string> | undefined {
+  try {
+    return computeDigests(dir);
+  } catch {
+    return undefined;
+  }
 }
 
 function uniqueCodes(findings: Finding[]): string[] {
@@ -1413,8 +1431,8 @@ export function restoreSkill(input: RestoreInput): LifecycleOutcome {
   }
   const refreshed: IndexRecord =
     record === undefined
-      ? rebuildRecord(meta, targets, checksum, now)
-      : { ...projectRecord(record, read.raw, targets, checksum, now) };
+      ? rebuildRecord(meta, targets, checksum, safeDigests(libraryDir), now)
+      : { ...projectRecord(record, read.raw, targets, checksum, safeDigests(libraryDir), now) };
   const next: SkillIndex = {
     ...index,
     generated_at: now,
@@ -1453,6 +1471,7 @@ function rebuildRecord(
   meta: SkillMeta,
   targets: ResolvedTarget[],
   checksum: string,
+  digests: Record<string, string> | undefined,
   now: string,
 ): IndexRecord {
   const record: IndexRecord = {
@@ -1469,6 +1488,7 @@ function rebuildRecord(
     created_at: normalizeTimestamp(meta.created_at, now),
     updated_at: now,
     checksum,
+    ...(digests !== undefined ? { digests } : {}),
     // 恢复的内容尚未经过校验，取保守值；结论由后续扫描判定
     validation: { status: 'invalid', errors: [CODES.INDEX_RECORD_INVALID] },
   };
@@ -1616,7 +1636,9 @@ function updateFromSource(input: UpdateInput, fetchedDir: string | null): Lifecy
     ...index,
     generated_at: now,
     skills: index.skills.map((item) =>
-      item.id === id ? projectRecord(item, raw, targets, checksum, now) : item,
+      item.id === id
+        ? projectRecord(item, raw, targets, checksum, safeDigests(libraryDir), now)
+        : item,
     ),
   };
   return {
@@ -1645,6 +1667,7 @@ function projectRecord(
   raw: Record<string, unknown>,
   targets: ResolvedTarget[],
   checksum: string,
+  digests: Record<string, string> | undefined,
   now: string,
 ): IndexRecord {
   const previous = new Map(record.targets.map((item) => [`${item.target}|${item.scope}`, item]));
@@ -1663,6 +1686,9 @@ function projectRecord(
     updated_at: now,
     checksum,
   };
+
+  // 逐文件摘要与聚合指纹同批刷新；重算失败时沿用既有基准（缺失即待回填）
+  if (digests !== undefined) next.digests = digests;
 
   for (const field of ['version', 'description', 'author', 'license'] as const) {
     if (typeof raw[field] === 'string' && raw[field] !== '') next[field] = raw[field];

@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from '../../kernel/entry/cli.ts';
 import type { Interaction } from '../../kernel/dispatch/policy/index.ts';
+import { parseYaml as parseYamlDocument } from '../../kernel/store/yaml/index.ts';
 
 function workspace(): string {
   const root = mkdtempSync(join(tmpdir(), 'sm-cli-'));
@@ -1054,4 +1055,70 @@ test('验收：restore --dry-run 不要求确认也不写盘，载荷含将写�
   assert.equal(result.data.library_exists, false);
   assert.ok(!existsSync(join(root, 'skills', 'code-review')), '预演不得写回原件');
   assert.equal(readFileSync(indexPath(root), 'utf8'), before, '预演不得改写索引');
+});
+
+test('验收：validate 的内容漂移报告定位到具体文件并给出新旧摘要', async () => {
+  const root = workspace();
+  await run(['init', '--workspace', root]);
+  skill(root, 'alpha', validMeta('alpha'));
+  assert.equal(await run(['scan', '--workspace', root]), 0, '前置：干净工作区');
+  const baseline = (
+    parseYamlDocument(readFileSync(indexPath(root), 'utf8')) as {
+      skills: Array<{ id: string; digests: Record<string, string> }>;
+    }
+  ).skills.find((item) => item.id === 'alpha');
+  const recorded = baseline?.digests['SKILL.md'];
+  assert.match(String(recorded), /^sha256:[0-9a-f]{64}$/, '前置：索引内应有逐文件基准');
+
+  writeFileSync(join(root, 'skills', 'alpha', 'SKILL.md'), '# drifted');
+  const { code, out } = await capture(['validate', '--workspace', root, '--json']);
+  assert.equal(code, 0, '漂移是警告级，不改退出码');
+  const result = JSON.parse(out) as {
+    findings: Array<{ code: string; target: string; message: string }>;
+  };
+  const located = result.findings.filter(
+    (item) => item.code === 'W-DRIFT-001' && item.target.startsWith('alpha/'),
+  );
+  assert.equal(located.length, 1, '应定位到唯一变化的文件');
+  assert.equal(located[0]?.target, 'alpha/SKILL.md', '报告给出文件相对路径');
+  assert.match(String(located[0]?.message), /文件内容已变化/);
+  assert.match(String(located[0]?.message), new RegExp(String(recorded)), '给出原摘要');
+  assert.match(String(located[0]?.message), /现有摘要 sha256:[0-9a-f]{64}/, '给出现有摘要');
+
+  // 修复后重新扫描，基准与磁盘重新对齐，不再报告漂移
+  assert.equal(await run(['scan', '--workspace', root]), 0);
+  assert.ok(!readFileSync(indexPath(root), 'utf8').includes('# drifted'), '索引不含文件内容');
+  const after = await capture(['validate', '--workspace', root, '--json']);
+  assert.ok(
+    !(JSON.parse(after.out) as { findings: Array<{ code: string }> }).findings.some(
+      (item) => item.code === 'W-DRIFT-001',
+    ),
+    '重新扫描后漂移消失',
+  );
+});
+
+test('验收：export 产物不含逐文件摘要，索引内仍保留该基准', async () => {
+  const root = await readonlyWorkspace();
+  const indexText = readFileSync(indexPath(root), 'utf8');
+  assert.ok(indexText.includes('digests:'), '前置：索引派生区内有逐文件摘要');
+
+  const { code, out } = await capture([
+    'export',
+    'backups/snapshot.yaml',
+    '--workspace',
+    root,
+    '--json',
+  ]);
+  assert.equal(code, 0);
+  const payload = JSON.parse(out) as { data: { entry_count: number; stripped: string[] } };
+  assert.equal(payload.data.entry_count, 2);
+  assert.ok(
+    !payload.data.stripped.some((item) => item.endsWith('digests')),
+    '内部派生数据不计入被剥离项清单',
+  );
+
+  const document = readFileSync(join(root, 'backups', 'snapshot.yaml'), 'utf8');
+  assert.ok(!document.includes('digests'), '导出物中不含逐文件摘要');
+  assert.match(document, /checksum: sha256:/, '聚合指纹仍在导出物中');
+  assert.equal(readFileSync(indexPath(root), 'utf8'), indexText, '导出不改动索引');
 });

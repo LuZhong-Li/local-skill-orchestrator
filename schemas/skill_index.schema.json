@@ -147,6 +147,14 @@
           "pattern": "^(sha256:[0-9a-f]{64})?$",
           "description": "派生区：内容指纹；磁盘内容缺失时为空字符串，由运行期结论报告失效"
         },
+        "digests": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "description": "派生区：逐文件内容摘要，键为该文件相对 Skill 目录的路径，值为该文件的内容摘要；参与范围与聚合指纹一致。由内核在登记、安装、更新与恢复时写入；缺失表示待内核回填（本字段引入之前生成的旧索引），不构成不合格。属内核内部派生数据，不进导出物"
+        },
         "validation": { "$ref": "#/$defs/validation" }
       },
       "additionalProperties": true,
@@ -178,7 +186,7 @@
   },
   "x-write-permissions": {
     "declared": "安装、卸载、更新与导入会改变记录本身；用户只可编辑配置区与各记录的启用状态字段",
-    "derived": "由内核在安装、更新、扫描时写入",
+    "derived": "由内核在安装、更新、扫描时写入；逐文件内容摘要 digests 只存于索引、不进导出物",
     "validation": "只由扫描动作写入；校验动作保持只读，结论过期时只报告并建议重新扫描"
   }
 }

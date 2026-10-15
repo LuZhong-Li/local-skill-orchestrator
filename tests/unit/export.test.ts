@@ -82,7 +82,22 @@ test('K-08 导出文档带格式版本与导出时间，索引部分与索引一
   const document = readDocument(root, 'backups/snapshot.yaml');
   assert.equal(document['backup_format_version'], BACKUP_FORMAT_VERSION);
   assert.equal(document['exported_at'], LATER);
-  assert.deepEqual(document['skills'], index.skills, '记录区与索引逐字一致');
+  // N-07：逐文件摘要属内核内部派生数据，不进导出物；其余字段与索引逐字一致
+  const withoutDigests = index.skills.map((record) => {
+    const clone = { ...record };
+    delete clone.digests;
+    return clone;
+  });
+  assert.deepEqual(document['skills'], withoutDigests, '记录区与索引逐字一致（去掉内部派生数据）');
+  const exportedRecord = (document['skills'] as Array<Record<string, unknown>>)[0]!;
+  assert.ok(!('digests' in exportedRecord), '逐文件摘要不入导出物');
+  assert.deepEqual(
+    Object.keys(exportedRecord).sort(),
+    Object.keys(index.skills[0] ?? {})
+      .filter((key) => key !== 'digests')
+      .sort(),
+    '导出记录的字段集 = 索引记录字段集去掉内部派生数据',
+  );
   assert.deepEqual(document['config'], index.config);
   assert.equal(document['schema_version'], index.schema_version);
   assert.equal(document['tool_version'], index.tool_version);

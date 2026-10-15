@@ -16,6 +16,7 @@ import {
   BACKUP_META_FILE_NAME,
   backupRootOf,
   createBackup,
+  listBackups,
   timestampToDirName,
 } from '../../kernel/store/backup-fs/index.ts';
 import { parseYaml } from '../../kernel/store/yaml/index.ts';
@@ -105,7 +106,7 @@ test('S-08 副本与原件逐文件一致，且覆盖元文件与附属目录', 
   }
 });
 
-test('S-08 同一时间戳重复备份不覆盖前一份', () => {
+test('S-08 同一秒内的多份备份各得唯一时间戳，互不覆盖', () => {
   const root = workspace();
   library(root, 'code-review');
   const first = backup(root, 'code-review');
@@ -113,14 +114,42 @@ test('S-08 同一时间戳重复备份不覆盖前一份', () => {
 
   const second = backup(root, 'code-review', { now: SAME_SECOND });
   assert.notEqual(second.dir, first.dir, '应另起一个目录');
-  assert.equal(second.timestamp, SAME_SECOND);
+  assert.notEqual(second.timestamp, first.timestamp, '时间戳是备份的对外标识，必须唯一');
+  assert.equal(second.timestamp, '2026-10-14T00:00:00.001Z', '同秒第二份按毫秒精度扩展');
+  assert.equal(
+    second.dir,
+    join(root, 'backups', 'code-review', timestampToDirName(second.timestamp)),
+    '目录名与清单时间戳一一对应',
+  );
+  assert.equal(first.timestamp, NOW, '第一份仍是契约规定的秒级取值');
 
   const dirs = readdirSync(backupRootOf(layoutOf(root).backupsDir, 'code-review'));
   assert.equal(dirs.length, 2, '两份备份都在');
+  // 第二份清单里记录的是扩展后的唯一取值
+  const secondManifest = parseYaml(readFileSync(join(second.dir, BACKUP_META_FILE_NAME), 'utf8'), {
+    source: 'backup',
+    target: BACKUP_META_FILE_NAME,
+  });
+  assert.equal(secondManifest['timestamp'], second.timestamp);
   // 第一份内容未被触碰
   assert.equal(
     readFileSync(join(first.dir, BACKUP_META_FILE_NAME), 'utf8').includes(firstDigest),
     true,
+  );
+});
+
+test('S-08 备份枚举按唯一时间戳升序，同秒内也保持真实先后', () => {
+  const root = workspace();
+  library(root, 'code-review');
+  const first = backup(root, 'code-review');
+  const second = backup(root, 'code-review', { now: SAME_SECOND });
+  const third = backup(root, 'code-review', { now: SAME_SECOND });
+
+  const entries = listBackups(layoutOf(root).root, layoutOf(root).backupsDir, 'code-review');
+  assert.deepEqual(
+    entries.map((item) => item.timestamp),
+    [first.timestamp, second.timestamp, third.timestamp],
+    '升序即真实先后：纯秒级取值等价于该秒的 .000',
   );
 });
 

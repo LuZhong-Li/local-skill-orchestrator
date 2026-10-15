@@ -17,7 +17,7 @@ import {
   type AvailabilityMap,
   type MetaContext,
 } from '../metadata/validate.ts';
-import { computeChecksum, hasHashableContent } from '../integrity/index.ts';
+import { computeChecksum, computeDigests, hasHashableContent } from '../integrity/index.ts';
 import { parseYaml } from '../../store/yaml/index.ts';
 import { resolveWithin } from '../../store/paths/index.ts';
 import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
@@ -316,6 +316,7 @@ function buildRecord(
 ): IndexRecord {
   const raw = candidate.raw ?? {};
   const checksum = safeChecksum(candidate.dirPath) ?? String(raw['checksum'] ?? '');
+  const digests = safeDigests(candidate.dirPath);
   const createdAt = pickString(raw['created_at'], previous?.created_at, now);
   const errors = [...new Set(findings.map((item) => item.code))].sort();
   const changed =
@@ -334,6 +335,8 @@ function buildRecord(
     created_at: createdAt,
     updated_at: changed ? now : (previous?.updated_at ?? now),
     checksum,
+    // 逐文件摘要：本字段引入之前的旧索引没有它，扫描一次即回填；重算失败时保持缺失（待回填）
+    ...(digests !== null ? { digests } : {}),
     validation: { status, errors, last_scan_at: now },
   };
 
@@ -393,6 +396,15 @@ function buildRecord(
 function safeChecksum(dirPath: string): string | null {
   try {
     return computeChecksum(dirPath);
+  } catch {
+    return null;
+  }
+}
+
+/** 逐文件摘要：与聚合指纹同源同范围，重算失败时返回 null，由调用方保持缺失（待回填） */
+function safeDigests(dirPath: string): Record<string, string> | null {
+  try {
+    return computeDigests(dirPath);
   } catch {
     return null;
   }

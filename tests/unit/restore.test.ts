@@ -11,7 +11,7 @@ import {
 } from '../../kernel/core/lifecycle/index.ts';
 import { createInitialIndex } from '../../kernel/core/index/index.ts';
 import { scanWorkspace } from '../../kernel/core/discovery/index.ts';
-import { computeChecksum } from '../../kernel/core/integrity/index.ts';
+import { computeChecksum, computeDigests } from '../../kernel/core/integrity/index.ts';
 import { layoutOf, ensureWorkspaceDirs } from '../../kernel/store/workspace/index.ts';
 import { CODES } from '../../kernel/store/contract.ts';
 import {
@@ -165,6 +165,11 @@ test('验收一：缺省取最新备份，内容写回中心库、副本重分�
   assert.equal(record?.updated_at, LATEST, '派生区按恢复时点刷新');
   assert.equal(record?.validation.status, 'ok', '已登记记录保持原运行期结论');
   assert.equal(record?.checksum, computeChecksum(join(root, 'skills', 'code-review')));
+  assert.deepEqual(
+    record?.digests,
+    computeDigests(join(root, 'skills', 'code-review')),
+    '逐文件摘要按写回的内容重算',
+  );
   assert.ok(existsSync(join(second, 'content', 'SKILL.md')), '载体本身保留');
 });
 

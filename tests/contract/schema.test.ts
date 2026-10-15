@@ -267,6 +267,31 @@ test('契约：索引 schema 接受真实索引，拒绝版本、结构与运行
     },
     '最近扫描时间格式不合规',
   );
+  // N-07：派生区的逐文件摘要必须逐项是合规摘要；缺失仍合法（旧索引待回填）
+  assert.ok('digests' in record, '真实索引应带逐文件摘要');
+  const withoutDigests = { ...record };
+  delete withoutDigests['digests'];
+  assertValid(
+    'skill_index.schema.json',
+    { ...(index as Record<string, unknown>), skills: [withoutDigests] },
+    '缺少逐文件摘要的旧索引',
+  );
+  assertInvalid(
+    'skill_index.schema.json',
+    {
+      ...(index as Record<string, unknown>),
+      skills: [{ ...record, digests: { 'SKILL.md': 'md5:abc' } }],
+    },
+    '逐文件摘要格式不合规',
+  );
+  assertInvalid(
+    'skill_index.schema.json',
+    {
+      ...(index as Record<string, unknown>),
+      skills: [{ ...record, digests: { 'SKILL.md': 42 } }],
+    },
+    '逐文件摘要类型不符',
+  );
 });
 
 test('契约：结果 schema 接受真实结果，拒绝字段缺失与取值越界', async () => {
@@ -346,6 +371,21 @@ test('契约：备份 schema 接受导出清单与备份载体清单', () => {
     validateManifest(manifest),
     true,
     `备份载体清单应通过：${JSON.stringify(validateManifest.errors)}`,
+  );
+  assert.equal(manifest['type'], 'full', '载体清单应带类型字段');
+  assert.equal(validateManifest({ ...manifest, type: 'delta' }), false, '载体类型枚举非法应被拒绝');
+  const withoutType = { ...manifest };
+  delete withoutType['type'];
+  assert.equal(validateManifest(withoutType), false, '缺少载体类型应被拒绝');
+  assert.equal(
+    validateManifest({ ...manifest, timestamp: '2026-10-15T00:00:00.001Z' }),
+    true,
+    '同秒多份备份的毫秒时间戳应被接受',
+  );
+  assert.equal(
+    validateManifest({ ...manifest, timestamp: '2026-10-15T00:00:00.1Z' }),
+    false,
+    '毫秒位数不足应被拒绝',
   );
 
   const withoutSkills = { ...document };

@@ -53,6 +53,58 @@ export function collectHashEntries(
  * 目录存在但确实不含参与计算的文件时照常计算，该情形由内容缺失判定（V-08）负责报告。
  */
 export function computeChecksum(skillDir: string): string {
+  assertDirectory(skillDir);
+  const hash = createHash('sha256');
+  for (const rel of collectHashEntries(skillDir)) {
+    hash.update(Buffer.from(rel, 'utf8'));
+    hash.update(Buffer.from([0]));
+    hash.update(readFileSync(join(skillDir, rel)));
+  }
+  return `sha256:${hash.digest('hex')}`;
+}
+
+/**
+ * 计算技能目录内每个文件的内容摘要，键为相对路径（正斜杠分隔），与聚合指纹共用同一套参与范围。
+ *
+ * 逐文件摘要只对**文件字节流**取哈希，不拼接路径——它回答「这个文件本身是否变了」，
+ * 聚合指纹回答「整个目录是否变了」，两者不互相派生（元数据规范 2.3）。
+ * 与 computeChecksum 一样，目标不存在时抛错，不返回空映射。
+ */
+export function computeDigests(skillDir: string): Record<string, string> {
+  assertDirectory(skillDir);
+  const digests: Record<string, string> = {};
+  for (const rel of collectHashEntries(skillDir)) {
+    digests[rel] = `sha256:${createHash('sha256')
+      .update(readFileSync(join(skillDir, rel)))
+      .digest('hex')}`;
+  }
+  return digests;
+}
+
+/** 逐文件摘要的取值是否合规 */
+export function isDigestMap(value: unknown): value is Record<string, string> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value as Record<string, unknown>).every(
+    ([key, digest]) => key !== '' && typeof digest === 'string' && isChecksumFormat(digest),
+  );
+}
+
+/** 校验指纹的表示形式是否合规 */
+export function isChecksumFormat(value: unknown): boolean {
+  return typeof value === 'string' && /^sha256:[0-9a-f]{64}$/.test(value);
+}
+
+/** 判断目录下是否存在参与指纹的文件；全部缺失时按内容缺失处理 */
+export function hasHashableContent(skillDir: string): boolean {
+  try {
+    return lstatSync(skillDir).isDirectory() && collectHashEntries(skillDir).length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** 目标必须存在且是目录：不存在时抛错，禁止以空内容哈希代指 */
+function assertDirectory(skillDir: string): void {
   let stats;
   try {
     stats = lstatSync(skillDir);
@@ -74,27 +126,5 @@ export function computeChecksum(skillDir: string): string {
       target: skillDir,
       remedy: '请指向一个 Skill 目录',
     });
-  }
-
-  const hash = createHash('sha256');
-  for (const rel of collectHashEntries(skillDir)) {
-    hash.update(Buffer.from(rel, 'utf8'));
-    hash.update(Buffer.from([0]));
-    hash.update(readFileSync(join(skillDir, rel)));
-  }
-  return `sha256:${hash.digest('hex')}`;
-}
-
-/** 校验指纹的表示形式是否合规 */
-export function isChecksumFormat(value: unknown): boolean {
-  return typeof value === 'string' && /^sha256:[0-9a-f]{64}$/.test(value);
-}
-
-/** 判断目录下是否存在参与指纹的文件；全部缺失时按内容缺失处理 */
-export function hasHashableContent(skillDir: string): boolean {
-  try {
-    return lstatSync(skillDir).isDirectory() && collectHashEntries(skillDir).length > 0;
-  } catch {
-    return false;
   }
 }

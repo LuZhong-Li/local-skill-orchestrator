@@ -93,6 +93,14 @@ export interface IndexRecord {
   created_at: string;
   updated_at: string;
   checksum: string;
+  /**
+   * 派生区：逐文件内容摘要，键为文件相对 Skill 目录的路径。
+   *
+   * 可选：本字段引入之前生成的旧索引没有它，缺失表示待内核回填，由下一次登记与刷新补齐；
+   * 补齐之前内容一致性校验退化为聚合级报告（元数据规范 4.4 与 5.4）。只存于索引，
+   * 元文件与导出物都不承载该字段。
+   */
+  digests?: Record<string, string>;
   // 运行期结论
   validation: IndexValidation;
 }

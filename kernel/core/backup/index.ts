@@ -22,7 +22,7 @@ import { KernelError, toKernelError } from '../../store/errors.ts';
 import { isDirectory } from '../../store/library-fs/index.ts';
 import { resolveWithin } from '../../store/paths/index.ts';
 import { parseYaml, stringifyYaml } from '../../store/yaml/index.ts';
-import { computeChecksum, isChecksumFormat } from '../integrity/index.ts';
+import { computeChecksum, computeDigests, isChecksumFormat } from '../integrity/index.ts';
 import { TOOL_VERSION } from '../index/index.ts';
 import type { IndexRecord, SkillIndex } from '../metadata/types.ts';
 import { libraryPathOf } from '../targets/resolver/index.ts';
@@ -142,6 +142,15 @@ const EXPORT_RECORD_FIELDS = new Set([
   'validation',
 ]);
 
+/**
+ * 内核内部派生数据：不属于导出物，**不计入被剥离项清单**。
+ *
+ * 逐文件摘要 `digests` 是纯内部数据（用于把内容漂移定位到具体文件），既不是敏感信息，
+ * 也不是用户自研字段：把它列入「被剥离项清单」会让清单被每条记录刷屏，反而掩盖真正的剥离项。
+ * 导出物的记录字段集因此固定为上面 16 个字段，与契约 4.14 的输出载荷一致。
+ */
+const EXPORT_INTERNAL_RECORD_FIELDS = new Set(['digests']);
+
 export interface ExportInput {
   layout: WorkspaceLayout;
   index: SkillIndex;
@@ -260,6 +269,7 @@ function stripRecord(record: IndexRecord, stripped: string[]): Record<string, un
   const source = record as unknown as Record<string, unknown>;
   const kept: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(source)) {
+    if (EXPORT_INTERNAL_RECORD_FIELDS.has(key)) continue;
     if (!EXPORT_RECORD_FIELDS.has(key)) {
       stripped.push(`${record.id}.${key}`);
       continue;
@@ -611,12 +621,16 @@ function toImportedRecord(
   const id = String(record['id']);
   const dir = join(layout.skillsDir, id);
   let checksum = '';
+  let digests: Record<string, string> | undefined;
   // 目录不存在时不得计算指纹：空目录会得到「空内容」的哈希，那等于伪造一个指纹
   if (isDirectory(dir)) {
     try {
       checksum = computeChecksum(dir);
+      // 逐文件摘要与聚合指纹同一守卫：目录不可读时保持缺失（待回填），不写入半份基准
+      digests = computeDigests(dir);
     } catch {
       checksum = '';
+      digests = undefined;
     }
   }
 
@@ -645,6 +659,7 @@ function toImportedRecord(
     created_at: now,
     updated_at: now,
     checksum,
+    ...(digests !== undefined ? { digests } : {}),
     validation: {
       status: 'invalid',
       errors: [CODES.INDEX_RECORD_INVALID],

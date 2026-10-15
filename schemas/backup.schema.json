@@ -103,6 +103,7 @@
     "backupManifest": {
       "type": "object",
       "required": [
+        "type",
         "timestamp",
         "skill_id",
         "source",
@@ -111,10 +112,15 @@
         "content_checksum"
       ],
       "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["full"],
+          "description": "备份载体的类型；当前仅允许 full（完整文件载体），其余取值属二期，遇到不支持的取值时恢复动作拒绝执行（E-BAK-005）"
+        },
         "timestamp": {
           "type": "string",
-          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
-          "description": "备份时间戳，契约格式；目录名使用冒号替换为短横线的安全转写，字段值不受影响"
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{3})?Z$",
+          "description": "备份时间戳，同时是该份备份的对外标识；契约格式为秒级，同一标识下同秒产出多份备份时按毫秒精度扩展（.mmm）以保证唯一，目录名使用冒号替换为短横线的安全转写"
         },
         "skill_id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
         "source": {
