@@ -217,3 +217,24 @@ export function listTreeFiles(root: string, base = '', collected: string[] = [])
   }
   return collected.sort();
 }
+
+/**
+ * 用来源内容整体替换一个内核管理的目录（中心库原件）。
+ * 调用方必须先把内容取到本地并校验完毕——本函数不做任何获取与判断，
+ * 只负责「先清空再放新内容」，因此不会出现新旧内容混在一起的状态。
+ */
+export function replaceTree(sourceDir: string, destDir: string): void {
+  try {
+    rmSync(destDir, { recursive: true, force: true });
+    cpSync(sourceDir, destDir, { recursive: true, force: true });
+  } catch (error) {
+    throw new KernelError({
+      code: CODES.IO_FAILED,
+      message: `替换目录失败：${error instanceof Error ? error.message : String(error)}`,
+      source: 'library-fs',
+      target: destDir,
+      remedy: '请检查目标目录是否可写；必要时重新安装该 Skill',
+      cause: error,
+    });
+  }
+}

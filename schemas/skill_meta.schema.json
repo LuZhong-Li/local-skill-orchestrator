@@ -81,6 +81,11 @@
           "type": "string",
           "enum": ["local", "git", "archive", "unknown"]
         },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "description": "本地形式的来源位置：本地仓库路径或归档文件路径；给出后不再要求 url 与 ref"
+        },
         "url": {
           "type": "string",
           "minLength": 1,
@@ -95,7 +100,11 @@
       },
       "allOf": [
         {
-          "if": { "properties": { "type": { "enum": ["git", "archive"] } }, "required": ["type"] },
+          "if": {
+            "properties": { "type": { "enum": ["git", "archive"] } },
+            "required": ["type"],
+            "not": { "required": ["location"] }
+          },
           "then": { "required": ["url", "ref"] }
         }
       ]

@@ -73,7 +73,7 @@ function hasCopy(root: string, id: string): boolean {
   return existsSync(join(root, '.claude', 'skills', id));
 }
 
-test('K-04 启用：校验不通过的记录被拒绝，且文案不得表述为已禁用', () => {
+test('K-04 启用：校验不通过的记录被拒绝，且文案不得表述为已禁用', async () => {
   const { layout, index } = scenario();
   const outcome = enableSkill({ layout, index, id: 'broken', now: LATER });
   assert.deepEqual(
@@ -90,7 +90,7 @@ test('K-04 启用：校验不通过的记录被拒绝，且文案不得表述为
   );
 });
 
-test('K-04 启用：未登记的标识返回输入类问题', () => {
+test('K-04 启用：未登记的标识返回输入类问题', async () => {
   const { layout, index } = scenario();
   const outcome = enableSkill({ layout, index, id: 'nosuch', now: LATER });
   assert.deepEqual(
@@ -100,7 +100,7 @@ test('K-04 启用：未登记的标识返回输入类问题', () => {
   assert.equal(outcome.data['rejected'], 'not_registered');
 });
 
-test('K-04 启用：依赖未满足时拒绝，并给出补齐建议', () => {
+test('K-04 启用：依赖未满足时拒绝，并给出补齐建议', async () => {
   const { layout, index } = scenario();
   // 把 broken 的运行期结论改为通过，模拟结论过期，触发依赖的实时判定
   const refreshed: SkillIndex = {
@@ -118,7 +118,7 @@ test('K-04 启用：依赖未满足时拒绝，并给出补齐建议', () => {
   assert.match(String(outcome.findings[0]?.remedy), /请先安装/);
 });
 
-test('K-04 启用：副本缺失时按需补齐，并把索引状态与目标摘要置为已启用', () => {
+test('K-04 启用：副本缺失时按需补齐，并把索引状态与目标摘要置为已启用', async () => {
   const { root, layout, index } = scenario();
   assert.ok(!hasCopy(root, 'good'), '扫描不负责分发');
 
@@ -137,7 +137,7 @@ test('K-04 启用：副本缺失时按需补齐，并把索引状态与目标摘
   );
 });
 
-test('K-04 启用：副本处于禁用态时把技能元数据文件改回原名', () => {
+test('K-04 启用：副本处于禁用态时把技能元数据文件改回原名', async () => {
   const { root, layout, index } = scenario();
   const enabled = enableSkill({ layout, index, id: 'good', now: LATER });
   const disabled = disableSkill({ layout, index: enabled.index, id: 'good', now: LATER });
@@ -148,7 +148,7 @@ test('K-04 启用：副本处于禁用态时把技能元数据文件改回原名
   assert.equal(again.index.skills.find((item) => item.id === 'good')?.status, 'enabled');
 });
 
-test('K-04 启用与禁用：重复执行不产生额外变更', () => {
+test('K-04 启用与禁用：重复执行不产生额外变更', async () => {
   const { layout, index } = scenario();
   const first = enableSkill({ layout, index, id: 'good', now: LATER });
   const second = enableSkill({ layout, index: first.index, id: 'good', now: LATER });
@@ -159,7 +159,7 @@ test('K-04 启用与禁用：重复执行不产生额外变更', () => {
   assert.deepEqual(offAgain.changes, []);
 });
 
-test('K-04 禁用：不改动任何内容文件，也不触发内容分发', () => {
+test('K-04 禁用：不改动任何内容文件，也不触发内容分发', async () => {
   const { root, layout, index } = scenario();
   const enabled = enableSkill({ layout, index, id: 'good', now: LATER });
   // 把禁用标记归一化为原名，得到与可见性无关的内容文件集合
@@ -180,14 +180,14 @@ test('K-04 禁用：不改动任何内容文件，也不触发内容分发', () 
   );
 });
 
-test('K-04 禁用：副本尚未落位时只更新索引，并在载荷中说明', () => {
+test('K-04 禁用：副本尚未落位时只更新索引，并在载荷中说明', async () => {
   const { layout, index } = scenario();
   const outcome = disableSkill({ layout, index, id: 'good', now: LATER });
   assert.equal(outcome.index.skills.find((item) => item.id === 'good')?.status, 'disabled');
   assert.match(String((outcome.data['actions'] as string[])[0]), /尚未落位/);
 });
 
-test('K-04 启用与禁用往返：副本命名与相对路径关系不变', () => {
+test('K-04 启用与禁用往返：副本命名与相对路径关系不变', async () => {
   const { root, layout, index } = scenario();
   const enabled = enableSkill({ layout, index, id: 'good', now: LATER });
   const firstOff = disableSkill({ layout, index: enabled.index, id: 'good', now: LATER });
@@ -198,7 +198,7 @@ test('K-04 启用与禁用往返：副本命名与相对路径关系不变', () 
   assert.deepEqual(copyNames(root, 'good'), snapshot, '往返后副本内容与命名集合一致');
 });
 
-test('K-04 启用：预演不落盘且给出将发生的变更', () => {
+test('K-04 启用：预演不落盘且给出将发生的变更', async () => {
   const { root, layout, index } = scenario();
   const outcome = enableSkill({ layout, index, id: 'good', now: LATER, dryRun: true });
   assert.equal(outcome.preview, true);
@@ -207,7 +207,7 @@ test('K-04 启用：预演不落盘且给出将发生的变更', () => {
   assert.deepEqual(outcome.data['status_after'], 'enabled');
 });
 
-test('K-04 刷新：重算指纹、刷新最近变更时间、首次登记时间不变、版本变化入载荷', () => {
+test('K-04 刷新：重算指纹、刷新最近变更时间、首次登记时间不变、版本变化入载荷', async () => {
   const { root, layout, index } = scenario();
   const metaFile = join(root, 'skills', 'good', 'skill_meta.yaml');
   const before = readFileSync(metaFile, 'utf8');
@@ -215,7 +215,7 @@ test('K-04 刷新：重算指纹、刷新最近变更时间、首次登记时间
   writeFileSync(join(root, 'skills', 'good', 'SKILL.md'), '# skill changed');
 
   const record = index.skills.find((item) => item.id === 'good');
-  const outcome = updateSkill({ layout, index, id: 'good', now: LATER });
+  const outcome = await updateSkill({ layout, index, id: 'good', now: LATER });
   const next = outcome.index.skills.find((item) => item.id === 'good');
 
   assert.equal(outcome.data['version_before'], '1.0.0');
@@ -236,10 +236,10 @@ test('K-04 刷新：重算指纹、刷新最近变更时间、首次登记时间
   );
 });
 
-test('K-04 刷新：元文件缺失时按既有错误码返回且不写索引', () => {
+test('K-04 刷新：元文件缺失时按既有错误码返回且不写索引', async () => {
   const { root, layout, index } = scenario();
   writeFileSync(join(root, 'skills', 'good', 'skill_meta.yaml'), '');
-  const outcome = updateSkill({ layout, index, id: 'good', now: LATER });
+  const outcome = await updateSkill({ layout, index, id: 'good', now: LATER });
   assert.deepEqual(
     outcome.findings.map((item) => item.code),
     [CODES.YAML_INVALID],
@@ -248,34 +248,39 @@ test('K-04 刷新：元文件缺失时按既有错误码返回且不写索引', 
   assert.equal(outcome.data['rejected'], 'meta_unreadable');
 });
 
-test('K-04 刷新：非本地来源按来源类问题返回', () => {
-  const { layout, index } = scenario();
-  const remote: SkillIndex = {
-    ...index,
-    skills: index.skills.map((record) =>
-      record.id === 'good' ? { ...record, source_type: 'git' as const } : record,
+test('K-04 刷新：远端形式的来源按来源类问题返回', async () => {
+  const { root, layout, index } = scenario();
+  // 元文件声明为远端仓库：只有地址与引用，没有本地位置
+  const metaFile = join(root, 'skills', 'good', 'skill_meta.yaml');
+  writeFileSync(
+    metaFile,
+    readFileSync(metaFile, 'utf8').replace(
+      '  type: local',
+      '  type: git\n  url: https://example.com/repo.git\n  ref: main',
     ),
-  };
-  const outcome = updateSkill({ layout, index: remote, id: 'good', now: LATER });
+  );
+  const outcome = await updateSkill({ layout, index, id: 'good', now: LATER });
   assert.deepEqual(
     outcome.findings.map((item) => item.code),
     [CODES.SRC_UNRESOLVED],
   );
-  assert.equal(outcome.data['rejected'], 'source_unresolved');
+  assert.equal(outcome.data['rejected'], 'source_unavailable');
+  assert.match(String(outcome.findings[0]?.message), /远程来源在本批次不受支持/);
+  assert.equal(outcome.index, index, '拒绝时索引原样返回');
 });
 
-test('K-04 刷新：检查模式只报告不写盘', () => {
+test('K-04 刷新：检查模式只报告不写盘', async () => {
   const { layout, index } = scenario();
-  const outcome = updateSkill({ layout, index, id: 'good', now: LATER, check: true });
+  const outcome = await updateSkill({ layout, index, id: 'good', now: LATER, check: true });
   assert.equal(outcome.index, index, '检查模式原样返回索引');
   assert.deepEqual(outcome.changes, []);
   assert.equal(outcome.preview, true);
   assert.equal(outcome.data['checked'], true);
 });
 
-test('K-04 刷新：未登记的标识返回输入类问题', () => {
+test('K-04 刷新：未登记的标识返回输入类问题', async () => {
   const { layout, index } = scenario();
-  const outcome = updateSkill({ layout, index, id: 'nosuch', now: LATER });
+  const outcome = await updateSkill({ layout, index, id: 'nosuch', now: LATER });
   assert.deepEqual(
     outcome.findings.map((item) => item.code),
     [CODES.INPUT_INVALID_ARG],

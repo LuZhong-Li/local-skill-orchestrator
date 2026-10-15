@@ -379,7 +379,7 @@ const installHandler: CommandHandler = async ({ args, now, interaction }) => {
 
       // 需要确认且不是预演时，先跑一次只读预览取得影响范围
       if (!dryRun) {
-        const preview = installSkill({ ...installInput, dryRun: true });
+        const preview = await installSkill({ ...installInput, dryRun: true });
         const notes = [
           '安装会把内容写入中心库并分发到声明的落位目标',
           flag(args, 'library-only') === true
@@ -396,7 +396,7 @@ const installHandler: CommandHandler = async ({ args, now, interaction }) => {
         if (blocked !== null) return blocked;
       }
 
-      const outcome = installSkill({ ...installInput, dryRun });
+      const outcome = await installSkill({ ...installInput, dryRun });
       if (!dryRun && outcome.index !== loaded.index) saveIndex(layout.indexFile, outcome.index);
       return buildResult('install', outcome.findings, outcome.changes, {
         data: outcome.data,
@@ -989,7 +989,14 @@ const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
   const check = flag(args, 'check');
   const updateTarget = option(args, 'target');
   if (!check) {
-    const preview = updateSkill({ layout, index, id, now, check: true, target: updateTarget });
+    const preview = await updateSkill({
+      layout,
+      index,
+      id,
+      now,
+      check: true,
+      target: updateTarget,
+    });
     const blocked = await confirmationGate({
       command: 'update',
       args,
@@ -1002,7 +1009,7 @@ const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
     if (blocked !== null) return blocked;
   }
 
-  const outcome = updateSkill({ layout, index, id, now, check, target: updateTarget });
+  const outcome = await updateSkill({ layout, index, id, now, check, target: updateTarget });
   if (!check && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
   return buildResult('update', [...findings, ...outcome.findings], outcome.changes, {
     data: outcome.data,

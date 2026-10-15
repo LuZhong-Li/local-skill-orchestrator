@@ -257,8 +257,10 @@ export function validateSource(source: unknown, ctx: MetaContext): Finding[] {
     );
     return findings;
   }
-  // 来源类型不是本地目录、也不是来源未知时，地址与引用标识必填
+  // 来源类型不是本地目录、也不是来源未知时，必须给出本地位置或远端地址；
+  // 本地形式由 location 表达（本地仓库路径或归档文件路径），远端形式由 url 与 ref 表达
   if (type !== 'local' && type !== 'unknown') {
+    if (isNonEmptyString(block['location'])) return findings;
     for (const field of ['url', 'ref']) {
       if (!isNonEmptyString(block[field])) {
         findings.push(

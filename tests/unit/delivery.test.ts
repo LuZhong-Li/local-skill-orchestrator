@@ -46,8 +46,8 @@ function sourceSkill(id: string, targets: string[], files: Record<string, string
   return dir;
 }
 
-function install(root: string, source: string, extra: Record<string, unknown> = {}) {
-  return installSkill({
+async function install(root: string, source: string, extra: Record<string, unknown> = {}) {
+  return await installSkill({
     layout: layoutOf(root),
     index: createInitialIndex(NOW),
     sourcePath: source,
@@ -56,18 +56,20 @@ function install(root: string, source: string, extra: Record<string, unknown> = 
   });
 }
 
-test('N-02：install 只向 --target 指定的目标分发', () => {
+test('N-02：install 只向 --target 指定的目标分发', async () => {
   const root = workspace();
-  const outcome = install(root, sourceSkill('multi', ['claude', 'codex']), { target: 'codex' });
+  const outcome = await install(root, sourceSkill('multi', ['claude', 'codex']), {
+    target: 'codex',
+  });
   assert.deepEqual(outcome.findings, []);
   assert.ok(!existsSync(join(root, '.claude', 'skills', 'multi')), '未指定的目标不分发');
   assert.ok(existsSync(join(root, '.codex', 'skills', 'multi', 'SKILL.md')), '指定的目标被分发');
   assert.deepEqual(outcome.data['selected_targets'], ['codex']);
 });
 
-test('N-02：--target 指定未声明的目标时按参数类问题拒绝', () => {
+test('N-02：--target 指定未声明的目标时按参数类问题拒绝', async () => {
   const root = workspace();
-  const outcome = install(root, sourceSkill('multi', ['claude']), { target: 'cursor' });
+  const outcome = await install(root, sourceSkill('multi', ['claude']), { target: 'cursor' });
   assert.deepEqual(
     outcome.findings.map((item) => item.code),
     [CODES.INPUT_INVALID_ARG],
@@ -75,22 +77,22 @@ test('N-02：--target 指定未声明的目标时按参数类问题拒绝', () =
   assert.match(String(outcome.findings[0]?.remedy), /claude/);
 });
 
-test('N-02：--scope 过滤目标，缺省时全部分发', () => {
+test('N-02：--scope 过滤目标，缺省时全部分发', async () => {
   const root = workspace();
   const source = sourceSkill('scoped', ['claude']);
-  const outcome = install(root, source, { scope: 'project' });
+  const outcome = await install(root, source, { scope: 'project' });
   assert.deepEqual(
     outcome.findings.map((item) => item.code),
     [CODES.INPUT_INVALID_ARG],
     '声明中没有 project 作用域的目标',
   );
 
-  const all = install(root, source);
+  const all = await install(root, source);
   assert.deepEqual(all.findings, []);
   assert.ok(existsSync(join(root, '.claude', 'skills', 'scoped', 'SKILL.md')));
 });
 
-test('N-03：提供 file_map 时只落位映射表列出的文件', () => {
+test('N-03：提供 file_map 时只落位映射表列出的文件', async () => {
   const root = workspace();
   const source = mkdtempSync(join(tmpdir(), 'sm-delivery-map-'));
   writeFileSync(join(source, 'SKILL.md'), '# skill');
@@ -117,7 +119,7 @@ test('N-03：提供 file_map 时只落位映射表列出的文件', () => {
     ].join('\n'),
   );
 
-  const outcome = install(root, source);
+  const outcome = await install(root, source);
   assert.deepEqual(outcome.findings, []);
   const copy = join(root, '.claude', 'skills', 'mapped');
   assert.ok(existsSync(join(copy, 'SKILL.md')), '映射内的文件被落位');
@@ -137,7 +139,7 @@ test('N-03：提供 file_map 时只落位映射表列出的文件', () => {
   ]);
 });
 
-test('N-03：缺省 file_map 时整目录复制', () => {
+test('N-03：缺省 file_map 时整目录复制', async () => {
   const root = workspace();
   const source = mkdtempSync(join(tmpdir(), 'sm-delivery-plain-'));
   writeFileSync(join(source, 'SKILL.md'), '# skill');
@@ -160,7 +162,7 @@ test('N-03：缺省 file_map 时整目录复制', () => {
       '',
     ].join('\n'),
   );
-  const outcome = install(root, source);
+  const outcome = await install(root, source);
   assert.deepEqual(outcome.findings, []);
   const copy = join(root, '.claude', 'skills', 'plain');
   assert.ok(existsSync(join(copy, 'SKILL.md')));
@@ -168,9 +170,9 @@ test('N-03：缺省 file_map 时整目录复制', () => {
   assert.ok(existsSync(join(copy, 'skill_meta.yaml')), '整目录复制时连元文件一并落位');
 });
 
-test('N-09：原件缺失时副本仍按约定被回收，且有逐文件清单', () => {
+test('N-09：原件缺失时副本仍按约定被回收，且有逐文件清单', async () => {
   const root = workspace();
-  const installed = install(root, sourceSkill('gone', ['claude']));
+  const installed = await install(root, sourceSkill('gone', ['claude']));
   assert.deepEqual(installed.findings, []);
   const copy = join(root, '.claude', 'skills', 'gone');
   writeFileSync(join(copy, 'extra.md'), '# extra');
@@ -194,15 +196,15 @@ test('N-09：原件缺失时副本仍按约定被回收，且有逐文件清单'
   assert.ok(!existsSync(copy), '副本已被回收');
 });
 
-test('N-11：刷新会把副本内容一并更新，且保持副本原有可见性', () => {
+test('N-11：刷新会把副本内容一并更新，且保持副本原有可见性', async () => {
   const root = workspace();
   const source = sourceSkill('refresh', ['claude']);
-  const installed = install(root, source);
+  const installed = await install(root, source);
   assert.deepEqual(installed.findings, []);
   const copy = join(root, '.claude', 'skills', 'refresh');
   writeFileSync(join(copy, 'SKILL.md'), '# 旧的副本内容');
 
-  const outcome = updateSkill({
+  const outcome = await updateSkill({
     layout: layoutOf(root),
     index: installed.index,
     id: 'refresh',
@@ -214,16 +216,16 @@ test('N-11：刷新会把副本内容一并更新，且保持副本原有可见�
   assert.equal((outcome.data['copies'] as unknown[]).length, 1);
 });
 
-test('N-11：重分发失败时刷新整体失败，不写索引', () => {
+test('N-11：重分发失败时刷新整体失败，不写索引', async () => {
   const root = workspace();
-  const installed = install(root, sourceSkill('locked', ['claude']));
+  const installed = await install(root, sourceSkill('locked', ['claude']));
   assert.deepEqual(installed.findings, []);
   // 把副本目录换成一个同名文件：重分发必然失败
   const copy = join(root, '.claude', 'skills', 'locked');
   rmSync(copy, { recursive: true, force: true });
   writeFileSync(copy, 'occupied');
 
-  const outcome = updateSkill({
+  const outcome = await updateSkill({
     layout: layoutOf(root),
     index: installed.index,
     id: 'locked',
@@ -234,14 +236,14 @@ test('N-11：重分发失败时刷新整体失败，不写索引', () => {
   assert.ok(outcome.findings.some((item) => item.severity === 'error'));
 });
 
-test('N-11：--target 只刷新指定目标的副本', () => {
+test('N-11：--target 只刷新指定目标的副本', async () => {
   const root = workspace();
-  const installed = install(root, sourceSkill('partial', ['claude', 'codex']));
+  const installed = await install(root, sourceSkill('partial', ['claude', 'codex']));
   assert.deepEqual(installed.findings, []);
   writeFileSync(join(root, '.claude', 'skills', 'partial', 'SKILL.md'), '# 旧');
   writeFileSync(join(root, '.codex', 'skills', 'partial', 'SKILL.md'), '# 旧');
 
-  const outcome = updateSkill({
+  const outcome = await updateSkill({
     layout: layoutOf(root),
     index: installed.index,
     id: 'partial',
@@ -259,9 +261,9 @@ test('N-11：--target 只刷新指定目标的副本', () => {
   );
 });
 
-test('落位根约定：任一目标标识都能推导出副本位置', () => {
+test('落位根约定：任一目标标识都能推导出副本位置', async () => {
   const root = workspace();
-  const outcome = install(root, sourceSkill('derived', ['cursor']));
+  const outcome = await install(root, sourceSkill('derived', ['cursor']));
   assert.deepEqual(outcome.findings, []);
   assert.ok(existsSync(join(root, '.cursor', 'skills', 'derived', 'SKILL.md')));
 });

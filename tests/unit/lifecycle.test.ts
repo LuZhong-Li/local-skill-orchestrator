@@ -66,9 +66,9 @@ function codesOf(findings: Array<{ code: string }>): string[] {
   return findings.map((item) => item.code);
 }
 
-test('验收一：安装合法 Skill 写入中心库、创建副本并登记索引', () => {
+test('验收一：安装合法 Skill 写入中心库、创建副本并登记索引', async () => {
   const root = workspace();
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -94,15 +94,15 @@ test('验收一：安装合法 Skill 写入中心库、创建副本并登记索�
   ]);
 });
 
-test('验收二：重复安装同一标识被拒绝，不覆盖也不新增', () => {
+test('验收二：重复安装同一标识被拒绝，不覆盖也不新增', async () => {
   const root = workspace();
-  const first = installSkill({
+  const first = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
     now: NOW,
   });
-  const second = installSkill({
+  const second = await installSkill({
     layout: layoutOf(root),
     index: first.index,
     sourcePath: sourceSkill('code-review'),
@@ -114,9 +114,9 @@ test('验收二：重复安装同一标识被拒绝，不覆盖也不新增', ()
   assert.equal(second.data['rejected'], 'already_registered');
 });
 
-test('验收三之一：依赖缺失时拒绝安装', () => {
+test('验收三之一：依赖缺失时拒绝安装', async () => {
   const root = workspace();
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('needs-ghost', {
@@ -129,7 +129,7 @@ test('验收三之一：依赖缺失时拒绝安装', () => {
   assert.equal(outcome.data['rejected'], 'dependency_unmet');
 });
 
-test('验收三之二：被依赖对象校验不通过时拒绝安装，返回 E-VALIDATION-002', () => {
+test('验收三之二：被依赖对象校验不通过时拒绝安装，返回 E-VALIDATION-002', async () => {
   const root = workspace();
   const broken: SkillIndex = {
     ...emptyIndex(),
@@ -148,7 +148,7 @@ test('验收三之二：被依赖对象校验不通过时拒绝安装，返回 E
       },
     ],
   };
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: broken,
     sourcePath: sourceSkill('needs-broken', {
@@ -160,12 +160,12 @@ test('验收三之二：被依赖对象校验不通过时拒绝安装，返回 E
   assert.equal(outcome.data['rejected'], 'dependency_unmet');
 });
 
-test('验收四：不合格元数据被拒绝，问题码清单完整可见', () => {
+test('验收四：不合格元数据被拒绝，问题码清单完整可见', async () => {
   const root = workspace();
   const source = mkdtempSync(join(tmpdir(), 'sm-src-bad-'));
   writeFileSync(join(source, 'SKILL.md'), '# x');
   writeFileSync(join(source, 'skill_meta.yaml'), 'id: bad-one\nstatus: paused\n');
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: source,
@@ -181,9 +181,9 @@ test('验收四：不合格元数据被拒绝，问题码清单完整可见', ()
   assert.ok(!existsSync(join(root, 'skills', 'bad-one')), '被拒绝时不应写入中心库');
 });
 
-test('验收五之一：卸载默认清理副本并保留中心库原件', () => {
+test('验收五之一：卸载默认清理副本并保留中心库原件', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -202,9 +202,9 @@ test('验收五之一：卸载默认清理副本并保留中心库原件', () =>
   assert.equal(outcome.data['library_kept'], true);
 });
 
-test('验收五之二：--hard 时连同中心库原件一并删除', () => {
+test('验收五之二：--hard 时连同中心库原件一并删除', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -222,7 +222,7 @@ test('验收五之二：--hard 时连同中心库原件一并删除', () => {
   assert.equal(outcome.data['library_kept'], false);
 });
 
-test('验收六：卸载不存在的标识返回输入类错误', () => {
+test('验收六：卸载不存在的标识返回输入类错误', async () => {
   const root = workspace();
   const outcome = uninstallSkill({
     layout: layoutOf(root),
@@ -235,7 +235,7 @@ test('验收六：卸载不存在的标识返回输入类错误', () => {
   assert.equal(outcome.index.skills.length, 0);
 });
 
-test('冲突：逐文件映射把两个来源写到同一目标时拒绝安装', () => {
+test('冲突：逐文件映射把两个来源写到同一目标时拒绝安装', async () => {
   const root = workspace();
   const source = mkdtempSync(join(tmpdir(), 'sm-src-dup-'));
   writeFileSync(join(source, 'SKILL.md'), '# x');
@@ -261,7 +261,7 @@ test('冲突：逐文件映射把两个来源写到同一目标时拒绝安装',
       '',
     ].join('\n'),
   );
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: source,
@@ -271,9 +271,9 @@ test('冲突：逐文件映射把两个来源写到同一目标时拒绝安装',
   assert.equal(outcome.data['rejected'], 'conflict');
 });
 
-test('冲突：落位路径与目标落位根约定不一致时拒绝登记', () => {
+test('冲突：落位路径与目标落位根约定不一致时拒绝登记', async () => {
   const root = workspace();
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review', {
@@ -285,10 +285,10 @@ test('冲突：落位路径与目标落位根约定不一致时拒绝登记', ()
   assert.match(String(outcome.findings[0]?.remedy), /\.claude\/skills\/code-review/);
 });
 
-test('冲突：目标位置已被同名目录占用时拒绝安装', () => {
+test('冲突：目标位置已被同名目录占用时拒绝安装', async () => {
   const root = workspace();
   mkdirSync(join(root, '.claude', 'skills', 'code-review'), { recursive: true });
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -298,10 +298,10 @@ test('冲突：目标位置已被同名目录占用时拒绝安装', () => {
   assert.equal(outcome.data['rejected'], 'conflict');
 });
 
-test('来源缺少元文件时返回路径类错误', () => {
+test('来源缺少元文件时返回路径类错误', async () => {
   const root = workspace();
   const source = mkdtempSync(join(tmpdir(), 'sm-src-none-'));
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: source,
@@ -310,10 +310,10 @@ test('来源缺少元文件时返回路径类错误', () => {
   assert.deepEqual(codesOf(outcome.findings), [CODES.PATH_INVALID]);
 });
 
-test('预演：安装不写入任何文件，原样返回索引并给出将发生的变更', () => {
+test('预演：安装不写入任何文件，原样返回索引并给出将发生的变更', async () => {
   const root = workspace();
   const index = emptyIndex();
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index,
     sourcePath: sourceSkill('code-review'),
@@ -329,17 +329,17 @@ test('预演：安装不写入任何文件，原样返回索引并给出将发�
   assert.equal(outcome.data['status'], 'enabled');
 });
 
-test('预演：内容指纹与实装一致，因为指纹在写入中心库之前计算', () => {
+test('预演：内容指纹与实装一致，因为指纹在写入中心库之前计算', async () => {
   const root = workspace();
   const source = sourceSkill('code-review');
-  const preview = installSkill({
+  const preview = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: source,
     now: NOW,
     dryRun: true,
   });
-  const real = installSkill({
+  const real = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: source,
@@ -348,9 +348,9 @@ test('预演：内容指纹与实装一致，因为指纹在写入中心库之�
   assert.equal(preview.data['checksum'], real.data['checksum']);
 });
 
-test('仅落库：只写中心库与登记记录，不分发到目标位置', () => {
+test('仅落库：只写中心库与登记记录，不分发到目标位置', async () => {
   const root = workspace();
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -367,9 +367,9 @@ test('仅落库：只写中心库与登记记录，不分发到目标位置', ()
   assert.equal(outcome.data['library_only'], true);
 });
 
-test('安装登记的状态置为已启用，不沿用元文件的声明值', () => {
+test('安装登记的状态置为已启用，不沿用元文件的声明值', async () => {
   const root = workspace();
-  const outcome = installSkill({
+  const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review', { status: 'disabled' }),
@@ -379,9 +379,9 @@ test('安装登记的状态置为已启用，不沿用元文件的声明值', ()
   assert.equal(outcome.index.skills[0]?.status, 'enabled');
 });
 
-test('预演：卸载不删除任何文件，原样返回索引并列出将删除的路径', () => {
+test('预演：卸载不删除任何文件，原样返回索引并列出将删除的路径', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -409,9 +409,9 @@ test('预演：卸载不删除任何文件，原样返回索引并列出将删�
   ]);
 });
 
-test('备份：卸载默认生成备份，载荷含备份位置、时间戳与文件数', () => {
+test('备份：卸载默认生成备份，载荷含备份位置、时间戳与文件数', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -435,9 +435,9 @@ test('备份：卸载默认生成备份，载荷含备份位置、时间戳与�
   );
 });
 
-test('备份：--hard 删除原件前同样先备份', () => {
+test('备份：--hard 删除原件前同样先备份', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -461,9 +461,9 @@ test('备份：--hard 删除原件前同样先备份', () => {
   assert.ok(existsSync(join(dir, 'SKILL.md')), '删除原件后仍能从备份回溯内容');
 });
 
-test('备份：备份失败时卸载中止，副本、原件与索引记录都不动', () => {
+test('备份：备份失败时卸载中止，副本、原件与索引记录都不动', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -485,9 +485,9 @@ test('备份：备份失败时卸载中止，副本、原件与索引记录都�
   assert.ok(existsSync(join(root, 'skills', 'code-review', 'SKILL.md')), '原件不得被删除');
 });
 
-test('备份：重复卸载已移除的标识不产生新的备份', () => {
+test('备份：重复卸载已移除的标识不产生新的备份', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -510,9 +510,9 @@ test('备份：重复卸载已移除的标识不产生新的备份', () => {
   assert.equal(dirs.length, 1, '只在第一次卸载时产生备份');
 });
 
-test('备份：中心库原件不存在时无备份可做，副本仍按约定被回收', () => {
+test('备份：中心库原件不存在时无备份可做，副本仍按约定被回收', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),
@@ -537,9 +537,9 @@ test('备份：中心库原件不存在时无备份可做，副本仍按约定�
   assert.ok(!existsSync(join(root, '.claude', 'skills', 'code-review')), '副本已被回收');
 });
 
-test('备份：预演不产生备份', () => {
+test('备份：预演不产生备份', async () => {
   const root = workspace();
-  const installed = installSkill({
+  const installed = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),
     sourcePath: sourceSkill('code-review'),

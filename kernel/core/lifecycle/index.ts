@@ -30,11 +30,19 @@ import {
   isCopyDisabled,
   listTreeFiles,
   pathExists,
+  replaceTree,
   removeTree,
   setCopyVisibility,
 } from '../../store/library-fs/index.ts';
 import { parseYaml } from '../../store/yaml/index.ts';
 import { toPortablePath } from '../../store/paths/index.ts';
+import {
+  acquireFromPath,
+  acquireSource,
+  readDeclaredSource,
+  releaseSource,
+  type AcquiredSource,
+} from './source.ts';
 import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
 import { KernelError } from '../../store/errors.ts';
 import { toKernelError } from '../../store/errors.ts';
@@ -100,8 +108,32 @@ function locateMetaFile(sourcePath: string): { metaFile: string; sourceDir: stri
   }
 }
 
-/** 安装：校验、依赖检查、冲突检测、写入中心库、创建副本、登记索引 */
-export function installSkill(input: InstallInput): LifecycleOutcome {
+/**
+ * 安装：先取出来源，再交给同步主体完成校验与落位。
+ * 临时目录一律在本函数内释放，主体不需要关心来源是目录、仓库还是归档。
+ */
+export async function installSkill(input: InstallInput): Promise<LifecycleOutcome> {
+  let acquired: AcquiredSource;
+  try {
+    acquired = await acquireFromPath(input.sourcePath);
+  } catch (error) {
+    const kernelError = toKernelError(error, CODES.SRC_UNRESOLVED);
+    return {
+      index: input.index,
+      findings: [toFinding(kernelError)],
+      changes: [],
+      data: { rejected: 'source_unavailable' },
+    };
+  }
+  try {
+    return installFromSource(input, acquired.dir);
+  } finally {
+    releaseSource(acquired);
+  }
+}
+
+/** 安装主体：来源内容已经在 sourceDir 里就位，本函数只做校验与编排 */
+function installFromSource(input: InstallInput, sourceDir: string): LifecycleOutcome {
   const { layout, index, sourcePath, now, libraryOnly, dryRun, target, scope } = input;
   const workspaceRoot = layout.root;
   const findings: Finding[] = [];
@@ -109,7 +141,7 @@ export function installSkill(input: InstallInput): LifecycleOutcome {
 
   let located: { metaFile: string; sourceDir: string };
   try {
-    located = locateMetaFile(sourcePath);
+    located = locateMetaFile(sourceDir);
   } catch (error) {
     const kernelError = toKernelError(error, CODES.PATH_INVALID);
     return {
@@ -1069,35 +1101,70 @@ export interface UpdateInput {
 }
 
 /**
- * 刷新一个已登记 Skill 的记录（契约 4.11 的本地刷新部分）。
+ * 刷新一个已登记 Skill 的记录（契约 4.11）。
  *
- * 范围说明：一期没有远端拉取能力，update 只做「按磁盘现状刷新记录」——
- * 重新读取中心库原件的元文件、重算内容指纹、刷新索引记录的声明区投影与派生区字段
- * （最近变更时间更新、首次登记时间不变、内容指纹按磁盘重算），并把版本变化写进载荷。
+ * 按来源声明决定是否重新获取内容：
+ *   本地目录与来源未知 → 不重新获取，按磁盘现状刷新记录；
+ *   本地仓库与归档文件 → 先按声明重新获取并替换中心库原件，再刷新记录与副本。
+ * 获取失败时不刷新记录（E-SRC 系列），因此不会出现「记录已刷新而内容仍旧」的状态。
  * 元文件本身与用户源文件一律不改写（AMB-01）。
  *
  * `--check` 只做检查：报告本地漂移与版本差异，不写盘、不改动索引。
  */
-export function updateSkill(input: UpdateInput): LifecycleOutcome {
+export async function updateSkill(input: UpdateInput): Promise<LifecycleOutcome> {
+  const libraryDir = libraryPathOf(input.layout.root, input.id);
+  const declared = readDeclaredSource(join(libraryDir, META_FILE_NAME));
+  const refetchable =
+    declared !== null &&
+    (declared.type === 'git' || declared.type === 'archive') &&
+    (declared.location ?? '') !== '';
+  if (!refetchable) {
+    return updateFromSource(input, null);
+  }
+
+  let acquired: AcquiredSource;
+  try {
+    acquired = await acquireSource({
+      type: declared.type,
+      location: declared.location as string,
+      ref: declared.ref,
+    });
+  } catch (error) {
+    return {
+      index: input.index,
+      findings: [toFinding(toKernelError(error, CODES.SRC_UNRESOLVED))],
+      changes: [],
+      data: { rejected: 'source_unavailable' },
+    };
+  }
+  try {
+    return updateFromSource(input, acquired.dir);
+  } finally {
+    releaseSource(acquired);
+  }
+}
+
+/** 刷新主体：fetched 非空时先用它替换中心库原件，再刷新记录与副本 */
+function updateFromSource(input: UpdateInput, fetchedDir: string | null): LifecycleOutcome {
   const { layout, index, id, now, check, target } = input;
   const record = index.skills.find((item) => item.id === id);
   if (record === undefined) return notRegistered(id, index);
 
-  // 一期只有本地来源；其余来源需要远端能力，按来源类问题返回
-  if (record.source_type !== 'local') {
-    return {
-      index,
-      findings: [
-        finding(CODES.SRC_UNRESOLVED, {
-          source: 'lifecycle',
-          target: id,
-          message: `来源类型为 ${record.source_type} 的 Skill 需要远端能力，一期无法更新`,
-          remedy: '一期只支持本地来源的刷新；远端更新属来源扩展批次',
-        }),
-      ],
-      changes: [],
-      data: { rejected: 'source_unresolved', source_type: record.source_type },
-    };
+  // 一、按声明重新获取内容时，先替换中心库原件；此时尚未改动索引，失败不会刷新记录
+  if (fetchedDir !== null) {
+    const libraryDir = libraryPathOf(layout.root, id);
+    if (!check) {
+      try {
+        replaceTree(fetchedDir, libraryDir);
+      } catch (error) {
+        return {
+          index,
+          findings: [toFinding(toKernelError(error, CODES.IO_FAILED))],
+          changes: [],
+          data: { rejected: 'library_refresh_failed' },
+        };
+      }
+    }
   }
 
   const libraryDir = libraryPathOf(layout.root, id);
