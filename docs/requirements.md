@@ -2388,7 +2388,7 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 
 | 序号 | 落点 | 本次变更 |
 |---|---|---|
-| 1 | T2 实现登记 | 内核新增 `kernel/core/hosts/`：条目类型与取值域（`types.ts`）、首批 7 条注册项（`registry-data.ts`）、HR-01 ~ HR-12 校验（`validate.ts`）、加载与查询接口（`index.ts`）。注册表**随内核交付、不位于工作区**，工作区布局未变；加载结果冻结，作为宿主差异的只读事实源 |
+| 1 | T2 实现登记 | 内核新增 `kernel/core/hosts/`：条目类型与取值域（`types.ts`）、首批 7 条注册项（`registry-data.ts`）、HR-01 ~ HR-12 校验（`validate.ts`）、加载与查询接口（`index.ts`）。注册表**随内核交付、不位于工作区**，工作区布局未变；加载结果冻结，作为宿主差异的只读事实源。载体形态为类型化数据模块（规范修订记录第 3 条），字段契约与 `host_registry.yaml` 等价 |
 | 2 | 实测字段数修正 | Codex 的 frontmatter 字段实测量由 26 种更正为 **27 种**，透传白名单只登记标准 6 字段之外的 **20 项**（禁用字段排除）。落点：设计 2.1 与 5.2、计划 T4 与 §5；审批记录以补记承接 |
 | 3 | 规范兼容澄清 | `host-registry.spec.md` 修订记录第 2 条：`support_state = not_applicable` 的宿主豁免 HR-05 / HR-06，`roots` 与 `adapter_ref` 改为条件必填；HR-06 的技能根判定同时接受 `skill` 与 `external` 类落位根 |
 | 4 | 契约测试 | 新增 `tests/contract/host-registry.test.ts`（6 项断言：schema 与 HR 双重校验、字段完整性、HR 反例、白名单行为、查询接口、新增宿主零内核改动与事实源只读）；测试总数 314 → **320** |

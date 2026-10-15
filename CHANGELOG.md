@@ -13,7 +13,7 @@
 - **透传白名单按 DP-04 落位**：白名单只登记标准 6 字段之外的字段（Codex 20 项、豆包 15 项）；命中即透传，未命中忽略并回报 `W-FIELD-004` 警告（不静默丢弃）；`disable-model-invocation` 在任何宿主下都被拒绝（HR-09 兜底，加载校验同时防止白名单误登记该字段）。
 - **契约测试扩展（314 → 320 项）**：新增 `tests/contract/host-registry.test.ts` 六项断言——注册表数据同时通过 schema 校验与 HR 校验、字段完整性、HR 反例（HR-01/02/03/04/05/06/07/08/09/11）、白名单行为（含禁用字段全宿主拒绝）、查询接口（按标识与三维分类）、新增宿主零内核改动与事实源只读。
 - **实测复核修正**：Codex 的 frontmatter 字段实测量由 26 种更正为 **27 种**（白名单取标准字段之外的 20 项），设计与计划的对应表述同步更正；审批记录以补记承接。
-- **规范兼容澄清两处**：`support_state = not_applicable` 的宿主豁免 HR-05 / HR-06（`roots` 与 `adapter_ref` 改为条件必填），HR-06 的技能根判定同时接受 `skill` 与 `external` 类落位根（工作区外技能根此前会被误判为缺技能根）。见 `docs/specification/host-registry.spec.md` 修订记录第 2 条。
+- **规范兼容澄清三处**（见 `docs/specification/host-registry.spec.md` 修订记录第 2、3 条）：① `support_state = not_applicable` 的宿主豁免 HR-05 / HR-06（`roots` 与 `adapter_ref` 改为条件必填）；② HR-06 的技能根判定同时接受 `skill` 与 `external` 类落位根（工作区外技能根此前会被误判为缺技能根）；③ 载体形态补充「类型化数据模块」一档——内核以单文件可执行交付，本期实现用 `kernel/core/hosts/registry-data.ts` 而不引入构建期资源加载，字段契约与 `host_registry.yaml` 等价。
 
 #### 已知项
 
