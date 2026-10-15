@@ -17,6 +17,7 @@ import { asHostRegistry, errorsOf, isSelectable, validateHostRegistry } from './
 import {
   FORBIDDEN_TRANSMISSION_FIELD,
   type HostEntry,
+  type HostRenderPolicy,
   type HostRegistry,
   type RootKind,
 } from './types.ts';
@@ -134,9 +135,54 @@ export function consumersOfRoot(hostId: string, kind: RootKind): string[] {
 }
 
 /**
- * 透传白名单判定（DP-04）：
+ * 透传白名单判定的**唯一实现**（DP-04）：
  * 白名单命中即透传；未命中忽略并回报警告（不静默丢弃）；
- * 禁用字段在任何宿主下都被拒绝（HR-09）；未登记的宿主标识抛出 KernelError。
+ * 禁用字段在任何宿主下都被拒绝（HR-09）。
+ *
+ * 由注册表查询路径与渲染层共用，保证「先查注册表」与「显式给出策略」两种调用
+ * 不会出现两套判定逻辑。
+ */
+export function resolveDeclaredExtensions(
+  policy: HostRenderPolicy,
+  declared: readonly string[],
+): ExtensionResolution {
+  const whitelist = new Set(policy.allowed_extensions ?? []);
+  const transmitted: string[] = [];
+  const findings: Finding[] = [];
+  for (const field of declared) {
+    if (field === FORBIDDEN_TRANSMISSION_FIELD) {
+      findings.push(
+        finding(CODES.FIELD_INVALID_VALUE, {
+          source: SOURCE,
+          target: field,
+          message: `字段被禁止透传：${field}`,
+          remedy: '该字段语义不明，任何宿主都不得透传（HR-09、DP-04）',
+        }),
+      );
+      continue;
+    }
+    if (whitelist.has(field)) {
+      transmitted.push(field);
+      continue;
+    }
+    findings.push(
+      finding(CODES.FIELD_WHITELIST, {
+        source: SOURCE,
+        target: field,
+        message: `字段不在透传白名单内，已忽略：${field}`,
+        remedy:
+          policy.field_mode === 'standard6'
+            ? '该宿主只输出标准六字段；如需扩展字段，须先在注册表中登记其白名单'
+            : '在宿主注册表的 allowed_extensions 中登记该字段后再启用透传',
+      }),
+    );
+  }
+  return { transmitted, findings };
+}
+
+/**
+ * 按宿主标识判定透传白名单（DP-04）：查注册表后委托唯一实现。
+ * 未登记的宿主标识抛出 KernelError，不静默按空策略处理。
  */
 export function resolveExtensions(
   hostId: string,
@@ -152,39 +198,7 @@ export function resolveExtensions(
       remedy: '取值必须来自宿主注册表；未登记取值按未登记处理，不静默落位',
     });
   }
-  const policy = entry.render_policy;
-  const whitelist = new Set(policy.allowed_extensions ?? []);
-  const transmitted: string[] = [];
-  const findings: Finding[] = [];
-  for (const field of declared) {
-    if (field === FORBIDDEN_TRANSMISSION_FIELD) {
-      findings.push(
-        finding(CODES.FIELD_INVALID_VALUE, {
-          source: SOURCE,
-          target: `${hostId}:${field}`,
-          message: `字段被禁止透传：${field}`,
-          remedy: '该字段语义不明，任何宿主都不得透传（HR-09、DP-04）',
-        }),
-      );
-      continue;
-    }
-    if (whitelist.has(field)) {
-      transmitted.push(field);
-      continue;
-    }
-    findings.push(
-      finding(CODES.FIELD_WHITELIST, {
-        source: SOURCE,
-        target: `${hostId}:${field}`,
-        message: `字段不在透传白名单内，已忽略：${field}`,
-        remedy:
-          policy.field_mode === 'standard6'
-            ? '该宿主只输出标准六字段；如需扩展字段，须先在注册表中登记其白名单'
-            : '在宿主注册表的 allowed_extensions 中登记该字段后再启用透传',
-      }),
-    );
-  }
-  return { transmitted, findings };
+  return resolveDeclaredExtensions(entry.render_policy, declared);
 }
 
 /** 宿主标识全集，供取值校验与错误提示使用 */
