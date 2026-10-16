@@ -103,7 +103,7 @@ jobs:
           printf '%s\n' "$output"
           if [ "$status" -ne 0 ]; then
             reason="$(printf '%s\n' "$output" | { grep -E 'Error|error|ERROR|failed|ENOENT|cannot|Cannot|退出码' || tail -n 3; } | tail -n 3 | tr '\n' ' ' | cut -c1-600)"
-            echo "::error title=打包失败（${{ matrix.leg }}）::${reason:-见 job 日志}"
+            echo "::error title=打包失败（${{ matrix.leg }}）::exit=${status}；输出 ${#output} 字节；${reason:-命令无任何输出（疑被中断或内存不足），见 job 日志}"
             exit "$status"
           fi
 
@@ -123,7 +123,7 @@ jobs:
           printf '%s\n' "$output"
           if [ "$status" -ne 0 ]; then
             reason="$(printf '%s\n' "$output" | { grep -E 'Error|error|ERROR|failed|ENOENT|cannot|Cannot|退出码' || tail -n 3; } | tail -n 3 | tr '\n' ' ' | cut -c1-600)"
-            echo "::error title=打包失败（${{ matrix.leg }}）::${reason:-见 job 日志}"
+            echo "::error title=打包失败（${{ matrix.leg }}）::exit=${status}；输出 ${#output} 字节；${reason:-命令无任何输出（疑被中断或内存不足），见 job 日志}"
             exit "$status"
           fi
 
