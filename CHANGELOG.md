@@ -18,6 +18,13 @@
 
 - 夜间完整流水线、macOS runner、跨平台产物验证与打包产物验证（后三者归 M2）；产物签名与发布不在本阶段任何里程碑。
 
+#### 首次真实运行（run 38769499271，提交 `1d880b6`）
+
+- **结果**：推送 `main` 自动触发，三个 job 齐备；两个矩阵组合（Windows 与 Linux，均为 Node 22）都执行到产物上传步骤，358 项测试在两平台同时通过；产物 `skill-manager-Linux-X64-run38769499271`（41.1 MB）与 `skill-manager-Windows-X64-run38769499271`（32.9 MB）已产出，命名含平台 / 架构 / 运行标识。
+- **告警处置（DP-D：官方动作的运行时）**：三个官方动作面向 Node 20 被强制在 Node 24 上运行。经核实各主版本的实际目标运行时（`action.yml` 的 `runs.using`）与输入兼容性后升级：`checkout@v4 → v5`（其变更记录仅「改用 Node 24」一项）、`setup-node@v4 → v5`、`upload-artifact@v4 → v6`（v5 仍面向 Node 20）。两个 job 的检出步骤同步升级，版本保持一致。
+- **告警处置（DP-E：runner 标签漂移）**：`ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26。Linux runner 固定为 `ubuntu-24.04`，让操作系统升级成为**显式决策**而非静默变化；Windows 无同类迁移公告，暂用 `windows-latest`。
+- **待补验收**：合并请求触发路径（需一次 PR）、刻意失败的可定位性（需一次构造失败）、缓存命中的时长下降（需两次运行时长对比）。
+
 ### 行尾符规范化（独立批次：`docs/architecture.md` 工作副本 CRLF → LF）
 
 收尾工程项：把全库唯一的 CRLF 文档转为 LF。执行后发现实际情况与预判不同，如实记录如下。

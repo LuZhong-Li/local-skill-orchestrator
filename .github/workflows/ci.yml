@@ -6,6 +6,13 @@ name: CI
 #   - 手工触发入口，用于复现与排查；
 #   - 同一分支的连续提交取消旧运行，结论只以最新提交为准。
 # 夜间完整流水线按设计 11 章 DP-A 的处置**默认不启用**（CI-Q-01）：需要长耗时检查时再单独加入。
+#
+# 动作版本与 runner 标签（设计 11 章 DP-D / DP-E）：
+#   - 三个官方动作一律使用面向 Node 24 运行时的主版本（checkout@v5、setup-node@v5、upload-artifact@v6），
+#     避免落到「面向 Node 20 被强制在 Node 24 上运行」的废弃告警；
+#   - 两个 job 的检出步骤同步升级，版本保持一致；
+#   - Linux runner 固定为 ubuntu-24.04：`ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26，
+#     固定标签让操作系统升级成为显式决策而不是静默变化；Windows 无同类迁移公告，暂用 windows-latest。
 on:
   push:
     branches:
@@ -29,12 +36,12 @@ jobs:
   # 读取版本声明：矩阵的 Node 取值以 .nvmrc 为唯一来源（设计 4 章的「同源」要求）
   prepare:
     name: 读取版本声明
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       node_versions: ${{ steps.nvmrc.outputs.versions }}
     steps:
       - name: 检出
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: 从 .nvmrc 生成矩阵取值
         id: nvmrc
         shell: bash
@@ -58,15 +65,15 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - ubuntu-latest
+          - ubuntu-24.04
           - windows-latest
         node: ${{ fromJSON(needs.prepare.outputs.node_versions) }}
     steps:
       - name: 检出
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 安装 Node ${{ matrix.node }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
           # 依赖缓存：键由平台、Node 版本与依赖锁文件的哈希共同决定（设计 6 章）
@@ -100,7 +107,7 @@ jobs:
         run: npm run smoke:kernel
 
       - name: 上传构建产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: skill-manager-${{ runner.os }}-${{ runner.arch }}-run${{ github.run_id }}
           if-no-files-found: error
@@ -112,7 +119,7 @@ jobs:
       # 失败时保留已产出的部分产物，便于诊断（日志由运行记录本身保留）
       - name: 失败时的诊断产物
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: diagnostics-${{ runner.os }}-run${{ github.run_id }}
           if-no-files-found: ignore
