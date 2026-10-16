@@ -237,15 +237,23 @@ jobs:
             --changelog CHANGELOG.md \
             --package package.json \
             --gui-package gui/package.json \
-            --write-notes release/RELEASE_NOTES.md
+            --write-notes RELEASE_NOTES.md
 
       # 归位检查（恰好 5 个交付物）→ 生成 SHA256SUMS.txt → 创建或覆盖 Release（幂等）
       - name: 校验清单与发布
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node scripts/release-publish.mjs \
+          set +e
+          output="$(node scripts/release-publish.mjs \
             --dir release \
             --version "${GITHUB_REF_NAME#v}" \
             --tag "$GITHUB_REF_NAME" \
-            --notes release/RELEASE_NOTES.md
+            --notes RELEASE_NOTES.md 2>&1)"
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            reason="$(printf '%s\n' "$output" | tail -n 3 | tr '\n' ' ' | cut -c1-500)"
+            echo "::error title=发布失败（$GITHUB_REF_NAME）::${reason:-已发布步骤无输出}"
+            exit "$status"
+          fi

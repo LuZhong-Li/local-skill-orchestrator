@@ -304,6 +304,13 @@ test('契约：pack.yml 的 release job 仅在 tag 触发、具备最小写权�
   assert.match(runs, /release-guard\.mjs/, '发布前执行版本守卫');
   assert.match(runs, /release-publish\.mjs/, '发布经发布脚本执行');
   assert.match(runs, /--gui-package gui\/package\.json/, '三方比对包含 gui 的版本声明');
+  assert.match(runs, /--write-notes RELEASE_NOTES\.md/, 'Release notes 写在发布目录之外');
+  assert.equal(
+    /--notes release\//.test(runs),
+    false,
+    'Release notes 不得落在交付目录内（否则归位检查会把它当成非交付物）',
+  );
+  assert.match(runs, /::error title=发布失败/, '发布失败时以错误级注解暴露原因');
   assert.equal(runs.includes('--dry-run'), false, '正式工作流不得预演');
   assert.equal(text.includes('prerelease'), false, '不打 prerelease 标记');
 
