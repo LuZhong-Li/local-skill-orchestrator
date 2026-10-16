@@ -33,6 +33,8 @@
 
 ### T0 图标管线（实现第一批）
 
+**执行状态**：**已完成（2026-10-16）**。交付：`scripts/icon-render.mjs`（纯函数：同一矢量描述按目标尺寸直接渲染、PNG/ICO 最小编码器、iconset 与 Linux 档位清单、落盘函数返回 14 项写入清单）、`scripts/build-icon.mjs`（命令行入口）、`scripts/icon-icns.mjs`（`iconutil` 封装：参数拼装 + 平台准入 + 执行器可注入）、`scripts/build-icon-icns.mjs`（仅 macOS 的命令行入口）；`.gitignore` 新增三条生成物规则。实测：重跑后 `git status gui/packaging` 为空（既有 `icon.ico` / `icon.png` 逐字节复现，零漂移），`git check-ignore` 判定三条生成路径被忽略。测试：新增 10 项（单元 6 / 契约 4），总数 360 → **370**，全绿；`check` / `typecheck` / `lint` / `format:check` 零告警。**EX-03 保留**：`iconutil` 真机验证登记为 T2 矩阵首跑项，本批未伪造 macOS 结论。
+
 **目标**：在既有程序化图标脚本上扩展出 macOS iconset 与 Linux 图标目录，并在 macOS 上完成 `.icns` 拼装链路，全程不引入图形库。
 
 **依赖**：设计定稿（本文档 + 设计文档第 5 节）。

@@ -2,6 +2,32 @@
 
 ## 未发布
 
+### 工程：M2-T0 图标管线扩展（构建期生成、不入库、零图形库）
+
+M2 的第一个实现批次：把程序化图标管线从「Windows 用的 PNG/ICO」扩展到 macOS iconset 与 Linux 图标目录，并保持「图标的唯一来源是脚本」。**未新增指令与选项**（16 条不变），**未新增依赖**。
+
+#### 变更
+
+- **纯函数模块 `scripts/icon-render.mjs`**：渲染（带符号距离场 + 解析抗锯齿，香槟金配色沿用）、PNG/ICO 最小编码器、iconset 与 Linux 档位清单集中一处；**同一份矢量描述按目标尺寸直接渲染**（不做位图缩放），因此 1024 档与 16 档同源可精确重生成；导入该模块不产生任何副作用。
+- **命令行入口**：`npm run build:icon`（`scripts/build-icon.mjs`）写 14 个文件——`icon.ico`（7 档）、`icon.png`（256）、`icons/256x256.png`、`icons/512x512.png`（electron-builder 的 `NxN.png` 约定）与 `icon.iconset/` 的 10 个文件（16/32/64/128/256/512/1024 像素，含 `@2x` 两倍关系）；新增 `npm run build:icon:icns`（`scripts/build-icon-icns.mjs`）。
+- **`iconutil` 封装 `scripts/icon-icns.mjs`**：参数拼装独立导出；**平台准入先于任何检查与写盘**——非 macOS 直接以明确错误退出（说明「icns 仅 macOS 构建期生成」），不静默跳过、不产生副作用；执行器可注入，使参数与四类失败口径（平台、缺 iconset、非零退出、未产出文件）可在任意平台单测；产出必须存在且非空，避免打包出缺图标的应用。
+- **不入库**：`.gitignore` 新增 `gui/packaging/icons/`、`gui/packaging/icon.iconset/`、`gui/packaging/icon.icns`；`icon.ico` 与 `icon.png` 维持入库（Windows 口径不动）。
+
+#### 实测与证据
+
+- **既有产物零漂移**：重跑 `build:icon` 后 `git status --short gui/packaging` 为空 —— 入库的 `icon.ico` / `icon.png` 与新脚本产出**逐字节一致**（另有哈希相等断言固化）。
+- **不入库生效**：`git check-ignore -v` 对三条生成路径均命中新规则（`exit=0`），且生成后 `git status` 只显示源码改动、无生成物。
+
+#### 测试（360 → 370 项；单元 +6 / 契约 +4）
+
+- **单元 `tests/unit/icon-render.test.ts`（6 项）**：各档 PNG 像素尺寸与声明一致（`icon.png` 256、`icons/` 256/512）、iconset 10 文件命名与尺寸完整且 `@2x` 为对应 1x 的两倍、ICO 目录表 7 档与各档负载尺寸匹配、确定性与落盘幂等（两次生成/两次写盘哈希一致）、既有入库 `icon.ico` / `icon.png` 字节不变。
+- **契约 `tests/contract/icon-pipeline.test.ts`（4 项）**：生成物不入库（`.gitignore` 文本规则 + `git check-ignore` 双重断言）、`iconutil` 参数拼装与非 macOS 准入（断言未调用外部命令）、macOS 分支以注入执行器校验调用参数与产出（含非零退出、未产出文件、缺 iconset 三种失败口径）、非 macOS 命令行入口以非零退出码拒绝且不写盘。
+
+#### 未做（明确登记）
+
+- T1 构建配置（`mac` / `linux` 段、未签名断言脚本、README 的 Gatekeeper 与 glibc 说明）、T2 矩阵与 `verify.yml` 抽取、T3 发布、T4 冒烟与验收；
+- **EX-03 保留**：`iconutil` 真机验证登记为 T2 矩阵首跑项，本批不伪造 macOS 结论。
+
 ### 工程：M5 遗留事实点收口（三项裁决 · 规范 + 实现）
 
 把 2026-10-16 取证引出的三项裁决落到契约与实现（**先文档后实现**），并要求 ④ 维持现状。**未新增指令与选项**（16 条不变），**一期 `--target` 语义未动**（其可推导布局不经注册表 `path_template`）。

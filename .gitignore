@@ -7,6 +7,11 @@ dist/
 out/
 *.tsbuildinfo
 
+# 图标生成物：构建期由 scripts/build-icon*.mjs 产出，不入库（唯一来源是脚本）
+gui/packaging/icons/
+gui/packaging/icon.iconset/
+gui/packaging/icon.icns
+
 # 运行期工作区数据，不入仓库
 .skill-manager/
 

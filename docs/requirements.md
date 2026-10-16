@@ -2705,6 +2705,30 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 | 需求正文改动 | 无（仅第 9 章当前态的契约清单表述由 HR-01 ~ HR-12 更新为 HR-01 ~ HR-13） |
 | 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
 
+### 回写批次 2026-10-16（M2-T0 图标管线）
+
+来源：M2 计划 T0 的实现批次（设计 [`docs/design/m2-packaging.md`](design/m2-packaging.md) 第 5 节、计划 [`docs/plan/m2-packaging.md`](plan/m2-packaging.md) T0）。**需求正文未改动**；本条只登记实现落点与实测证据。
+
+| 序号 | 落点 | 本次变更 |
+|---|---|---|
+| 1 | 图标管线结构 | 渲染与编码收敛到纯函数模块 `scripts/icon-render.mjs`（按目标尺寸直接渲染、不做位图缩放；导入无副作用）；命令行入口 `scripts/build-icon.mjs`（写 14 个文件：`icon.ico` 7 档、`icon.png` 256、`icons/256x256.png` 与 `icons/512x512.png`、`icon.iconset/` 10 文件）与新增 `scripts/build-icon-icns.mjs` + `scripts/icon-icns.mjs`（`iconutil` 封装：参数拼装、平台准入、执行器可注入） |
+| 2 | 非 macOS 口径 | `build:icon:icns` 在**任何写盘之前**以明确错误退出（说明「icns 仅 macOS 构建期生成」），不静默跳过；`iconutil` 真机验证登记为 T2 矩阵首跑项（计划 EX-03 保留） |
+| 3 | 不入库 | `.gitignore` 新增 `gui/packaging/icons/`、`gui/packaging/icon.iconset/`、`gui/packaging/icon.icns` 三条规则；以 `git check-ignore` 复核命中；`icon.ico` / `icon.png` 维持入库 |
+| 4 | 既有产物零漂移 | 重跑 `build:icon` 后 `git status gui/packaging` 为空（与入库版本逐字节一致），并有哈希相等用例固化 |
+| 5 | 脚本命名偏差登记 | 设计初稿提到的 `build-icon-mac.mjs` 落地为 `build-icon-icns.mjs`（逻辑在 `icon-icns.mjs`）；设计第 5.3 节已按实际命名回写 |
+
+### 计数校验（M2-T0 批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动；未新增选项 |
+| 功能需求编号 | FR-01 至 FR-12，未变动；里程碑需求条目仍为 35 条 |
+| 契约规范份数 / Schema 份数 | 5 份 / 5 份，未变动（本批未触及契约） |
+| 测试总数 | 由 360 项增至 **370 项**（单元 242 → 248、契约 57 → 61；端到端 61 不变），全部通过 |
+| 依赖 | 未新增任何依赖（图标渲染与编码仍为零图形库自实现） |
+| 需求正文改动 | 无（本批只追加本回写批次与计数校验） |
+| 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
+
 ---
 
 **文档结束**。本文档仅描述需求，不包含实现。一期功能清单在进入实现阶段后冻结，后续变更需先更新本文档再实施。

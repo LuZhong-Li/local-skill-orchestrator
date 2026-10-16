@@ -178,13 +178,15 @@
 | 场景 | 调用 | 说明 |
 |---|---|---|
 | 任意平台本地构建图标 | `npm run build:icon` | 产出 ico + png + `icons/` + `icon.iconset/`；**幂等**（重复运行结果一致，全部由渲染函数决定） |
-| macOS 打包前 | `npm run build:icon` →（新增）`npm run build:icon:icns` → `electron-builder` | `build:icon:icns` 调用系统 `iconutil`；**仅在 macOS 可用**，非 macOS 直接以明确错误退出（不静默跳过，避免产出缺图标的包） |
+| macOS 打包前 | `npm run build:icon` →（新增）`npm run build:icon:icns` → `electron-builder` | `build:icon:icns`（`scripts/build-icon-icns.mjs`，逻辑在 `scripts/icon-icns.mjs`：参数拼装 + 平台准入 + 执行器可注入）调用系统 `iconutil`；**仅在 macOS 可用**，非 macOS 在**任何写盘之前**以明确错误退出（不静默跳过，避免产出缺图标的包）。脚本命名与设计初稿的 `build-icon-mac.mjs` 不同，按本节为准 |
 | Linux 打包前 | `npm run build:icon` → `electron-builder` | 只需 `icons/` 目录 |
 | Windows | 现状不变（`icon.ico` 已入库且被 `win.icon` 引用） | 裁决 1「Windows 现状不动」 |
 
 **入库策略（设计决定）**：`icon.ico` 与 `icon.png` 维持现状入库；新增的 `icons/`、`icon.iconset/`、`icon.icns` **不入库**，由构建期脚本生成并在 `.gitignore` 中登记——保持「图标的唯一来源是脚本」这一现有属性（避免二进制产物漂移）；若维护者偏好入库以保证离线可复现，属开放项 ⑦。
 
 **验证标准**：`build:icon` 后断言 `icons/512x512.png` 与 10 个 iconset 文件存在且尺寸正确（PNG 头解析，不依赖图形库）；macOS 上 `iconutil` 退出码为 0 且 `icon.icns` 非空。
+
+**实现登记（T0，2026-10-16）**：渲染与编码收敛到纯函数模块 `scripts/icon-render.mjs`（导入无副作用，按目标尺寸直接渲染，不做位图缩放）；命令行入口为 `scripts/build-icon.mjs`（写 14 个文件）与 `scripts/build-icon-icns.mjs`（仅 macOS）。既有 `icon.ico` / `icon.png` 重跑后与入库版本**逐字节一致**；生成物由 `.gitignore` 覆盖并以 `git check-ignore` 复核。
 
 ---
 
