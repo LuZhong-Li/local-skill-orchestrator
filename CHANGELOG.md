@@ -1,6 +1,38 @@
 # 变更记录
 
-## 未发布
+## 0.1.0
+
+首个公开版本：Skill 元信息管理器的核心功能与三平台分发链路就绪。
+
+### 功能概览
+
+- **指令面**：契约清单的 16 条指令全部实现（环境与配置、登记与查询、生命周期、校验与依赖、备份导出导入与恢复），并提供 `--host <宿主>` 宿主分发入口（与一期 `--target` 语义正交）。
+- **契约面**：五份规范文档与五份 JSON Schema（元数据、索引格式、指令契约、结果与退出码、宿主注册表），字段一致性由契约测试守住。
+- **内核**：TypeScript，零界面依赖，编译为独立可执行文件随应用分发；宿主适配层含注册表、渲染层与适配器三层。
+- **桌面外壳**：Electron + Vue 3，覆盖仪表盘、详情、安装、校验报告与确认流程。
+- **工程链路**：GitHub Actions 门禁（Windows / Linux × 声明 Node 版本，`verify.yml` 为唯一实现）＋ 三平台打包矩阵（Windows nsis 与便携版、Linux AppImage、macOS dmg ×2）＋ `SHA256SUMS.txt` 校验清单。
+
+### 平台与安装说明
+
+| 平台        | 产物                                                                                           | 说明                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Windows x64 | `skill-manager-0.1.0-x64.exe`（nsis 安装包）、`skill-manager-0.1.0-portable.exe`（便携单文件） | 双击安装或直接运行                                                                                  |
+| macOS arm64 | `skill-manager-0.1.0-arm64.dmg`                                                                | 打开 dmg 拖入「应用程序」                                                                           |
+| macOS x64   | `skill-manager-0.1.0-x64.dmg`                                                                  | 同上（Intel 机器）                                                                                  |
+| Linux x64   | `skill-manager-0.1.0-x64.AppImage`                                                             | 赋可执行位后直接运行；需 FUSE（Ubuntu 24.04 起包名 `libfuse2t64`），或 `--appimage-extract-and-run` |
+| 全部        | `SHA256SUMS.txt`                                                                               | `sha256sum -c` 或 `shasum -a 256` 校验                                                              |
+
+- **未签名交付**：macOS 与 Linux 产物**不携带开发者身份证书、不做公证**。macOS 首次打开会被 Gatekeeper 拦下（预期行为）：右键点应用 → 打开，或 `xattr -cr "/Applications/skill-manager.app"`。Apple Silicon 的产物按平台要求保留 ad-hoc 签名（x64 为完全未签名）。
+- **glibc 下界**：Linux 产物以 ubuntu-24.04 为打包基座，要求目标机 glibc ≥ **2.39**；更老的发行版请从源码使用（内核只需 Node ≥ 22）。
+
+### 已知限制
+
+- 代码签名与公证尚未接入（证书就位后由预留的签名 job 接管，涉及 `APPLE_CERTIFICATE` 等五个 secrets）。
+- Cursor 宿主的标准外字段接受度仍待实测，其渲染保持保守裁剪（不透明传）。
+- `AGENTS.md` 合并策略未定稿：`agents-md` 只产出待合并片段、不落盘。
+- macOS 完整 GUI 交互冒烟不在 CI 口径内，按设计留在本地执行。
+
+### 变更明细（工程批次）
 
 ### 修复：EX-07（mac-arm64 打包失败）——内核 SEA 补齐 macOS 签名步骤 + 失败自证
 

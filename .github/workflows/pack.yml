@@ -194,7 +194,57 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: pack-diagnostics-${{ matrix.leg }}-run${{ github.run_id }}
+          # 名称以 diagnostics- 开头，避免与交付产物（pack-*）在发布汇总时混淆
+          name: diagnostics-pack-${{ matrix.leg }}-run${{ github.run_id }}
           if-no-files-found: ignore
           retention-days: 14
           path: build/desktop/**
+
+  # 发布（T3）：仅在 tag 推送且四 leg 全绿时执行；手工触发不发 Release（裁决 4）
+  release:
+    name: 发布（GitHub Release）
+    needs: pack
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # 最小权限：只有发布 job 具备写权限（裁决 5）
+    permissions:
+      contents: write
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+
+      - name: 安装 Node（取自 .nvmrc）
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+
+      # 汇总四个 leg 的交付产物（诊断包以 diagnostics- 开头，不会被本模式选中）
+      - name: 汇总四 leg 产物
+        uses: actions/download-artifact@v6
+        with:
+          pattern: pack-*
+          merge-multiple: true
+          path: release
+
+      # 版本守卫：tag / CHANGELOG 顶部版本段 / package.json 三方一致才继续；
+      # 同时把该版本段写成 Release notes（设计 6.1、裁决 7）
+      - name: 版本守卫与 Release notes
+        run: |
+          node scripts/release-guard.mjs \
+            --tag "$GITHUB_REF_NAME" \
+            --changelog CHANGELOG.md \
+            --package package.json \
+            --gui-package gui/package.json \
+            --write-notes release/RELEASE_NOTES.md
+
+      # 归位检查（恰好 5 个交付物）→ 生成 SHA256SUMS.txt → 创建或覆盖 Release（幂等）
+      - name: 校验清单与发布
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/release-publish.mjs \
+            --dir release \
+            --version "${GITHUB_REF_NAME#v}" \
+            --tag "$GITHUB_REF_NAME" \
+            --notes release/RELEASE_NOTES.md

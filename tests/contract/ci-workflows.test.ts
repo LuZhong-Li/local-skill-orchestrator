@@ -281,3 +281,27 @@ test('契约：pack.yml 失败路径引用自证诊断（阶段文件与打包�
   assert.match(macRun, /Contents\/Resources\/kernel/, '断言对象应是包内随分发内核');
   assert.match(macRun, /::error/, '签名无效时必须以错误级注解暴露');
 });
+
+test('契约：pack.yml 的 release job 仅在 tag 触发、具备最小写权限且走守卫与发布脚本', () => {
+  const { text, doc } = readWorkflow('pack.yml');
+  const release = doc.jobs['release'] as WorkflowJob & { permissions?: Record<string, unknown> };
+
+  assert.ok(release !== undefined, 'pack.yml 应有 release job');
+  assert.equal(release.if, "startsWith(github.ref, 'refs/tags/v')", '仅 refs/tags/v* 触发发布');
+  assert.equal(release.needs, 'pack', '发布依赖四 leg 打包完成');
+  assert.match(String(release.permissions?.['contents']), /write/, '发布 job 需要 contents: write');
+  assert.match(String(doc.permissions?.['contents']), /read/, '工作流级仍是最小只读');
+
+  const steps = release.steps ?? [];
+  const download = steps.find((step) => String(step.uses).includes('download-artifact'));
+  assert.ok(download !== undefined, '发布 job 应汇总 leg 产物');
+  const runs = steps.map((step) => String(step.run ?? '')).join('\n');
+  assert.match(runs, /release-guard\.mjs/, '发布前执行版本守卫');
+  assert.match(runs, /release-publish\.mjs/, '发布经发布脚本执行');
+  assert.match(runs, /--gui-package gui\/package\.json/, '三方比对包含 gui 的版本声明');
+  assert.equal(runs.includes('--dry-run'), false, '正式工作流不得预演');
+  assert.equal(text.includes('prerelease'), false, '不打 prerelease 标记');
+
+  // 诊断包命名不得与交付产物混淆（发布汇总按 pack-* 取件）
+  assert.match(text, /name: diagnostics-pack-/, '诊断包以 diagnostics- 前缀命名');
+});
