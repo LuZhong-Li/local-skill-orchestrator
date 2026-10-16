@@ -18,50 +18,79 @@ const VERIFY_COMMANDS = [
   'npm run smoke:kernel',
 ];
 
-function readWorkflow(name: string): { text: string; doc: Record<string, any> } {
-  const text = readFileSync(join(WORKFLOW_DIR, name), 'utf8');
-  return { text, doc: parseYaml(text) as Record<string, any> };
+interface WorkflowStep {
+  name?: string;
+  id?: string;
+  if?: string;
+  uses?: string;
+  run?: string;
 }
 
-function stepRuns(doc: Record<string, any>): string[] {
-  const runs: string[] = [];
-  for (const job of Object.values(doc.jobs ?? {}) as Array<Record<string, any>>) {
-    for (const step of (job.steps ?? []) as Array<Record<string, any>>) {
-      if (typeof step.run === 'string') runs.push(step.run);
-    }
-  }
-  return runs;
+interface WorkflowMatrix {
+  os?: unknown;
+  node?: unknown;
+  include?: unknown;
+  'fail-fast'?: unknown;
+}
+
+interface WorkflowJob {
+  name?: string;
+  uses?: string;
+  needs?: unknown;
+  if?: string;
+  steps?: WorkflowStep[];
+  outputs?: Record<string, string>;
+  strategy?: { 'fail-fast'?: unknown; matrix?: WorkflowMatrix };
+  'timeout-minutes'?: number;
+}
+
+interface WorkflowTriggers {
+  push?: { branches?: string[]; tags?: string[] };
+  pull_request?: { branches?: string[]; types?: string[] };
+  workflow_dispatch?: unknown;
+  workflow_call?: unknown;
+  workflow_run?: unknown;
+}
+
+interface WorkflowDoc {
+  on: WorkflowTriggers;
+  concurrency?: Record<string, unknown>;
+  permissions?: Record<string, unknown>;
+  jobs: Record<string, WorkflowJob>;
+}
+
+function readWorkflow(name: string): { text: string; doc: WorkflowDoc } {
+  const text = readFileSync(join(WORKFLOW_DIR, name), 'utf8');
+  return { text, doc: parseYaml(text) as WorkflowDoc };
+}
+
+function stepsOf(doc: WorkflowDoc): WorkflowStep[] {
+  return Object.values(doc.jobs).flatMap((job) => job.steps ?? []);
 }
 
 /** 把 run 块拆成逐条命令（按行、去空白），用于精确比对而不是子串匹配 */
-function stepCommandLines(doc: Record<string, any>): string[] {
-  return stepRuns(doc)
-    .flatMap((run) => run.split('\n'))
+function stepCommandLines(doc: WorkflowDoc): string[] {
+  return stepsOf(doc)
+    .filter((step) => typeof step.run === 'string')
+    .flatMap((step) => String(step.run).split('\n'))
     .map((line) => line.trim())
     .filter((line) => line !== '');
 }
 
 test('契约：校验步骤集合只在 verify.yml 定义一处（ci.yml 与 pack.yml 仅消费）', () => {
-  const verify = readWorkflow('verify.yml');
-  const ci = readWorkflow('ci.yml');
-  const pack = readWorkflow('pack.yml');
-
-  const verifyLines = stepCommandLines(verify.doc);
+  const verifyLines = stepCommandLines(readWorkflow('verify.yml').doc);
   for (const command of VERIFY_COMMANDS) {
     assert.ok(verifyLines.includes(command), `verify.yml 应包含校验命令：${command}`);
   }
 
-  for (const [name, workflow] of [
-    ['ci.yml', ci],
-    ['pack.yml', pack],
-  ] as const) {
-    const lines = stepCommandLines(workflow.doc);
+  for (const name of ['ci.yml', 'pack.yml']) {
+    const doc = readWorkflow(name).doc;
+    const lines = stepCommandLines(doc);
     for (const command of VERIFY_COMMANDS) {
       assert.equal(lines.includes(command), false, `${name} 不得重复定义校验命令：${command}`);
     }
-    const jobs = Object.values(workflow.doc.jobs ?? {}) as Array<Record<string, any>>;
     assert.ok(
-      jobs.some((job) => job.uses === './.github/workflows/verify.yml'),
+      Object.values(doc.jobs).some((job) => job.uses === './.github/workflows/verify.yml'),
       `${name} 应消费可复用校验工作流`,
     );
   }
@@ -71,7 +100,8 @@ test('契约：verify.yml 为 workflow_call，且校验步骤名称与顺序与 
   const { doc } = readWorkflow('verify.yml');
   assert.deepEqual(Object.keys(doc.on), ['workflow_call'], '只允许被调用触发');
 
-  const verifySteps = (doc.jobs.verify.steps ?? []) as Array<Record<string, any>>;
+  const verifyJob = doc.jobs['verify'] as WorkflowJob;
+  const verifySteps = verifyJob.steps ?? [];
   assert.deepEqual(
     verifySteps
       .filter((step) => typeof step.run === 'string')
@@ -109,61 +139,58 @@ test('契约：verify.yml 为 workflow_call，且校验步骤名称与顺序与 
     '步骤名称与顺序须与抽取前逐条一致（行为不变的可核对证据）',
   );
   assert.deepEqual(
-    doc.jobs.verify.strategy.matrix.os,
+    verifyJob.strategy?.matrix?.os,
     ['ubuntu-24.04', 'windows-latest'],
     '矩阵取值不变',
   );
-  assert.equal(doc.jobs.verify.strategy['fail-fast'], false);
-  assert.equal(doc.jobs.verify['timeout-minutes'], 60);
+  assert.equal(verifyJob.strategy?.['fail-fast'], false);
+  assert.equal(verifyJob['timeout-minutes'], 60);
 });
 
 test('契约：verify.yml 的版本声明读取与矩阵同源口径不变', () => {
   const { doc } = readWorkflow('verify.yml');
-  const prepare = doc.jobs.prepare;
-  assert.equal(prepare.outputs.node_versions, '${{ steps.nvmrc.outputs.versions }}');
-  const nvmrcStep = (prepare.steps ?? []).find((step: Record<string, any>) => step.id === 'nvmrc');
+  const prepare = doc.jobs['prepare'] as WorkflowJob;
+  assert.equal(prepare.outputs?.['node_versions'], '${{ steps.nvmrc.outputs.versions }}');
+  const nvmrcStep = (prepare.steps ?? []).find((step) => step.id === 'nvmrc');
   assert.ok(nvmrcStep !== undefined, 'prepare 应含读取 .nvmrc 的步骤');
   assert.match(String(nvmrcStep.run), /GITHUB_OUTPUT/);
   assert.match(String(nvmrcStep.run), /\.nvmrc/);
   assert.match(
-    String(doc.jobs.verify.strategy.matrix.node),
+    String(doc.jobs['verify']?.strategy?.matrix?.node),
     /fromJSON\(needs\.prepare\.outputs\.node_versions\)/,
   );
 });
 
 test('契约：ci.yml 触发与并发口径保持不变', () => {
   const { doc } = readWorkflow('ci.yml');
-  assert.deepEqual(doc.on.push.branches, ['main', 'release/**', 'hotfix/**']);
-  assert.deepEqual(doc.on.pull_request.branches, ['main']);
-  assert.deepEqual(doc.on.pull_request.types, ['opened', 'synchronize', 'reopened']);
+  assert.deepEqual(doc.on.push?.branches, ['main', 'release/**', 'hotfix/**']);
+  assert.deepEqual(doc.on.pull_request?.branches, ['main']);
+  assert.deepEqual(doc.on.pull_request?.types, ['opened', 'synchronize', 'reopened']);
   assert.equal('workflow_dispatch' in doc.on, true, '保留手工触发入口');
-  assert.equal(doc.concurrency['cancel-in-progress'], true);
-  assert.match(String(doc.concurrency.group), /github\.ref/);
+  assert.equal(doc.concurrency?.['cancel-in-progress'], true);
+  assert.match(String(doc.concurrency?.group), /github\.ref/);
 });
 
 test('契约：pack.yml 触发为 tag v* 与手工触发，且只跑打包不发布', () => {
   const { text, doc } = readWorkflow('pack.yml');
-  assert.deepEqual(doc.on.push.tags, ['v*'], 'tag 触发');
+  assert.deepEqual(doc.on.push?.tags, ['v*'], 'tag 触发');
   assert.equal('workflow_dispatch' in doc.on, true, '手工触发');
   assert.equal('pull_request' in doc.on, false, 'push/PR 不触发打包（裁决 3）');
   assert.equal('workflow_run' in doc.on, false, 'tag 场景不用 workflow_run 串联');
 
   // T2 范围：只产出 artifact；Release 发布留 T3
   assert.equal(text.includes('gh release'), false, 'T2 不含 Release 创建');
-  assert.equal(text.includes('content write'), false);
-  assert.match(String(doc.permissions.contents), /read/, 'T2 只读权限');
+  assert.match(String(doc.permissions?.['contents']), /read/, 'T2 只读权限');
 });
 
-test('契约：pack.yml 四 leg 矩阵与 fail-fast: false、tag 不取消旧运行', () => {
+test('契约：pack.yml 四 leg 矩阵、fail-fast: false、tag 不取消旧运行', () => {
   const { doc } = readWorkflow('pack.yml');
-  const pack = doc.jobs.pack;
-  assert.equal(pack.strategy['fail-fast'], false, '一个平台失败不掩盖其他平台');
+  const pack = doc.jobs['pack'] as WorkflowJob;
+  assert.equal(pack.strategy?.['fail-fast'], false, '一个平台失败不掩盖其他平台');
+
+  const include = pack.strategy?.matrix?.include as Array<Record<string, string>>;
   assert.deepEqual(
-    pack.strategy.matrix.include.map((entry: Record<string, string>) => [
-      entry.leg,
-      entry.os,
-      entry.arch ?? '',
-    ]),
+    include.map((entry) => [entry['leg'], entry['os'], entry['arch'] ?? '']),
     [
       ['windows', 'windows-latest', ''],
       ['linux', 'ubuntu-24.04', 'x64'],
@@ -172,15 +199,15 @@ test('契约：pack.yml 四 leg 矩阵与 fail-fast: false、tag 不取消旧运
     ],
     '四 leg 的 runner 标签与架构',
   );
-  assert.deepEqual(pack.needs, 'verify', '打包依赖打包前校验');
+  assert.equal(pack.needs, 'verify', '打包依赖打包前校验');
   assert.equal(
-    doc.concurrency['cancel-in-progress'],
+    doc.concurrency?.['cancel-in-progress'],
     "${{ github.event_name == 'workflow_dispatch' }}",
   );
 
-  const steps = (pack.steps ?? []) as Array<Record<string, any>>;
+  const steps = pack.steps ?? [];
   const macEvidence = steps.find((step) => String(step.name).includes('真机验证（macOS）'));
-  assert.ok(macEvidence !== undefined, 'mac leg 应有未签名/icns 真机证据步骤');
+  assert.ok(macEvidence !== undefined, 'mac leg 应有未签名 / icns 真机证据步骤');
   assert.match(String(macEvidence.run), /assert-unsigned\.mjs/);
   const linuxEvidence = steps.find((step) => String(step.name).includes('真机验证（Linux）'));
   assert.ok(linuxEvidence !== undefined, 'linux leg 应有 maintainer 实测步骤');
@@ -204,9 +231,7 @@ test('契约：三个工作流的官方动作主版本同口径', () => {
 test('契约：job 级 if 不得引用 matrix（GitHub 工作流校验规则）', () => {
   for (const name of ['ci.yml', 'verify.yml', 'pack.yml']) {
     const { doc } = readWorkflow(name);
-    for (const [jobId, job] of Object.entries(doc.jobs ?? {}) as Array<
-      [string, Record<string, any>]
-    >) {
+    for (const [jobId, job] of Object.entries(doc.jobs)) {
       if (typeof job.if === 'string') {
         assert.equal(
           /matrix\./.test(job.if),
@@ -220,7 +245,7 @@ test('契约：job 级 if 不得引用 matrix（GitHub 工作流校验规则）'
 
 test('契约：pack.yml 的 platforms 输入在步骤级过滤（打包、证据与上传步骤均受控）', () => {
   const { doc } = readWorkflow('pack.yml');
-  const steps = (doc.jobs.pack.steps ?? []) as Array<Record<string, any>>;
+  const steps = (doc.jobs['pack'] as WorkflowJob).steps ?? [];
   const guarded = steps.filter(
     (step) => typeof step.if === 'string' && String(step.if).includes('inputs.platforms'),
   );
