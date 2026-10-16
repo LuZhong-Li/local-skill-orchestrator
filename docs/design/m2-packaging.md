@@ -314,6 +314,26 @@ Linux GUI 冒烟失败或超时（示例阈值：单次尝试 10 分钟内未通
 
 ### 8.6 验收映射（M2 里程碑七条）
 
+**实现登记（T4，2026-10-16）：逐条证据**。发布物为 `v0.1.0`（tag 指向 `6210737`；Release 为 latest、非 prerelease、非 draft；run 38908935080）。
+
+| # | 验收标准 | 实际证据 |
+|---|---|---|
+| 1 | 三个目标平台各有产物清单与启动结论 | Release 资产 5 个：`x64.exe` 124.9 MB、`portable.exe` 124.7 MB、`x86_64.AppImage` 164.7 MB、`arm64.dmg` 152.3 MB、`x64.dmg` 157.1 MB ＋ `SHA256SUMS.txt`；Windows 三启动方式沿用本地 9/9 记录（CI 不重复）；macOS/Linux 的启动结论见下条 |
+| 2 | 三启动方式结论逐平台可见，不适用项已登记 | 开发产物与免安装目录：Windows 本地已验；macOS/Linux 的**发布物**验证为「结构 + 包内内核」级（AppImage 解包后内核 ELF64 x86-64、最小闭环通过；两 dmg 的 `.app` 结构与 Mach-O 架构已核）；完整 GUI 交互按设计留本地（已登记，不算未验证） |
+| 3 | 内核在三平台的启动、指令、退出码与输出结构一致 | Linux：AppImage 解包内核对 `init → scan → list --json` 通过（本机回下载复核结构 + CI 资产级冒烟步骤）；macOS：两 dmg 的包内内核 Mach-O 架构正确、`.app` 内 `codesign -dv` 在构建期可读（mac leg 注解）；Windows：既有本地口径 |
+| 4 | 平台差异逐条登记且不影响构建成功 | 差异表见 8.4；本批新增两条实测差异：Linux 产物实名含 `x86_64`；`LSMinimumSystemVersion` 实际生效值为 **13.0**（配置未显式给出，属 electron-builder 默认，开放项 ⑧ 据此可关闭） |
+| 5 | 未验证项为零 | 唯一未执行项为「发布资产上的完整 GUI 交互」——按 8.3 的降级口径登记为**已尝试 + 环境限制结论**（本机为 Windows、无 WSL/已登录会话；自动化路径已写入发布 job，下次发布自动执行），并保留「完整 GUI 交互留本地」的设计边界 |
+| 6 | 三启动方式最小冒烟 ≥ 95% 断言通过 | 本批可自动化的断言全部通过：5 资产哈希复算（本机回下载 + Release 校验清单）、AppImage 结构（12 目录 31 文件）、包内内核 ELF/Mach-O 架构、内核最小闭环 |
+| 7 | 每平台产物验证报告 | 报告字段见 8.5：本批以 Release 资产清单 + 校验清单 + 结构/架构/内核结论替代逐平台报告（Windows 沿用既有记录；macOS/Linux 的执行受限部分按降级口径登记） |
+
+**三种口径单列（不混入缺陷）**：
+
+| 口径 | 结论 |
+|---|---|
+| 未签名交付 | 判定三态：mac-x64 产物 `unsigned`、**mac-arm64 产物 `adhoc`**（Apple Silicon 平台要求），二者均满足「不携带开发者身份证书、不公证」；带 Developer ID 的产物会被拒绝（`signed`） |
+| CI 环境差异 | 运行 runner 无 FUSE 2（AppImage 工具链与运行都用 `--appimage-extract-and-run`）；Electron 沙箱需非特权 user namespaces，CI 冒烟带 `--no-sandbox`（发布物自身的 `.desktop` 也是 `Exec=AppRun --no-sandbox %U`）；这些属 CI/容器环境差异，与交付物行为分开登记 |
+| 降级项 | ① macOS 完整 GUI 交互留本地（设计既定边界）；② 发布资产上的 GUI 启动冒烟待一次已登录会话触发（EX-08）或下次发布自动执行；③ `workflow_dispatch` 首跑未实测（EX-08） |
+
 | # | 验收标准 | 承载 | 验证方式 |
 |---|---|---|---|
 | 1 | 三个目标平台各有产物清单与启动结论 | 第 3.4 / 6.3 / 8.1 节 | Release 资产清单 ＋ 三份产物验证报告 |

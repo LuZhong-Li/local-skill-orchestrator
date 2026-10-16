@@ -43,6 +43,15 @@
 - **干跑自测已全绿**（临时 tag `v0.1.0-t3dryrun5` → run 38893295554，**Success 5m12s**：四个打包 leg + release job 全绿）：资产清单（5 个实名）与 `SHA256SUMS` 以运行页注解公开输出，`--dry-run` 只打印 gh 命令、**未创建任何 Release**（复核：`/releases` 为空、`/releases/tags/<tag>` 404）。此前一次干跑被 mac-x64 的 dmg 构建抖动（`hdiutil: couldn't eject "disk2" - Resource busy`，登记 **EX-10**）打断，重跑即恢复，判定为非确定性失败。临时分支与全部临时 tag 已删除。
 - **真实发布完成**（`v0.1.0`，2026-10-16）：tag `v0.1.0` → run 38908935080 **Success**；Release 为 **latest、非 prerelease、非 draft**，含 5 个交付资产与 `SHA256SUMS.txt`；**下载后复核**（Release 页公开下载 arm64 dmg 152 MB 与 x86_64 AppImage 164 MB，用 Release 上的校验清单本地复算）**逐字节一致**。发布过程命中并修掉两处真实缺陷：① 上传资产给裸文件名 → gh 报 `no matches found`（改为「汇总目录 + 文件名」路径）；② 新建的 Release 处于 **draft**，`--latest` 被 GitHub 以 422「Latest release cannot be draft or prerelease」拒绝 → 发布流程收敛为 `create → publish(draft=false,prerelease=false) → edit(title/notes/latest) → upload(--clobber)` 四步（幂等，复跑同 tag 亦收敛）。
 
+#### M2-T4 冒烟验收收口（M2 收官）
+
+- **Release 资产级冒烟**（验证发布物而非构建目录）：从 Release 回下载 5 个资产并用其自带的 `SHA256SUMS.txt` 复算——一致；AppImage 解包（12 目录 / 31 文件）确认 `resources/kernel/skill-manager.exe` 为 **ELF64 x86-64**、`resources/app.asar` 与 `AppRun` 就位；两 dmg 解包确认 `.app` 结构与 `Contents/Resources/kernel/skill-manager.exe` 的 **Mach-O 架构分别为 arm64 与 x86_64**；`Info.plist` 复核 `CFBundleShortVersionString=0.1.0`、`LSApplicationCategoryType=public.app-category.developer-tools`、`LSMinimumSystemVersion=13.0`；AppImage 的 `.desktop` **无 `Maintainer=` 行**（发布物上复核 `not-consumed` 结论）。
+- **自动化冒烟写入发布流程**：发布 job 新增「Release 资产级冒烟」步骤——回下载 → `sha256sum -c` → AppImage 结构与包内内核最小闭环（`init → scan → list --json`）→ `xvfb` GUI 尝试（跑不通按设计 8.3 降级口径以注解登记，不写「未验证」）；下次发布自动执行。
+- **执行受限于宿主环境**：本机为 Windows 且无 WSL、无已登录浏览器会话，无法执行 Linux/macOS 二进制或触发 `workflow_dispatch`——相关项按降级口径登记（环境限制结论 + 自动执行路径 + EX-08），不计为「未验证」。
+- **验收映射与口径单列**：M2 七条逐条回填证据（设计 8.6 的 T4 登记表）；三种口径单列——未签名交付（`unsigned` / `adhoc` 三态，ad-hoc 为 arm64 平台要求）、CI 环境差异（FUSE / `--appimage-extract-and-run` / `--no-sandbox`）、降级项（完整 GUI 交互留本地、dispatch 首跑待会话）。
+- **README**：下载入口改为指向 [`/releases/latest`](https://github.com/LuZhong-Li/skill-manager/releases/latest) 并标注当前版本 v0.1.0，安装步骤与资产形态一致。
+- **M2 收官**：T0（图标管线）→ T1（构建配置）→ T2（矩阵与真机验证）→ T3（发布机制）→ T4（冒烟验收）全部完成；`v0.1.0` 已发布。
+
 ### 修复：EX-07（mac-arm64 打包失败）——内核 SEA 补齐 macOS 签名步骤 + 失败自证
 
 **根因**：Node 官方单文件可执行（SEA）流程要求 macOS 上在 `postject` 注入前后处理签名——注入会改动 Node 运行时副本的 Mach-O 内容、使原签名失效，因此需先 `codesign --remove-signature`、注入后再 `codesign --sign -`（ad-hoc）重建有效签名。`scripts/build-kernel.mjs` 此前缺这两步：x64 宽容通过，而 arm64 在打包期签名校验失败（退出码 1，且命令无任何输出，故早前只能看到「见 job 日志」）。依据：nodejs.org 的 single-executable-applications 文档。

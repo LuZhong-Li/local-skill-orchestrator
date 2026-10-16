@@ -317,3 +317,20 @@ test('契约：pack.yml 的 release job 仅在 tag 触发、具备最小写权�
   // 诊断包命名不得与交付产物混淆（发布汇总按 pack-* 取件）
   assert.match(text, /name: diagnostics-pack-/, '诊断包以 diagnostics- 前缀命名');
 });
+
+test('契约：pack.yml 含 Release 资产级冒烟（回下载 + 校验 + 结构与内核闭环 + GUI 尝试）', () => {
+  const { doc } = readWorkflow('pack.yml');
+  const steps = (doc.jobs['release'] as WorkflowJob).steps ?? [];
+  const smoke = steps.find((step) => String(step.name).includes('Release 资产级冒烟'));
+  assert.ok(smoke !== undefined, '发布后应有资产级冒烟步骤');
+  const run = String(smoke.run);
+
+  assert.match(run, /releases\/download\/\$\{GITHUB_REF_NAME\}/, '从 Release 回下载（验证发布物）');
+  assert.match(run, /sha256sum -c SHA256SUMS\.txt/, '用发布物自带的校验清单复算');
+  assert.match(run, /--appimage-extract/, 'AppImage 结构校验');
+  assert.match(run, /squashfs-root\/resources\/kernel\/skill-manager\.exe/, '定位包内内核');
+  assert.match(run, /init --workspace .*scan --workspace .*list --workspace/s, '内核最小闭环');
+  assert.match(run, /xvfb-run -a/, 'GUI 冒烟用 xvfb');
+  assert.match(run, /::notice/, '结论以注解公开');
+  assert.match(run, /降级结论/, 'GUI 跑不通时按降级口径登记，不写「未验证」');
+});

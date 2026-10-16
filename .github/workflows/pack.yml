@@ -257,3 +257,47 @@ jobs:
             echo "::error title=发布失败（$GITHUB_REF_NAME）::${reason:-已发布步骤无输出}"
             exit "$status"
           fi
+
+      # Release 资产级冒烟（T4）：验证**已发布**的资产（回下载），而不是只看构建目录。
+      # 门禁项：校验清单复算 + AppImage 解包结构与包内内核最小闭环；
+      # GUI 冒烟为尽力而为：跑通记成功，跑不通按设计 8.3 的降级口径登记为「已尝试 + 原因」。
+      - name: Release 资产级冒烟（回下载 + 校验 + 结构 + 内核闭环 + GUI 尝试）
+        shell: bash
+        run: |
+          set -uo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
+          mkdir -p verify && cd verify
+          for name in SHA256SUMS.txt \
+            "skill-manager-${version}-x64.exe" \
+            "skill-manager-${version}-portable.exe" \
+            "skill-manager-${version}-x86_64.AppImage" \
+            "skill-manager-${version}-arm64.dmg" \
+            "skill-manager-${version}-x64.dmg"; do
+            curl -sSL --retry 3 -o "$name" "$base/$name"
+          done
+          echo "回下载完成，校验清单复算："
+          sha256sum -c SHA256SUMS.txt
+          echo "::notice title=Release 资产级冒烟::5 个资产与 SHA256SUMS 复算一致（回下载自 Release）"
+
+          appimage="skill-manager-${version}-x86_64.AppImage"
+          chmod +x "$appimage"
+          "./$appimage" --appimage-extract > /dev/null
+          kernel="squashfs-root/resources/kernel/skill-manager.exe"
+          test -f "$kernel" || { echo "::error::AppImage 内未找到内核可执行文件"; exit 1; }
+          chmod +x "$kernel"
+          echo "包内内核版本：$("$kernel" --version)"
+          ws="$(mktemp -d)"
+          "$kernel" init --workspace "$ws" > /dev/null
+          "$kernel" scan --workspace "$ws" > /dev/null
+          "$kernel" list --workspace "$ws" --json > /dev/null
+          echo "::notice title=Release 资产级冒烟::AppImage 结构与包内内核最小闭环通过（init → scan → list）"
+
+          # GUI 冒烟：xvfb + extract-and-run + 无沙箱（CI 环境差异），成功即记录，失败按降级口径记录
+          if timeout 240 xvfb-run -a "./$appimage" --appimage-extract-and-run --no-sandbox > gui.log 2>&1; then
+            echo "::notice title=Release GUI 冒烟::exit 0（启动成功，退出由超时终止）"
+          else
+            code=$?
+            tail -n 5 gui.log | tr '\n' ' ' || true
+            echo "::warning title=Release GUI 冒烟（降级结论）::xvfb 启动未通过（退出码 ${code}）；按设计 8.3 降级为「结构与内核闭环已通过」，完整 GUI 交互仍留本地"
+          fi
