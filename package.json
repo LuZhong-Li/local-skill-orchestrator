@@ -26,6 +26,7 @@
     "test": "node --test tests/**/*.test.ts",
     "smoke:gui": "node scripts/gui-smoke.mjs",
     "smoke:kernel": "node scripts/smoke-kernel.mjs",
+    "bench:fixture": "node scripts/bench/fixture-cli.mjs",
     "check:node": "node scripts/check-node-version.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
