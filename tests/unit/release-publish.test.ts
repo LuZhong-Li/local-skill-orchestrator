@@ -96,6 +96,27 @@ test('发布：gh 参数拼装——create 与 edit 两分支（含 --clobber �
   assert.deepEqual(edited[1].args.slice(4), [CHECKSUM_FILE, ...expectedAssets(VERSION)]);
 });
 
+test('发布：上传资产必须以「目录 + 文件名」给出（裸文件名会让 gh 报 no matches found）', () => {
+  const commands = ghArgs({
+    exists: false,
+    tag: 'v0.1.0',
+    title: 'v0.1.0',
+    notesFile: 'RELEASE_NOTES.md',
+    assets: expectedAssets(VERSION).map((name) => join('release', name)),
+    checksumFile: join('release', CHECKSUM_FILE),
+  });
+  const upload = commands[1]!.args;
+  for (const argument of upload.slice(4)) {
+    // 分隔符随平台（Windows 为反斜杠），断言只要求「带汇总目录前缀」
+    assert.match(argument, /^release[\\/]/, `上传路径应带汇总目录前缀：${argument}`);
+  }
+  assert.equal(
+    upload.includes(CHECKSUM_FILE),
+    false,
+    '不得使用裸文件名（gh 会在仓库根目录查找并失败）',
+  );
+});
+
 test('发布：dry-run 只打印命令、不执行任何 gh 调用', () => {
   let calls = 0;
   const result = publishRelease({

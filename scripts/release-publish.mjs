@@ -62,7 +62,13 @@ export function buildChecksumManifest({ dir, files, readFile = readFileSync }) {
     .join('\n');
 }
 
-/** gh 参数拼装：create / edit / upload 三类（纯函数，便于核对与单测） */
+/**
+ * gh 参数拼装：create / edit / upload 三类（纯函数，便于核对与单测）。
+ *
+ * `assets` 与 `checksumFile` 必须是**相对于当前工作目录可用**的路径：gh 在仓库根目录运行，
+ * 而交付物在汇总目录（如 `release/`）里，因此传裸文件名会得到
+ * `no matches found for 'SHA256SUMS.txt'`（首跑实测命中此坑）。
+ */
 export function ghArgs({ exists, tag, title, notesFile, assets, checksumFile }) {
   const upload = ['release', 'upload', tag, '--clobber', checksumFile, ...assets];
   if (exists) {
@@ -176,8 +182,9 @@ if (isEntrypoint) {
       tag: args.tag,
       title: args.title ?? args.tag,
       notesFile: args.notes,
-      assets,
-      checksumFile: CHECKSUM_FILE,
+      // 交给 gh 的资产路径按「汇总目录 + 文件名」给出（notes 路径由调用方给绝对/相对路径）
+      assets: assets.map((name) => join(args.dir, name)),
+      checksumFile: checksumPath,
       exists,
       dryRun: args.dryRun,
     });
