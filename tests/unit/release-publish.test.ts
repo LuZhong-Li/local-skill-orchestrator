@@ -30,7 +30,7 @@ test('发布资产：恰好 5 个交付物（缺失或混入非交付物即失�
   assert.deepEqual(assets, [
     'skill-manager-0.1.0-x64.exe',
     'skill-manager-0.1.0-portable.exe',
-    'skill-manager-0.1.0-x64.AppImage',
+    'skill-manager-0.1.0-x86_64.AppImage',
     'skill-manager-0.1.0-arm64.dmg',
     'skill-manager-0.1.0-x64.dmg',
   ]);

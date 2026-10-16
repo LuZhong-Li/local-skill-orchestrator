@@ -101,7 +101,7 @@ npm run smoke:gui     # 界面冒烟（需图形会话）
 | Windows x64 | `skill-manager-<版本>-x64.exe`、`skill-manager-<版本>-portable.exe` | NSIS 安装包 / 便携单文件                      |
 | macOS arm64 | `skill-manager-<版本>-arm64.dmg`                                    | 打开 dmg，把应用拖入「应用程序」              |
 | macOS x64   | `skill-manager-<版本>-x64.dmg`                                      | 同上（Intel 机器）                            |
-| Linux x64   | `skill-manager-<版本>-x64.AppImage`                                 | 赋可执行位后直接运行                          |
+| Linux x64   | `skill-manager-<版本>-x86_64.AppImage`                              | 赋可执行位后直接运行                          |
 | 全部        | `SHA256SUMS.txt`                                                    | 校验清单（`sha256sum -c` 或 `shasum -a 256`） |
 
 **当前的 macOS 与 Linux 产物未做代码签名与公证**（证书尚未接入），因此 macOS 首次打开会被 Gatekeeper 拦下，这是预期行为。放行方式二选一：
@@ -109,7 +109,7 @@ npm run smoke:gui     # 界面冒烟（需图形会话）
 1. 在「应用程序」中**右键点应用 → 打开**，再在弹窗里确认一次「打开」；
 2. 或清除隔离属性：`xattr -cr "/Applications/skill-manager.app"`（路径换成实际安装位置）。
 
-Linux 产物以 **ubuntu-24.04** 为打包基座，**glibc 下界 2.39**——更老的发行版无法直接运行该 AppImage，可改为从源码使用（内核只需 Node ≥ 22：`node kernel/entry/cli.ts <指令>`；界面用 `npm run dev -w @skill-manager/gui` 就地启动）。AppImage 依赖 FUSE，若系统未安装（Ubuntu 24.04 起包名为 `libfuse2t64`），可用 `./skill-manager-<版本>-x64.AppImage --appimage-extract-and-run` 运行。
+Linux 产物以 **ubuntu-24.04** 为打包基座，**glibc 下界 2.39**——更老的发行版无法直接运行该 AppImage，可改为从源码使用（内核只需 Node ≥ 22：`node kernel/entry/cli.ts <指令>`；界面用 `npm run dev -w @skill-manager/gui` 就地启动）。AppImage 依赖 FUSE，若系统未安装（Ubuntu 24.04 起包名为 `libfuse2t64`），可用 `./skill-manager-<版本>-x86_64.AppImage --appimage-extract-and-run` 运行。
 
 自行打包需要对应平台与网络（打包器要下载平台运行时）：macOS 用 `pack:mac` / `pack:mac:x64`，Linux 用 `pack:linux`，Windows 沿用 `pack:win`；打包入口会自动先生成图标（`icon.iconset/`、`icons/`、`icon.icns` 属构建期产物，不入库）。
 

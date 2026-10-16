@@ -19,7 +19,7 @@
 | Windows x64 | `skill-manager-0.1.0-x64.exe`（nsis 安装包）、`skill-manager-0.1.0-portable.exe`（便携单文件） | 双击安装或直接运行                                                                                  |
 | macOS arm64 | `skill-manager-0.1.0-arm64.dmg`                                                                | 打开 dmg 拖入「应用程序」                                                                           |
 | macOS x64   | `skill-manager-0.1.0-x64.dmg`                                                                  | 同上（Intel 机器）                                                                                  |
-| Linux x64   | `skill-manager-0.1.0-x64.AppImage`                                                             | 赋可执行位后直接运行；需 FUSE（Ubuntu 24.04 起包名 `libfuse2t64`），或 `--appimage-extract-and-run` |
+| Linux x64   | `skill-manager-0.1.0-x86_64.AppImage`                                                          | 赋可执行位后直接运行；需 FUSE（Ubuntu 24.04 起包名 `libfuse2t64`），或 `--appimage-extract-and-run` |
 | 全部        | `SHA256SUMS.txt`                                                                               | `sha256sum -c` 或 `shasum -a 256` 校验                                                              |
 
 - **未签名交付**：macOS 与 Linux 产物**不携带开发者身份证书、不做公证**。macOS 首次打开会被 Gatekeeper 拦下（预期行为）：右键点应用 → 打开，或 `xattr -cr "/Applications/skill-manager.app"`。Apple Silicon 的产物按平台要求保留 ad-hoc 签名（x64 为完全未签名）。

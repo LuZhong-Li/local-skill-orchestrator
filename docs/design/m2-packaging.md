@@ -221,7 +221,7 @@
 |---|---|---|---|
 | macOS | arm64 | `skill-manager-<version>-arm64.dmg` | 未签名（附绕行说明） |
 | macOS | x64 | `skill-manager-<version>-x64.dmg` | 未签名 |
-| Linux | x64 | `skill-manager-<version>-x64.AppImage` | 需 FUSE 或 `--appimage-extract-and-run`（第 7.1 节）；glibc 下界 2.39 |
+| Linux | x64 | `skill-manager-<version>-x86_64.AppImage` | 需 FUSE 或 `--appimage-extract-and-run`（第 7.1 节）；glibc 下界 2.39 |
 | Windows | x64 | `skill-manager-<version>-x64.exe`（nsis）＋ `skill-manager-<version>-portable.exe` | **随 Release 上传**（裁决 ⑤）：Windows 是主平台，Release 不附其产物等于主用户拿不到包；打包配置本身不改动 |
 | 全部 | — | `SHA256SUMS.txt` | 校验清单 |
 

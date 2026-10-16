@@ -21,7 +21,8 @@ export function expectedAssets(version) {
   return [
     `skill-manager-${version}-x64.exe`,
     `skill-manager-${version}-portable.exe`,
-    `skill-manager-${version}-x64.AppImage`,
+    // Linux 上 electron-builder 的 ${arch} 取 x86_64（不是 x64）——T3 干跑实测确认
+    `skill-manager-${version}-x86_64.AppImage`,
     `skill-manager-${version}-arm64.dmg`,
     `skill-manager-${version}-x64.dmg`,
   ];
