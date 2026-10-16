@@ -71,7 +71,7 @@
 |---|---|---|---|---|
 | macOS arm64 | arm64 | `macos-15` | 3 vCPU / 7 GB / 14 GB SSD | 官方标签集为 `macos-latest, macos-14, macos-15, macos-26`（arm64）；显式选 **15** 而非 `-latest`，与 DP-E 同原则（镜像升级应是显式决策）[R-1] |
 | macOS x64 | Intel x64 | `macos-15-intel` | 4 vCPU / 14 GB / 14 GB SSD | 官方 x64 标签集为 `macos-15-intel, macos-26-intel`；**`macos-13` 已不在表中**（M2 早期设想需按此更正）[R-1] |
-| Linux x64 | x64 | `ubuntu-22.04` | 4 vCPU / 16 GB / 14 GB SSD | 官方标签集为 `ubuntu-latest, ubuntu-24.04, ubuntu-22.04, ubuntu-26.04`；打包基座越旧，AppImage 依赖的 glibc 下界越低、可运行范围越广（第 9 节开放项 ④）[R-1] |
+| Linux x64 | x64 | **`ubuntu-24.04`（裁决 ④）** | 4 vCPU / 16 GB / 14 GB SSD | 设计初稿曾建议 `ubuntu-22.04`（更低的 glibc 下界）；**评审裁决取 `ubuntu-24.04`**，理由是 22.04 标签按其生命周期已退役（T2 首步实测确认），且不引入容器构建以保持 M2 轻量。代价：AppImage 依赖的 glibc 下界升为 **2.39**，发布说明写明，更老系统走源码构建 [R-1；裁决 ④] |
 | （对照基线）Windows x64 | x64 | `windows-latest` | — | 沿用 M1 现状与二期结论，不重复验证（M2-R1） |
 
 **额度与排队**：官方说明「标准 GitHub-hosted runner 对公开仓库免费且不限量」[R-1]；因此 macOS 三平台的分钟成本不构成额度风险，M-R-02 的剩余风险是**排队时长**——以「按需触发（tag / dispatch）＋同 ref 取消旧运行」缓解。
@@ -215,7 +215,8 @@
 |---|---|---|---|
 | macOS | arm64 | `skill-manager-<version>-arm64.dmg` | 未签名（附绕行说明） |
 | macOS | x64 | `skill-manager-<version>-x64.dmg` | 未签名 |
-| Linux | x64 | `skill-manager-<version>-x64.AppImage` | 需 FUSE 或 `--appimage-extract-and-run`（第 7.1 节） |
+| Linux | x64 | `skill-manager-<version>-x64.AppImage` | 需 FUSE 或 `--appimage-extract-and-run`（第 7.1 节）；glibc 下界 2.39 |
+| Windows | x64 | `skill-manager-<version>-x64.exe`（nsis）＋ `skill-manager-<version>-portable.exe` | **随 Release 上传**（裁决 ⑤）：Windows 是主平台，Release 不附其产物等于主用户拿不到包；打包配置本身不改动 |
 | 全部 | — | `SHA256SUMS.txt` | 校验清单 |
 
 Windows 产物是否随 Release 一并上传见开放项 ⑤（现状：`pack:win` 可产出，但 M2 不重复验证 Windows）。
@@ -232,7 +233,7 @@ Windows 产物是否随 Release 一并上传见开放项 ⑤（现状：`pack:wi
 | runner 镜像是否自带 FUSE | ubuntu-24.04 镜像清单中**没有** fuse / libfuse 相关包（清单含 `xvfb`）[R-2] | 按上一条走 `--appimage-extract-and-run`；不假设 FUSE 可用 |
 | Electron AppImage 的沙箱 | 官方：Electron 版 AppImage 需要内核允许非特权 user namespaces，否则沙箱无法按预期工作，可退化为 `--no-sandbox` | CI 冒烟命令显式加沙箱相关参数并在运行记录中登记（属 **CI 环境差异**，与交付给用户的产物行为区分登记） |
 | AppImage 构建期工具链 | electron-builder 自带 `app-builder` 下载与 `appimagetool` 调用 | 若构建期出现 FUSE 相关报错，按「先 `--appimage-extract-and-run`、必要时装 `libfuse2t64`、最终登记为已知项」的顺序处理 |
-| 打包基座与 glibc 下界 | 打包基座越新，产物要求的目标机 glibc 越新 | 矩阵选 `ubuntu-22.04`（第 3.2 节）；基座版本属开放项 ④ |
+| 打包基座与 glibc 下界 | 打包基座越新，产物要求的目标机 glibc 越新 | 矩阵按裁决取 `ubuntu-24.04`（第 3.2 节），glibc 下界 **2.39** 写入发布说明；更老系统走源码构建 |
 
 ### 7.2 macOS
 
@@ -318,18 +319,18 @@ Linux GUI 冒烟失败或超时（示例阈值：单次尝试 10 分钟内未通
 
 ## 9. 开放决策点（不实现，登记待定）
 
-| # | 决策点 | 现状 | 影响 |
+| # | 决策点 | 状态与结论 | 影响 |
 |---|---|---|---|
-| ① | universal binary（单包双架构） | 裁决 1 明确不做（两个 dmg 分开） | 若改为 universal：产物数减半但体积翻倍、构建耗时增加；需重新裁定 |
-| ② | `deb` / `rpm` 等 Linux 包格式 | 只做 AppImage | 增加矩阵与依赖（`maintainer` 等元数据要求更严）；按需另立批次 |
-| ③ | 签名与公证接入 | 本批次不做 | 预留：secrets 命名、job 条件（tag 且存在 secrets 时才签名）、文档段；证书就位后以独立批次接入，并在 README 移除绕行说明 |
-| ④ | Linux 打包基座 | 设计取 `ubuntu-22.04` | 基座与 glibc 下界的取舍；退役或失效时迁 `ubuntu-24.04` 并登记可运行范围变化 |
-| ⑤ | Windows 产物是否随 Release 上传 | 未定 | 影响 Release 资产集合与「Windows 现状不动」的边界解释 |
-| ⑥ | macOS 镜像升级节奏（`macos-15` → `macos-26`） | 固定 15 | 与 DP-E 同原则：升级须显式决策并重跑验收 |
-| ⑦ | 新增图标产物是否入库 | 设计取「不入库，构建期生成」 | 入库可离线复现但引入二进制漂移；不入库要求构建链可跑通 |
-| ⑧ | macOS `minimumSystemVersion` | 待定 | 影响可运行系统范围与 Electron 44 的下界声明 |
-| ⑨ | `linux.maintainer` 取值 | 取仓库既有提交身份 | 更换为项目邮箱需维护者确认 |
-| ⑩ | Release notes 生成方式 | 取 CHANGELOG 版本段 | 若要改用自动生成（`--generate-notes`），需同步登记口径 |
+| ① | universal binary（单包双架构） | 前置裁决 1 明确不做（两个 dmg 分开） | 若改为 universal：产物数减半但体积翻倍、构建耗时增加；需重新裁定 |
+| ② | `deb` / `rpm` 等 Linux 包格式 | **保持开放**（本阶段只做 AppImage） | 增加矩阵与依赖（`maintainer` 等元数据要求更严）；按需另立批次 |
+| ③ | 签名与公证接入 | **已裁决（轻量预留）**：文档化 electron-builder 官方 secrets 命名（`APPLE_CERTIFICATE` / `APPLE_CERTIFICATE_PASSWORD` / `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`）＋签名 job 条件骨架（secrets 存在时才运行）；**不实现、不建证书** | 证书就位后以独立批次接入，并在 README 移除绕行说明 |
+| ④ | Linux 打包基座 | **已裁决**：取 `ubuntu-24.04`（不引入容器构建）；glibc 下界 **2.39** 写入发布说明 | 可运行范围收窄，靠发布说明与源码构建路径补偿 |
+| ⑤ | Windows 产物是否随 Release 上传 | **已裁决：上传**（nsis + portable 两个都传） | Windows 是主平台；打包配置本身仍不动 |
+| ⑥ | macOS 镜像升级节奏（`macos-15` → `macos-26`） | **保持开放**（当前固定 15） | 与 DP-E 同原则：升级须显式决策并重跑验收 |
+| ⑦ | 新增图标产物是否入库 | **已裁决：不入库、构建期生成** | 保持「唯一来源是脚本」，避免二进制副本漂移；要求构建链可跑通 |
+| ⑧ | macOS `minimumSystemVersion` | **保持开放**（实现期按 Electron 44 下界声明） | 影响可运行系统范围 |
+| ⑨ | `linux.maintainer` 取值 | **已裁决**：沿用仓库既有提交身份 `skill-manager <3338004299@qq.com>`，不新造个人信息；注明 AppImage 形态是否消费该字段待 T1 实测（配置完整性意义上给出） | 如更换为项目邮箱需维护者确认 |
+| ⑩ | Release notes 生成方式 | **保持开放**（设计取 CHANGELOG 版本段） | 若改用自动生成（`--generate-notes`），需同步登记口径 |
 
 ---
 

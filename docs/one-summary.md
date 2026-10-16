@@ -255,7 +255,7 @@
 | 里程碑 | 状态 |
 |---|---|
 | M1 CI 接入 | **已收官（2026-10-16）**。落地物：工作流 `.github/workflows/ci.yml`、缩减冒烟 `scripts/smoke-kernel.mjs`、版本守卫 `scripts/check-node-version.mjs`（均为 CI 支撑物，未新增指令与选项）。四次真实运行给出全部验收证据：首次 run 38769499271（三 job 齐备、两平台 × Node 22、358 项同时通过、两份产物）、加固后 run 38828716615（Success 1m 58s，动作主版本升级 + Linux runner 固定、告警清零）、刻意失败探测 run 38829261658、合并请求 run 38834451784（事件 `pull_request`，探测 PR 已关闭且分支已删除）。9.3.1 七条验收 6 条闭合，缓存条目以「机制已验证 + 时长未达成并附原因」闭合；详见 `docs/design/m1-ci.md` 第 14 章与 `docs/plan/m1-ci.md` 3.1 |
-| M2 跨平台打包验证 | **设计已产出，待评审**（`docs/design/m2-packaging.md`）：矩阵与触发（tag `v*` / 手动触发跑 macOS arm64＋x64、Linux x64，`push`/`PR` 维持 M1 现状）、打包配置增量（`mac` / `linux` 段，未签名口径）、图标管线（icns iconset ＋ Linux 512 PNG，无图形库）、发布流程（tag → GitHub Release ＋ SHA256SUMS）、系统依赖与排错（AppImage FUSE、Electron 沙箱、Gatekeeper）、冒烟验收（Linux `xvfb` GUI 冒烟或降级；macOS 结构校验 ＋ 内核可执行）与十项开放决策点；实现与计划待确认 |
+| M2 跨平台打包验证 | **设计与计划已产出，待实现**（`docs/design/m2-packaging.md`、`docs/plan/m2-packaging.md`）。设计要点：固定标签 `macos-15` / `macos-15-intel` / `ubuntu-24.04`（裁决 ④，glibc 下界 2.39）＋ `windows-latest`；未签名以 `CSC_IDENTITY_AUTO_DISCOVERY=false` 表达并以 `codesign -dv` 断言；图标构建期生成（iconset → `iconutil` 拼 icns、Linux 512 PNG，不入库、零图形库）；tag `v*` / 手动触发全平台矩阵（`push`/`PR` 维持 M1 现状），`verify.yml` 可复用工作流承载唯一校验步骤序列；发布经预装 `gh` CLI 创建 Release ＋ `SHA256SUMS.txt`，**Windows nsis 与便携版随传**（裁决 ⑤）；签名轻量预留（secrets 命名 ＋ 条件骨架，不实现）；Linux 冒烟用 `xvfb`（`--appimage-extract-and-run`、沙箱参数属 CI 环境差异），跑不通按降级口径登记为结论。计划为 T0 图标管线 → T1 构建配置 → T2 矩阵 workflow → T3 发布 → T4 冒烟与验收；待实现批次推进 |
 | M3 性能与规模压测 | 未启动（N = 100 / 1000 / 5000 与阈值、拐点规则已定稿于 9.3.3 与 9.4.3） |
 | M4a 自动更新 / M4b 插件生态 | 未启动（M4a 收敛为「手动检查 + 提示」；M4b 只定高层边界与候选字段，契约层设计须单独立项） |
 
