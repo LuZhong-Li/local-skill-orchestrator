@@ -260,3 +260,24 @@ test('契约：pack.yml 的 platforms 输入在步骤级过滤（打包、证据
   assert.ok(upload !== undefined, 'pack 应含上传步骤');
   assert.match(String(upload.if), /inputs\.platforms/, '未选中的 leg 不得上传产物');
 });
+
+test('契约：pack.yml 失败路径引用自证诊断（阶段文件与打包器日志），且内核签名有真机断言', () => {
+  const { doc } = readWorkflow('pack.yml');
+  const steps = (doc.jobs['pack'] as WorkflowJob).steps ?? [];
+
+  const packSteps = steps.filter((step) => String(step.name).startsWith('打包（'));
+  assert.equal(packSteps.length, 2, 'Windows 与 macOS/Linux 各一条打包步骤');
+  for (const step of packSteps) {
+    const run = String(step.run);
+    assert.match(run, /pack-debug\.log/, `${step.name} 的失败注解应回落到打包器日志`);
+    assert.match(run, /build\/desktop\/pack-debug\.log/, '日志路径应在诊断产物范围内');
+  }
+  const unixPack = packSteps.find((step) => String(step.name).includes('macOS / Linux'));
+  assert.match(String(unixPack?.run), /pack-stage\.txt/, 'macOS/Linux 打包应报出最后阶段');
+
+  const macEvidence = steps.find((step) => String(step.name).includes('真机验证（macOS）'));
+  const macRun = String(macEvidence?.run);
+  assert.match(macRun, /codesign -dv/, '内核二进制的签名应有真机断言');
+  assert.match(macRun, /Contents\/Resources\/kernel/, '断言对象应是包内随分发内核');
+  assert.match(macRun, /::error/, '签名无效时必须以错误级注解暴露');
+});

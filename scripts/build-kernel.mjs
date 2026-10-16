@@ -7,6 +7,10 @@
  *   二、用 Node 的单文件可执行配置生成代码块；
  *   三、把代码块注入当前 Node 运行时的副本，得到 `build/kernel/skill-manager.exe`。
  *
+ * macOS 上的签名处理（Node 官方流程）：注入前后各一次 codesign——注入前
+ * `--remove-signature`，注入后 `--sign -`（ad-hoc）。缺这一步时注入会破坏签名，
+ * arm64 会在打包期签名校验失败（EX-07 根因）；Linux 与 Windows 不涉及。
+ *
  * 产物被 electron-builder 复制到 `resources/kernel/`，主进程按该路径调用。
  * 中间文件放在 intermediate/ 子目录，成功后清理，避免随包分发。
  */
@@ -15,6 +19,7 @@ import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { adHocSignMac, removeMacSignature } from './sea-signing.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = join(ROOT, 'build', 'kernel');
@@ -78,6 +83,11 @@ if (!existsSync(BLOB)) fail('未生成代码块');
 
 // 三、注入到 Node 运行时的副本
 copyFileSync(process.execPath, EXECUTABLE);
+
+// 注入前移除原有签名（仅 macOS 生效；其他平台为空操作，不调用外部命令）
+const removed = removeMacSignature({ executable: EXECUTABLE });
+if (removed.applied) console.log(`已移除 Node 副本签名：${removed.args.join(' ')}`);
+
 run(
   process.execPath,
   [
@@ -90,6 +100,10 @@ run(
   ],
   { quiet: true },
 );
+
+// 注入后 ad-hoc 重签（仅 macOS 生效），使产物在 arm64 打包期通过签名校验
+const signed = adHocSignMac({ executable: EXECUTABLE });
+if (signed.applied) console.log(`已对内核可执行文件 ad-hoc 重签：${signed.args.join(' ')}`);
 
 rmSync(WORK_DIR, { recursive: true, force: true });
 console.log(`内核可执行文件已生成：${EXECUTABLE}`);

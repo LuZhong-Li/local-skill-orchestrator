@@ -101,9 +101,12 @@ jobs:
           output="$( { npm run build:icon && npm run build:kernel && npm run pack:win -w @skill-manager/gui; } 2>&1 )"
           status=$?
           printf '%s\n' "$output"
+          mkdir -p build/desktop
+          printf '%s\n' "$output" >> build/desktop/pack-debug.log
           if [ "$status" -ne 0 ]; then
-            reason="$(printf '%s\n' "$output" | { grep -E 'Error|error|ERROR|failed|ENOENT|cannot|Cannot|退出码' || tail -n 3; } | tail -n 3 | tr '\n' ' ' | cut -c1-600)"
-            echo "::error title=打包失败（${{ matrix.leg }}）::exit=${status}；输出 ${#output} 字节；${reason:-命令无任何输出（疑被中断或内存不足），见 job 日志}"
+            reason="$(printf '%s\n' "$output" | { grep -E 'Error|error|ERROR|failed|ENOENT|cannot|Cannot|退出码' || tail -n 3; } | tail -n 3 | tr '\n' ' ' | cut -c1-500)"
+            [ -n "$reason" ] || reason="$(tail -n 8 build/desktop/pack-debug.log | tr '\n' ' ' | cut -c1-500)"
+            echo "::error title=打包失败（${{ matrix.leg }}）::exit=${status}；输出 ${#output} 字节；${reason:-命令无输出且诊断日志为空}"
             exit "$status"
           fi
 
@@ -122,8 +125,10 @@ jobs:
           status=$?
           printf '%s\n' "$output"
           if [ "$status" -ne 0 ]; then
-            reason="$(printf '%s\n' "$output" | { grep -E 'Error|error|ERROR|failed|ENOENT|cannot|Cannot|退出码' || tail -n 3; } | tail -n 3 | tr '\n' ' ' | cut -c1-600)"
-            echo "::error title=打包失败（${{ matrix.leg }}）::exit=${status}；输出 ${#output} 字节；${reason:-命令无任何输出（疑被中断或内存不足），见 job 日志}"
+            stage="$(tail -n 1 build/desktop/pack-stage.txt 2>/dev/null)"
+            reason="$(printf '%s\n' "$output" | { grep -E 'Error|error|ERROR|failed|ENOENT|cannot|Cannot|退出码' || tail -n 3; } | tail -n 3 | tr '\n' ' ' | cut -c1-500)"
+            [ -n "$reason" ] || reason="$(tail -n 8 build/desktop/pack-debug.log 2>/dev/null | tr '\n' ' ' | cut -c1-500)"
+            echo "::error title=打包失败（${{ matrix.leg }}）::exit=${status}；最后阶段=${stage:-未知}；${reason:-命令无输出且诊断日志为空}"
             exit "$status"
           fi
 
@@ -144,6 +149,18 @@ jobs:
           echo "app=$app"
           node scripts/assert-unsigned.mjs "$app"
           echo "::notice title=codesign 未签名断言::${app} 判定为未签名（断言通过）"
+          # EX-07：包内内核二进制必须带有效签名（ad-hoc）。缺签名曾是 arm64 打包失败的原因，
+          # 这里把它变成可失败断言 + 公开注解，防止同类回归。
+          kernel="$app/Contents/Resources/kernel/skill-manager.exe"
+          if [ ! -f "$kernel" ]; then
+            echo "::error::包内未找到内核可执行文件：$kernel"
+            exit 1
+          fi
+          if ! codesign -dv "$kernel" > kernel-codesign.txt 2>&1; then
+            echo "::error title=内核签名无效（${{ matrix.leg }}）::$(head -n 3 kernel-codesign.txt | tr '\n' ' ' | cut -c1-500)"
+            exit 1
+          fi
+          echo "::notice title=EX-07 内核 ad-hoc 签名::$(head -n 1 kernel-codesign.txt)"
 
       # 真机证据：AppImage 是否消费 linux.maintainer（T1 判定逻辑，单侧实测；结论回写配置）
       - name: 真机验证（Linux）：maintainer 消费实测
