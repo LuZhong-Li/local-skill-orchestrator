@@ -61,6 +61,8 @@
 
 ### T1 构建配置（实现第二批）
 
+**执行状态**：**已完成（2026-10-16）**。交付：`gui/packaging/electron-builder.yml` 新增 `mac`（dmg / ICNS 图标 / 开发者工具类别 / 产物名含架构 / 不写签名键）与 `linux`（AppImage / 图标目录 / Utility 类别 / synopsis+description / maintainer 沿用仓库提交身份）段，`win` 段与共享骨架未动；打包入口 `scripts/pack.mjs`（执行器）+ `scripts/pack-plan.mjs`（纯函数计划：图标链、平台分支、架构开关、未签名环境变量、只打本平台包）与 `gui/package.json` 的 `pack:mac` / `pack:mac:x64` / `pack:linux`；未签名断言 `scripts/unsigned-check.mjs`（`codesign -dv` 解析可注入，三口径）+ `scripts/assert-unsigned.mjs`（事后复核入口）；`maintainer` 实测 `scripts/maintainer-probe.mjs` + `scripts/check-maintainer.mjs`；README 新增「跨平台分发与安装」（产物清单与 Releases 入口、Gatekeeper 绕行两步、glibc 2.39 与 AppImage 运行前提、自行打包命令）。测试：新增 19 项（单元 12 / 契约 7），总数 370 → **389**，全绿；`check` / `typecheck` / `lint` / `format:check` 零告警。**真机项保留**：`codesign` 未签名断言与 `maintainer` 消费实测登记为 T2 首跑，未伪造结论。
+
 **目标**：让 electron-builder 能按平台产出 dmg 与 AppImage，并把未签名口径与签名预留落到配置与文档层。
 
 **依赖**：T0（图标产物就位，`mac.icon` / `linux.icon` 才有意义）。

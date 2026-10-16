@@ -2,6 +2,29 @@
 
 ## 未发布
 
+### 工程：M2-T1 构建配置（mac/linux 段、未签名断言、打包入口与 README）
+
+M2 的第二个实现批次：让打包链路具备 macOS 与 Linux 目标，并把「未签名交付」从默认结果变成被检查的事实。**未新增指令与选项**（16 条不变），**未新增依赖**（全部用既有工具链与自实现脚本）。
+
+#### 变更
+
+- **配置增量（`gui/packaging/electron-builder.yml`）**：新增 `mac` 段（`target: dmg`、`icon: packaging/icon.icns`、`category: public.app-category.developer-tools`、产物名含 `${arch}`、**不出现任何签名键**）与 `linux` 段（`target: AppImage`、`icon: packaging/icons`、`category: Utility`、`synopsis` / `description`、`maintainer: skill-manager <3338004299@qq.com>`——沿用仓库既有提交身份，不新造个人信息）；`win` / `nsis` / `portable` 段与 `files` / `extraResources` / `electronLanguages` / `directories` 共享骨架未动，三平台段同层组织、共享字段不复制。
+- **签名预留（仅文档，不实现）**：配置注释登记五个官方 secrets 名（`APPLE_CERTIFICATE` / `APPLE_CERTIFICATE_PASSWORD` / `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`）与「secrets 存在才运行的签名 job」说明；未签名口径以环境变量 `CSC_IDENTITY_AUTO_DISCOVERY=false` 表达（不写配置键，跨 electron-builder 主版本成立）。
+- **打包入口**：`scripts/pack-plan.mjs`（纯函数计划：图标链 → 界面构建 → electron-builder → 未签名断言；平台分支、架构开关、环境变量、只打本平台包）与 `scripts/pack.mjs`（执行器，参数与计划错误给出可读信息并以非零退出）；`gui/package.json` 新增 `pack:mac` / `pack:mac:x64` / `pack:linux`（与既有 `pack:win` 并列，Windows 入口不变）。非 macOS 宿主上 `build:icon:icns` **跳过且不中断**，提示原因。
+- **未签名断言**：`scripts/unsigned-check.mjs`（`codesign` 输出解析与执行器可注入，三口径：未签名 → 通过、已签名 → 失败、无输出 → 按无法确认失败）+ `scripts/assert-unsigned.mjs`（事后复核入口）；mac 打包后自动执行，缺 `.app` 或产物目录缺失都明确失败。
+- **`maintainer` 消费实测**：`scripts/maintainer-probe.mjs`（目录树文本扫描 + 三态判定 consumed / not-consumed / ambiguous）与 `scripts/check-maintainer.mjs`（参数解析与结论输出）。
+- **README**：新增「跨平台分发与安装」——产物清单与 Releases 下载入口（含 Windows 两形态与 `SHA256SUMS.txt`）、macOS 未签名绕行两步（右键打开 / `xattr -cr`）、Linux glibc 下界 2.39 与 `libfuse2t64` / `--appimage-extract-and-run` 前提、自行打包命令与「图标属构建期产物」说明。
+
+#### 测试（370 → 389 项；单元 +12 / 契约 +7）
+
+- **单元（`tests/unit/`）**：打包计划 5 项（mac/arm64 图标链与 `--mac --arm64`、x64 开关、非 macOS 跳过 icns 且后续步骤仍在、linux 无 icns/无未签名口径、默认架构与非法平台/架构拒绝）；未签名断言 4 项（三口径 + 平台与产物缺失时先拒绝且不调用 `codesign`）；`maintainer` 判定 3 项（consumed / not-consumed / ambiguous，含「二进制文件不被扫描」的旁证）。
+- **契约（`tests/contract/`）**：配置结构 5 项（mac 段字段齐全且**不含签名键**、linux 段字段与 `maintainer` 形态、win 段与共享骨架未被改动、三平台段同层且共享字段不重复、签名预留与未签名环境变量在配置注释中）；README 文案 2 项（产物清单与 Releases 入口、绕行步骤 + glibc 版本号 + 打包命令）。
+
+#### 未做（明确登记）
+
+- **真机项保留**：`codesign -dv` 未签名断言的 macOS 真机验证、`maintainer` 消费实测的 Linux 真机执行，均登记为 T2 矩阵首跑项——本批只交付可注入/可单测的逻辑与入口，不伪造平台结论；
+- T2 矩阵与 `verify.yml` 抽取、T3 发布、T4 冒烟与验收。
+
 ### 工程：M2-T0 图标管线扩展（构建期生成、不入库、零图形库）
 
 M2 的第一个实现批次：把程序化图标管线从「Windows 用的 PNG/ICO」扩展到 macOS iconset 与 Linux 图标目录，并保持「图标的唯一来源是脚本」。**未新增指令与选项**（16 条不变），**未新增依赖**。

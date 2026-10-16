@@ -137,6 +137,8 @@
 
 ### 4.5 未签名口径（裁决 2）
 
+**实现登记（T1，2026-10-16）**：`mac` / `linux` 段已按本节落地（同一份配置文件、顶层同层组织、共享骨架不复制）；mac 段**不含任何签名键**，未签名由打包入口注入环境变量表达，并由 `scripts/unsigned-check.mjs` 以 `codesign -dv` 断言（可注入执行器，三口径单测：未签名通过、已签名失败、无输出按无法确认失败）；签名预留以配置注释形式登记五个官方 secrets 名与「secrets 存在才运行」的说明（仅文档，不实现）。打包入口 `scripts/pack.mjs` + 计划模块 `scripts/pack-plan.mjs`（纯函数）：图标链按平台分支（非 macOS 跳过 icns 且不中断），各平台只打自己的包，架构显式给出。`linux.maintainer` 的消费性由 `scripts/check-maintainer.mjs`（判定逻辑在 `scripts/maintainer-probe.mjs`）实测，真机执行登记为 T2 首跑项。
+
 1. 配置里**不出现任何签名相关键**（不设 `identity`、不设 `forceCodeSigning`）；签名身份自动发现以环境变量关闭——官方文档给出 `CSC_IDENTITY_AUTO_DISCOVERY`（默认 `true`，macOS 上会自动从钥匙串选取有效身份；置 `false` 即不自动选取）[R-5]；
 2. **不**设 `forceCodeSigning: true`：官方说明该键会把「缺少签名凭据」由静默告警转为构建失败 [R-5]；我们主动选择未签名交付，因此需要的是「未签名不失败 + 产物确实未签名」这两个可验证事实；
 3. 可验证断言：打包后对 `.app` 执行 `codesign -dv` 断言输出为「未签名」；该断言使「未签名」成为**被检查的事实**而不是默认结果；

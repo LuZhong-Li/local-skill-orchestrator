@@ -14,7 +14,7 @@ Skill 元信息管理器：统一管理环境内已安装 Skill 的元数据，�
 | 内核     | TypeScript，零界面依赖，编译为独立可执行文件随应用分发                                                    |
 | 桌面外壳 | Electron + Vue 3：仪表盘、详情、安装、校验报告与确认流程；可打包为安装包与便携单文件                      |
 | 契约     | 五份规范文档与五份 JSON Schema，字段一致性由测试守住                                                      |
-| 验证     | 370 项测试（单元 248、契约 61、端到端 61）、构建期检查、界面冒烟                                          |
+| 验证     | 389 项测试（单元 260、契约 68、端到端 61）、构建期检查、界面冒烟                                          |
 | 持续集成 | GitHub Actions：推送主干 / 合并请求 / 手工触发，Windows 与 Linux × 声明版本，门禁与本地同口径，产物可下载 |
 | 宿主分发 | `--host <宿主>` 把 Skill 分发到宿主真实根；首批支持 Claude / Codex / Cursor / 豆包与两个通用目标          |
 
@@ -49,6 +49,8 @@ node kernel/entry/cli.ts disable <标识> --host claude --yes            # 在�
 npm run dev -w @skill-manager/gui    # 开发模式启动界面
 npm run smoke:gui                    # 启动应用并经调试协议校验界面
 npm run pack:win -w @skill-manager/gui   # 打包 Windows 安装包与便携单文件
+npm run pack:mac -w @skill-manager/gui   # 打包 macOS dmg（arm64；x64 用 pack:mac:x64）
+npm run pack:linux -w @skill-manager/gui # 打包 Linux AppImage
 ```
 
 ## 仓库结构
@@ -89,6 +91,27 @@ npm run smoke:gui     # 界面冒烟（需图形会话）
 | 失败口径 | 任一组合失败即整次运行失败；失败可定位到具体步骤与原因，后续步骤不再执行、不产出产物           |
 
 运行入口与产物下载都在仓库的 Actions 页：进入某次运行后可在 **Artifacts** 区下载产物，在 **Summary** 区查看各 job 的步骤耗时与失败定位；本地复现只需按上表顺序执行「常用命令」中的同名命令。
+
+## 跨平台分发与安装
+
+产物随 GitHub Releases 发布：进入仓库 **Releases** 页，选择版本后在 Assets 下载。
+
+| 平台        | 产物                                                                | 形态                                          |
+| ----------- | ------------------------------------------------------------------- | --------------------------------------------- |
+| Windows x64 | `skill-manager-<版本>-x64.exe`、`skill-manager-<版本>-portable.exe` | NSIS 安装包 / 便携单文件                      |
+| macOS arm64 | `skill-manager-<版本>-arm64.dmg`                                    | 打开 dmg，把应用拖入「应用程序」              |
+| macOS x64   | `skill-manager-<版本>-x64.dmg`                                      | 同上（Intel 机器）                            |
+| Linux x64   | `skill-manager-<版本>-x64.AppImage`                                 | 赋可执行位后直接运行                          |
+| 全部        | `SHA256SUMS.txt`                                                    | 校验清单（`sha256sum -c` 或 `shasum -a 256`） |
+
+**当前的 macOS 与 Linux 产物未做代码签名与公证**（证书尚未接入），因此 macOS 首次打开会被 Gatekeeper 拦下，这是预期行为。放行方式二选一：
+
+1. 在「应用程序」中**右键点应用 → 打开**，再在弹窗里确认一次「打开」；
+2. 或清除隔离属性：`xattr -cr "/Applications/skill-manager.app"`（路径换成实际安装位置）。
+
+Linux 产物以 **ubuntu-24.04** 为打包基座，**glibc 下界 2.39**——更老的发行版无法直接运行该 AppImage，可改为从源码使用（内核只需 Node ≥ 22：`node kernel/entry/cli.ts <指令>`；界面用 `npm run dev -w @skill-manager/gui` 就地启动）。AppImage 依赖 FUSE，若系统未安装（Ubuntu 24.04 起包名为 `libfuse2t64`），可用 `./skill-manager-<版本>-x64.AppImage --appimage-extract-and-run` 运行。
+
+自行打包需要对应平台与网络（打包器要下载平台运行时）：macOS 用 `pack:mac` / `pack:mac:x64`，Linux 用 `pack:linux`，Windows 沿用 `pack:win`；打包入口会自动先生成图标（`icon.iconset/`、`icons/`、`icon.icns` 属构建期产物，不入库）。
 
 ## 文档入口
 

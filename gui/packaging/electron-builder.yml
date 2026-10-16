@@ -45,3 +45,33 @@ nsis:
   perMachine: false
 portable:
   artifactName: ${productName}-${version}-portable.${ext}
+
+# macOS：产出 .dmg（arm64 与 x64 两个架构分别打包，不做 universal）。
+# 未签名交付（M2 决策点 2）：这里**不写任何签名相关键**（identity / forceCodeSigning /
+# hardenedRuntime / notarize 都不出现），签名身份自动发现由打包入口以环境变量
+# CSC_IDENTITY_AUTO_DISCOVERY=false 关闭——用环境变量而非配置键，可跨 electron-builder
+# 主版本成立（v27 起签名选项已迁入 mac.sign 组）。
+# 签名预留（仅文档，不实现）：证书与公证就位后，把下列官方 secrets 配到仓库后，
+# 由「secrets 存在才运行的签名 job」接管，并移除上面那句环境变量：
+#   APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_ID /
+#   APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID
+mac:
+  icon: packaging/icon.icns
+  category: public.app-category.developer-tools
+  target:
+    - dmg
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+# Linux：产出 .AppImage（x64）。基座为 ubuntu-24.04，产物 glibc 下界 2.39
+# （发布说明与 README 同步登记；更老的系统走源码构建）。
+linux:
+  icon: packaging/icons
+  category: Utility
+  synopsis: Skill 元信息管理器（命令行内核 + 桌面外壳）
+  description: 统一管理环境内已安装 Skill 的元数据：登记、索引、安装、卸载、启用、禁用、更新、校验、依赖检查与备份导入导出。
+  # 打包者标识取仓库既有提交身份，不新造个人信息；是否被 AppImage 形态消费由
+  # scripts/check-maintainer.mjs 实测判定（真机执行登记为 T2 Linux 首跑项）
+  maintainer: skill-manager <3338004299@qq.com>
+  target:
+    - AppImage
+  artifactName: ${productName}-${version}-${arch}.${ext}

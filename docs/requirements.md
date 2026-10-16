@@ -2729,6 +2729,31 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 | 需求正文改动 | 无（本批只追加本回写批次与计数校验） |
 | 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
 
+### 回写批次 2026-10-16（M2-T1 构建配置）
+
+来源：M2 计划 T1 的实现批次（设计 [`docs/design/m2-packaging.md`](design/m2-packaging.md) 第 4 / 5 / 7 节、计划 [`docs/plan/m2-packaging.md`](plan/m2-packaging.md) T1）。**需求正文未改动**；本条只登记实现落点与实测证据。
+
+| 序号 | 落点 | 本次变更 |
+|---|---|---|
+| 1 | 打包配置 | `gui/packaging/electron-builder.yml` 新增 `mac` 段（`dmg` / `packaging/icon.icns` / `public.app-category.developer-tools` / 产物名含 `${arch}` / **不含任何签名键**）与 `linux` 段（`AppImage` / `packaging/icons` / `Utility` / `synopsis` + `description` / `maintainer` 沿用仓库既有提交身份）；`win` / `nsis` / `portable` 段与 `files` / `extraResources` / `electronLanguages` / `directories` 共享骨架未动 |
+| 2 | 签名预留 | 配置注释登记五个官方 secrets 名（`APPLE_CERTIFICATE` / `APPLE_CERTIFICATE_PASSWORD` / `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`）与「secrets 存在才运行」的说明；未签名口径由环境变量 `CSC_IDENTITY_AUTO_DISCOVERY=false` 表达（不写配置键），仅文档不实现 |
+| 3 | 打包入口 | `scripts/pack-plan.mjs`（纯函数计划）+ `scripts/pack.mjs`（执行器）；`gui/package.json` 新增 `pack:mac` / `pack:mac:x64` / `pack:linux`（与既有 `pack:win` 并列）；非 macOS 宿主跳过 `build:icon:icns` 且不中断，各平台只打自己的包、架构显式 |
+| 4 | 未签名断言 | `scripts/unsigned-check.mjs`（`codesign -dv` 的解析与执行器可注入：未签名通过 / 已签名失败 / 无输出按无法确认失败）+ `scripts/assert-unsigned.mjs` 复核入口；mac 打包后自动执行 |
+| 5 | `maintainer` 实测 | `scripts/maintainer-probe.mjs`（目录树文本扫描 + consumed / not-consumed / ambiguous 三态）+ `scripts/check-maintainer.mjs`（参数与结论输出）；**真机执行登记为 T2 Linux 首跑项**，结论回写配置 |
+| 6 | README | 新增「跨平台分发与安装」：产物清单与 Releases 入口（含 Windows 两形态与 `SHA256SUMS.txt`）、macOS 未签名绕行两步（右键打开 / `xattr -cr`）、Linux glibc 下界 **2.39** 与 `libfuse2t64` / `--appimage-extract-and-run`、自行打包命令与图标属构建期产物说明 |
+
+### 计数校验（M2-T1 批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动；未新增选项 |
+| 功能需求编号 | FR-01 至 FR-12，未变动；里程碑需求条目仍为 35 条 |
+| 契约规范份数 / Schema 份数 | 5 份 / 5 份，未变动（本批未触及契约） |
+| 测试总数 | 由 370 项增至 **389 项**（单元 248 → 260、契约 61 → 68；端到端 61 不变），全部通过 |
+| 依赖 | 未新增任何依赖（打包链复用既有 electron-builder 与自实现脚本） |
+| 需求正文改动 | 无（本批只追加本回写批次与计数校验） |
+| 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
+
 ---
 
 **文档结束**。本文档仅描述需求，不包含实现。一期功能清单在进入实现阶段后冻结，后续变更需先更新本文档再实施。

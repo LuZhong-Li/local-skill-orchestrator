@@ -135,7 +135,7 @@
 | 界面冒烟 | 真实窗口与真实内核调用 | `npm run smoke:gui` |
 | 打包验证 | 免安装目录与便携单文件的启动闭环 | `npm run smoke:gui -- --app <产物>` |
 
-当前测试总数 **370 项**（单元 248、契约 61、端到端 61），全部通过。其中 M5 宿主适配层贡献：注册表与适配器契约测试、渲染层断言、落位执行器与外部根解析用例、`--host` 接线的端到端断言、收口审计用例，以及 2026-10-16 收口批次的准入与落位根用例；M2-T0 贡献图标管线用例（尺寸、iconset 结构、确定性、不入库、`iconutil` 封装）。
+当前测试总数 **389 项**（单元 260、契约 68、端到端 61），全部通过。其中 M5 宿主适配层贡献：注册表与适配器契约测试、渲染层断言、落位执行器与外部根解析用例、`--host` 接线的端到端断言、收口审计用例，以及 2026-10-16 收口批次的准入与落位根用例；M2 贡献图标管线用例（T0：尺寸、iconset 结构、确定性、不入库、`iconutil` 封装）与构建配置用例（T1：打包计划与平台分支、未签名三口径、`maintainer` 判定、配置结构、README 文案）。
 
 ### 4.3 工程约定
 
@@ -236,7 +236,7 @@
 | 首批宿主 | `claude`、`codex`、`cursor`、`doubao`，以及两个通用条目 `agentskills`（标准目标）与 `agents-md`（指令文件载体）；`deepseek` 维持**不适用**（模型提供方，2026-10-16 复议后不变）；`dsh`（DeepSeek Harness）以**外部消费方**登记在 agents 根下，不立宿主条目 |
 | 落位根 | 各宿主默认根由注册表 + 默认路径表给出，可用 `config set host.<id>.root` 覆盖；**Codex 默认 `$HOME/.agents/skills`**（2026-10-16 起，官方文档依据；与 Cursor、`dsh` 共享，一次落位多宿主可见），旧版 `~/.codex/skills` 作为遗留兼容根仅经配置启用，**不默认双写** |
 | 分发语义 | `--host <宿主>` 分发到宿主真实根（默认路径 + 配置覆盖）；与 `--target` **正交**，后者保持一期工作区目标语义不变 |
-| 验证 | 370 项测试全绿；M5 专属用例覆盖注册表、适配器、渲染、落位、`--host` 接线、收口审计与 2026-10-16 收口批次，M2-T0 覆盖图标管线（尺寸 / iconset 结构 / 确定性 / 不入库 / `iconutil` 封装）；验收映射见 `docs/plan/m5-host-adapter.md` 第 3 章与 `docs/plan/m2-packaging.md` 第 3 章 |
+| 验证 | 389 项测试全绿；M5 专属用例覆盖注册表、适配器、渲染、落位、`--host` 接线、收口审计与 2026-10-16 收口批次，M2 覆盖图标管线（T0）与构建配置（T1：打包计划 / 未签名三口径 / `maintainer` 判定 / 配置结构 / README 文案）；验收映射见 `docs/plan/m5-host-adapter.md` 第 3 章与 `docs/plan/m2-packaging.md` 第 3 章 |
 
 **遗留项（登记，不关闭）**
 
@@ -255,7 +255,7 @@
 | 里程碑 | 状态 |
 |---|---|
 | M1 CI 接入 | **已收官（2026-10-16）**。落地物：工作流 `.github/workflows/ci.yml`、缩减冒烟 `scripts/smoke-kernel.mjs`、版本守卫 `scripts/check-node-version.mjs`（均为 CI 支撑物，未新增指令与选项）。四次真实运行给出全部验收证据：首次 run 38769499271（三 job 齐备、两平台 × Node 22、358 项同时通过、两份产物）、加固后 run 38828716615（Success 1m 58s，动作主版本升级 + Linux runner 固定、告警清零）、刻意失败探测 run 38829261658、合并请求 run 38834451784（事件 `pull_request`，探测 PR 已关闭且分支已删除）。9.3.1 七条验收 6 条闭合，缓存条目以「机制已验证 + 时长未达成并附原因」闭合；详见 `docs/design/m1-ci.md` 第 14 章与 `docs/plan/m1-ci.md` 3.1 |
-| M2 跨平台打包验证 | **T0 已完成，T1~T4 待实现**（`docs/design/m2-packaging.md`、`docs/plan/m2-packaging.md`）。**T0 图标管线（2026-10-16）**：`scripts/icon-render.mjs`（纯函数，按目标尺寸直接渲染、零图形库）+ `build-icon.mjs`（写 14 个文件：ico 7 档、png 256、`icons/` 256+512、`icon.iconset/` 10 文件）+ `icon-icns.mjs` / `build-icon-icns.mjs`（`iconutil` 封装：参数拼装 + 平台准入 + 执行器可注入；非 macOS 在写盘前明确拒绝）；生成物不入库（`.gitignore` 三条规则 + `git check-ignore` 复核）；既有 `icon.ico` / `icon.png` 重跑后逐字节一致（零漂移）；测试 360 → 370 项全绿。**EX-03 保留**：`iconutil` 真机验证 = T2 矩阵首跑项。设计要点：固定标签 `macos-15` / `macos-15-intel` / `ubuntu-24.04`（裁决 ④，glibc 下界 2.39）＋ `windows-latest`；未签名以 `CSC_IDENTITY_AUTO_DISCOVERY=false` 表达并以 `codesign -dv` 断言；tag `v*` / 手动触发全平台矩阵（`push`/`PR` 维持 M1 现状），`verify.yml` 可复用工作流承载唯一校验步骤序列；发布经预装 `gh` CLI 创建 Release ＋ `SHA256SUMS.txt`，**Windows nsis 与便携版随传**（裁决 ⑤）；签名轻量预留（secrets 命名 ＋ 条件骨架，不实现）；Linux 冒烟用 `xvfb`（`--appimage-extract-and-run`、沙箱参数属 CI 环境差异），跑不通按降级口径登记为结论。计划为 T0 图标管线 → T1 构建配置 → T2 矩阵 workflow → T3 发布 → T4 冒烟与验收；待实现批次推进 |
+| M2 跨平台打包验证 | **T0 与 T1 已完成，T2~T4 待实现**（`docs/design/m2-packaging.md`、`docs/plan/m2-packaging.md`）。**T0 图标管线（2026-10-16）**：`scripts/icon-render.mjs`（纯函数，按目标尺寸直接渲染、零图形库）+ `build-icon.mjs`（写 14 个文件：ico 7 档、png 256、`icons/` 256+512、`icon.iconset/` 10 文件）+ `icon-icns.mjs` / `build-icon-icns.mjs`（`iconutil` 封装：参数拼装 + 平台准入 + 执行器可注入；非 macOS 在写盘前明确拒绝）；生成物不入库（`.gitignore` 三条规则 + `git check-ignore` 复核）；既有 `icon.ico` / `icon.png` 重跑后逐字节一致（零漂移）；测试 360 → 370 项全绿。**EX-03 保留**：`iconutil` 真机验证 = T2 矩阵首跑项。**T1 构建配置（2026-10-16）**：`electron-builder.yml` 新增 `mac`（dmg / icns / 开发者工具类别 / **不写签名键**）与 `linux`（AppImage / 图标目录 / Utility 类别 / `maintainer` 沿用仓库提交身份）段，`win` 段与共享骨架未动；打包入口 `scripts/pack.mjs` + 纯函数计划 `scripts/pack-plan.mjs`（图标链、非 macOS 跳过 icns 不中断、只打本平台包、架构显式）+ `pack:mac` / `pack:mac:x64` / `pack:linux`；未签名断言 `scripts/unsigned-check.mjs`（`codesign` 三口径、执行器可注入）+ `scripts/assert-unsigned.mjs` 复核入口；`maintainer` 实测 `scripts/maintainer-probe.mjs` + `scripts/check-maintainer.mjs`；README 新增「跨平台分发与安装」（产物清单 / Gatekeeper 绕行两步 / glibc 2.39 与 FUSE 前提 / 自行打包）；签名预留以配置注释登记五个官方 secrets 名（仅文档）；测试 370 → 389 项全绿。设计要点：固定标签 `macos-15` / `macos-15-intel` / `ubuntu-24.04`（裁决 ④，glibc 下界 2.39）＋ `windows-latest`；未签名以 `CSC_IDENTITY_AUTO_DISCOVERY=false` 表达并以 `codesign -dv` 断言；tag `v*` / 手动触发全平台矩阵（`push`/`PR` 维持 M1 现状），`verify.yml` 可复用工作流承载唯一校验步骤序列；发布经预装 `gh` CLI 创建 Release ＋ `SHA256SUMS.txt`，**Windows nsis 与便携版随传**（裁决 ⑤）；签名轻量预留（secrets 命名 ＋ 条件骨架，不实现）；Linux 冒烟用 `xvfb`（`--appimage-extract-and-run`、沙箱参数属 CI 环境差异），跑不通按降级口径登记为结论。计划为 T0 图标管线 → T1 构建配置 → T2 矩阵 workflow → T3 发布 → T4 冒烟与验收；**T2 首跑待办**：`iconutil` 真机、`codesign` 真机、`maintainer` 消费实测 |
 | M3 性能与规模压测 | 未启动（N = 100 / 1000 / 5000 与阈值、拐点规则已定稿于 9.3.3 与 9.4.3） |
 | M4a 自动更新 / M4b 插件生态 | 未启动（M4a 收敛为「手动检查 + 提示」；M4b 只定高层边界与候选字段，契约层设计须单独立项） |
 

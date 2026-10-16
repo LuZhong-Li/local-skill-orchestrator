@@ -13,7 +13,10 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "vue-tsc --noEmit -p tsconfig.json",
-    "pack:win": "electron-vite build && electron-builder --config packaging/electron-builder.yml --win"
+    "pack:win": "electron-vite build && electron-builder --config packaging/electron-builder.yml --win",
+    "pack:mac": "node ../scripts/pack.mjs --platform mac",
+    "pack:mac:x64": "node ../scripts/pack.mjs --platform mac --arch x64",
+    "pack:linux": "node ../scripts/pack.mjs --platform linux"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.10",
