@@ -42,7 +42,7 @@
 | `cursor.com/docs/context/rules`、`cursor.com/docs/context/skills` | 官方文档 | 可访问 |
 | `agents.md` | 官方格式站点 | 可访问 |
 | `api-docs.deepseek.com`（含 sitemap 与 Agent Integrations） | 官方文档 | 可访问 |
-| `developers.openai.com/codex/**` | 官方文档 | **403（自本环境不可访问）** |
+| `developers.openai.com/codex/**` | 官方文档 | 命令行侧 **403**；**2026-10-16 经浏览器会话取证可达**——该地址重定向到 `learn.chatgpt.com/docs/build-skills`（`.md` 形态可取全文），规范细节已取得，见 6.3 补记（2026-10-16） |
 | `www.doubao.com`（官网 / 应用页） | 官方站点 | 可访问，但为前端渲染页，正文不可提取 |
 | 搜索引擎（Bing 可用 / DuckDuckGo 不可达） | 检索 | 豆包相关查询仅返回入口页与百科类结果 |
 | 本机已安装宿主（Codex、Claude、豆包） | **本机实测** | 可访问（路径见各事实卡） |
@@ -119,7 +119,7 @@
 1. **机制形态结论**：**确认有正式 skill 机制，且有独立的插件包机制** [已查证·本机实测 + 标准站收录]。**更正**：需求文档 9.3.6 表中把 Codex 记为「机制形态未知」，事实不支持该保守判断，应提升为「确认有机制」。
 2. **官方规范引用**：
    - Agent Skills 官方客户端清单收录条目「ChatGPT & Codex」，指向 `https://developers.openai.com/codex/skills/` [已查证]；
-   - 该官方页面**自本环境返回 403**，规范细节（字段全集、目录优先级、版本）本次无法取证 [待确认]；
+   - 该官方页面**自本环境返回 403**（2026-10-15）；**更正（2026-10-16）**：该地址经浏览器会话取证可达并重定向到 `https://learn.chatgpt.com/docs/build-skills`，规范细节（必需字段、可选元数据、加载位置、重名行为、禁用表达、上下文预算）已取得，见 6.3 补记（2026-10-16）[已查证·浏览器一手]；
    - 应用内自带文档（随桌面应用分发的 `openai-docs` 技能参考）把 Skill 与 Plugin 定义为两类不同表面：**Skill** = 可复用工作流（可含参考文件与脚本）；**Plugin** = 可安装的捆绑包，可含 skills、工具、命令、MCP 配置、hooks、apps、assets 与相关元数据 [已查证·本机实测]。
 3. **格式规范细节** [已查证·本机实测]：
    - 载体：`SKILL.md`，YAML frontmatter + Markdown 正文；本机实测到的字段包括 `name`、`description`（可为多行块）、`metadata`（含 `short-description`）、`compatibility`、`allowed-tools`（示例：`allowed-tools: Bash`）；
@@ -141,6 +141,7 @@
 2. **官方规范引用**：`https://cursor.com/docs/context/skills`（Skills）、`https://cursor.com/docs/context/rules`（Rules）；Agent Skills 客户端清单收录 Cursor，指向前者 [已查证]。
 3. **格式规范细节** [已查证]：
    - **Skills**：每个技能是含 `SKILL.md` 的文件夹（`name`、`description` 为基本字段；另有 `paths`（`globs` 为兼容旧字段）、`icon`、`color`）；支持 `scripts/` 等附属目录与渐进加载；技能目录可嵌套分类目录（身份取自含 `SKILL.md` 的那一层）；仓库内任意层级的 `.cursor/skills/`、`.agents/skills/` 都会被递归发现，嵌套技能自动按目录作用域生效；
+   - **补充（2026-10-16，官方「Frontmatter 字段」表复核）**：`name`（必填；仅小写字母 / 数字 / 连字符，且**必须与父文件夹同名**）、`description`（必填）、`paths`（可选；glob，逗号分隔字符串或列表；旧 `globs` 为后备）、**`disable-model-invocation`（可选；`true` 时仅 `/skill-name` 显式调用，模型不按上下文自动应用）**、`icon`（可选）、`color`（可选；枚举 `default` / `green` / `cyan` / `blue` / `purple` / `magenta` / `orange` / `yellow` / `red` / `brand`）、`metadata`（可选；任意键值映射）[已查证·浏览器一手]；
    - 内置命令：`/create-skill`、`/create-rule`、`/migrate-to-skills`（把「动态规则」与斜杠命令迁移为技能；`alwaysApply: true` 或带具体 globs 的规则**不迁移**）；
    - **Rules**：项目规则位于 `.cursor/rules/`，**必须是 `.mdc` 扩展名**（`.md` 被忽略，因缺少 `description` / `globs` / `alwaysApply` frontmatter）；frontmatter 三要素 `description`、`globs`、`alwaysApply` 决定作用方式；规则来源优先级为 **Team Rules → Project Rules → User Rules**，冲突时以靠前者为准；
    - 另有插件体系（Customize → Plugins）。
@@ -180,14 +181,14 @@
 
 ### 2.6 事实卡 F：DeepSeek
 
-1. **机制形态结论**：**确认无**（在其官方文档体系内不存在 skill / 插件机制的概念）。DeepSeek 的官方定位是**模型提供方**，其官方文档「Agent Integrations」章节的方向是**把 DeepSeek 接入其他 agent 宿主**，而不是为自身定义技能格式 [已查证]。
+1. **机制形态结论**：**确认无**（在其官方文档体系内不存在 skill / 插件机制的概念）。DeepSeek 的官方定位是**模型提供方**，其官方文档「Agent Integrations」章节的方向是**把 DeepSeek 接入其他 agent 宿主**，而不是为自身定义技能格式 [已查证]。**更正（2026-10-16）**：该结论的**范围需收窄为「其 API / 模型产品体系内无技能机制」**——DeepSeek 另有官方开源的 **agent harness（DeepSeek Harness，`dsh`）**，其中**技能是一等子系统**，仓库本身即以 `.agents/skills/<名称>/SKILL.md` 组织技能，并有 `docs/subsystems/skills.md` 定义技能能力族与发现根；详见 6.3 补记第 3 条 [已查证·浏览器一手]。
 2. **官方规范引用**：`https://api-docs.deepseek.com/`（含 sitemap：API 参考、指南、Agent Integrations、新闻）；集成条目覆盖 Claude Code、Codex、OpenCode、OpenClaw、Hermes、Reasonix、WorkBuddy/CodeBuddy、Qoder [已查证]。集成文档示例（Codex 篇）说明 Codex 通过 Responses API 与模型通信、由 DeepSeek API 原生支持，并给出配置模型提供方的步骤与一键脚本 [已查证]。
 3. **格式规范细节**：**无**。官方文档未定义任何技能文件格式、目录约定或 frontmatter 字段 [已查证]。
 4. **加载目录与发现规则**：不适用。
 5. **能力边界**：作为模型提供方可被其他宿主调用；不提供宿主侧的技能加载能力。
 6. **本机可观测证据**：本机未安装 DeepSeek 客户端（无 `~/.deepseek`、无 `%APPDATA%\DeepSeek`）[已查证·本机实测]。
-7. **补充线索（须一手确认）**：检索结果中出现 **DeepSeek Harness（DSH）** 线索——GitHub 组织 `deepseek-ai` 下存在 `deepseek-harness` 仓库，摘要描述为「Everything is a Plugin」；第三方文章称其支持插件扩展 [一方称]。该仓库在本次环境下**不可访问**（GitHub 请求失败），故「DSH 是否构成 DeepSeek 的正式插件 / 技能机制」列为待确认。**若成立，其形态是「插件」而非「SKILL.md 技能」，与 M5 的适配对象可能不同类**。
-8. **与内部规范的差异与可映射性初判**：**不适用**（无宿主侧格式）。降级路径的判断依赖 6.3 的待确认项。
+7. **补充线索（须一手确认）**：检索结果中出现 **DeepSeek Harness（DSH）** 线索——GitHub 组织 `deepseek-ai` 下存在 `deepseek-harness` 仓库，摘要描述为「Everything is a Plugin」；第三方文章称其支持插件扩展 [一方称]。该仓库在本次环境下**不可访问**（GitHub 请求失败），故「DSH 是否构成 DeepSeek 的正式插件 / 技能机制」列为待确认。**若成立，其形态是「插件」而非「SKILL.md 技能」，与 M5 的适配对象可能不同类**。**已关闭（2026-10-16）**：该仓库现可达且为公开仓库（README 自述「everything-is-a-plugin」，基于 Cordis；开发者预览，明示会有破坏性变更），其中**技能子系统与插件架构并存**——仓库 `docs/subsystems/skills.md` 定义技能能力族（本机文件系统 provider 等），发现根含 `<projectRoot>/.dsh/skills`、`<projectRoot>/.agents/skills`、`<dshHome>/skills`、`<agentsHome>/skills` 等，接受目录包 `<名称>/SKILL.md` 与扁平 `<名称>.md`。故原判断「可能是插件而非 SKILL.md 技能」**不完全成立**：它既以插件 / 预设为分发容器，又把 SKILL.md 形态技能作为一等子系统。详见 6.3 补记第 3 条。
+8. **与内部规范的差异与可映射性初判**：**不适用**（无宿主侧格式）。降级路径的判断依赖 6.3 的待确认项。**更正（2026-10-16）**：dsh 具备宿主侧技能格式（SKILL.md 目录包 / 扁平 Markdown，kebab-case 名称，frontmatter 含 `disable-model-invocation` 与 `user-invocable`），故「不适用」需复议——见 6.3 补记第 4 条待裁决项 ③。
 
 ### 2.7 事实卡 G：通用 AGENTS.md
 
@@ -281,7 +282,7 @@
 | 编号 | 风险 | 影响 | 应对 / 待确认动作 |
 |---|---|---|---|
 | HR-01 | **宿主规范演进**：Agent Skills 规范未标版本且持续演进；Claude Code 的 frontmatter 表随版本变化（文档中存在明确的行为版本节点）；Cursor / Codex 的技能机制均属新近加入 | 适配器产出过期、字段被静默忽略而不自知 | 注册表登记「规范来源 + 访问日期 + 观察到的版本节点」；把「字段被忽略」纳入格式合规校验；规范变化只改适配器与注册表 |
-| HR-02 | **Codex 官方规范不可取证**（自本环境 403） | Codex 适配器的字段全集、目录优先级、跨平台字段限制无权威依据 | 换网络环境取证 `developers.openai.com/codex/skills/`；取证前 Codex 适配器只能按「本机实测字段 + 标准 6 字段」实现，并在登记中标注证据等级 |
+| HR-02 | **Codex 官方规范不可取证**（自本环境命令行侧 403） | Codex 适配器的字段全集、目录优先级、跨平台字段限制无权威依据 | **已解除（2026-10-16）**：经浏览器会话取证成功（页面重定向到 `learn.chatgpt.com/docs/build-skills`），规范要点见 6.3 补记第 1 条；**残余**：官方 USER 根（`$HOME/.agents/skills`）与本机实测的 `~/.codex/skills` 不一致，作为待裁决项登记（补记第 4 条 ①） |
 | HR-03 | **豆包机制无公开证据** | 无法判断是否可做适配器；需求文档 9.3.6 的「豆包 = SKILL.md 体系」前提未获支持 | 按 6.3 的确认方法取证；在取得一手证据前，豆包不得进入首批适配器名单 |
 | HR-04 | **DeepSeek 的身份错位**：它是模型提供方，不是技能宿主；其 Harness / 插件线索未经一手确认 | 把它当技能宿主会产出无效适配器 | 在需求侧澄清 M5 的适配对象定义（宿主 = 可展示技能的 agent 产品）；DeepSeek 归入「不适用或降级」并登记理由 |
 | HR-05 | **跨产品字段限制**：Claude 的 claude.ai / Skills API 路径只接受 6 个字段且**硬失败** | 一旦未来发布到平台侧，含扩展字段的技能会被拒 | 渲染层提供「标准 6 字段模式」，默认产物即符合跨产品约束 |
@@ -349,6 +350,42 @@
 | Q-08 | **新增，开放** | `.agents/skills/` 是否为豆包也扫描的第三个根：本机工作区内不存在该目录；若成立，则与 Cursor 的 `.agents/skills/`（项目级 / 用户级）同路径，构成跨宿主共享落位根（M5-R8 场景）。确认方法：创建该目录并放置测试技能后观察是否被扫描，或从运行期技能根列表的实现侧确认根集合 |
 | Q-01 / Q-03 / Q-05 / Q-06 | 开放 | 分别为 Codex 官方规范细节（403）、DeepSeek Harness 线索、标准外字段接受度、禁用表达跨宿主实测 |
 
+**补记（2026-10-16，浏览器一手取证）**
+
+取证方式：经浏览器会话（用户已登录的浏览器，可访问外网）直接读取官方页面及其 `.md` / `raw` 纯文本形态；证据等级 **[已查证·浏览器一手]**。原「403 / 不可达」只描述 2026-10-15 的**命令行侧**访问限制，不代表性事实。本次关闭 Q-01 与 Q-03，并对 Q-05 的 Cursor 侧做字段表更新。
+
+| 项 | 结论 |
+|---|---|
+| Q-01（Codex 官方规范） | **已关闭**：`https://developers.openai.com/codex/skills/` 现可达并重定向到 `https://learn.chatgpt.com/docs/build-skills`（`.md` 形态可取全文） |
+| Q-03（DeepSeek Harness） | **已关闭，结论为「机制存在且含技能子系统」**：见下文第 3 条 |
+| Q-05（Cursor 侧） | **部分更新**：官方 frontmatter 字段表较原记录**多出 `disable-model-invocation` 与 `metadata`**；「标准外字段被忽略还是报错」官方文档未述（HD-01 保持开放） |
+
+1. **Codex 官方规范要点**（`build-skills` 页 + 配置参考页）：
+   - 必需字段：`SKILL.md` **必须包含 `name` 与 `description`**；其余按开放标准（Agent Skills）执行，官方页面**未另列** SKILL.md 的扩展字段表；
+   - 可选元数据：`agents/openai.yaml`（本机实测为 `agents/<名称>.yaml`）——`interface{display_name, short_description, icon_small, icon_large, brand_color, default_prompt}`、`policy.allow_implicit_invocation`（默认 `true`；`false` 时不做隐式调用、显式调用仍可用）、`dependencies.tools[]`（MCP 依赖声明）；
+   - 加载位置（官方表）：REPO `$CWD/.agents/skills`、`$CWD/../.agents/skills`、`$REPO_ROOT/.agents/skills`（自当前工作目录逐级向上扫到仓库根）；USER `$HOME/.agents/skills`；ADMIN `/etc/codex/skills`；SYSTEM 随 Codex 分发；**支持符号链接并跟随目标**；
+   - 重名行为：同名技能**不合并**，两者都可出现在技能选择器；
+   - 禁用表达：`~/.codex/config.toml` 的 `[[skills.config]]`（`path` = 含 `SKILL.md` 的目录、`enabled = false`），改后需重启 Codex；配置参考另有 `skills.max_context_tokens`（默认占模型上下文 2%，显式值上限 10000 tokens，仅约束初始技能清单）；
+   - **差异（待裁决）**：官方 USER 根为 `$HOME/.agents/skills`，而本机实测 Codex 桌面应用把技能放在 `~/.codex/skills`（含 `.system`）且该目录被实际读取；官方文档未提 `~/.codex/skills`，配置参考亦无对应目录键。→ 见第 4 条待裁决项 ①。
+2. **Cursor 官方字段表**（`cursor.com/docs/context/skills`）：`name`（必填；须与父文件夹同名）、`description`（必填）、`paths`（可选；glob）、**`disable-model-invocation`（可选；`true` 时仅 `/skill-name` 显式调用）**、`icon`（可选）、`color`（可选；枚举）、`metadata`（可选）。其中后两项中的 `disable-model-invocation` 与 `metadata` 为**原记录所无**；「标准外字段被忽略还是报错」**文档未述**，HD-01 保持开放。
+3. **DeepSeek Harness（`dsh`）**：
+   - 性质：DeepSeek AI **官方开源 agent harness**（`deepseek-ai/deepseek-harness`，公开仓库、master 分支、README 自述「everything is a plugin」、基于 Cordis；**开发者预览，明示会有破坏性变更**）；
+   - **技能是一等子系统**：仓库含 `docs/subsystems/skills.md`（技能能力族：服务定义 `dsh-skill`、本机文件系统 provider `dsh-skill-filesystem`、消费者 `dsh-tool-skill` 等）；仓库自身以 `.agents/skills/<名称>/SKILL.md` 组织技能，并在 `packages/preset/agent-preset/skills/` 内**随包分发**技能（抽样技能 frontmatter 为 `name` + `description`）；
+   - 发现根与优先级（官方子系统文档表，数字小者优先）：`<projectRoot>/.dsh/skills`（100）→ `<projectRoot>/.agents/skills`（200）→ `Config.customSkillDirs`（300）→ `<dshHome>/skills`（400）→ `<agentsHome>/skills`（500）→ `Config.bundledSkillDir`（600）；项目根取最近的含 `.git` 的祖先目录；
+   - 身份与形态：技能名 kebab-case（`^[a-z0-9]+(?:-[a-z0-9]+)*$`）；接受目录包 `<名称>/SKILL.md` 与**扁平** `<名称>.md`；**不支持嵌套递归 `**/SKILL.md` 发现**；
+   - 调用策略：frontmatter 精确读取 `disable-model-invocation` 与 `user-invocable`，缺省视为 `true`，归一化为 `{ modelInvocable, userInvocable }`；
+   - 影响：需求 / 设计把 DeepSeek 登记为「不适用 / 模型提供方（无技能机制）」**不再成立**——DeepSeek 侧确有含技能子系统的官方宿主载体；但它是**开发者预览的 harness**（非消费级产品，且明示破坏性变更）。→ 见第 4 条待裁决项 ③。
+4. **由此产生的待裁决项**（本次**不改任何实现与需求**，仅登记）：
+
+| # | 事项 | 现状 | 待裁决内容 |
+|---|---|---|---|
+| ① | Codex 分发落位根 | 注册项用 `~/.codex/skills`（本机实测应用读取该目录） | 是否改为 / 追加官方 USER 根 `$HOME/.agents/skills`（该根同时是 Cursor 与 `dsh` 的 `agents` 根，可「一次落位、多宿主可见」），或两者并存并在注册表声明消费关系 |
+| ② | `disable-model-invocation` 透传（DP-04 / D-02） | 设计裁决为「全宿主禁止透传」（理由：语义不明、本机 12 处全为 `false`） | 现有三处独立证据（Claude 本机实测、Cursor 官方字段表、`dsh` 官方子系统文档）语义一致（`true` = 排除模型自动调用）；是否解除禁止、改为按宿主白名单透传并登记语义 |
+| ③ | DeepSeek 分类 | 登记 `not_applicable`（模型提供方） | 是否按 `dsh` 存在技能子系统改判（新增 `dsh` 注册项 / 标 `pending_evidence`），以及是否纳入后续适配批次 |
+| ④ | Cursor 标准外字段行为（HD-01） | 保守裁剪（透传白名单为空） | 官方文档未述「标准外字段被忽略还是报错」；仍需 Cursor 环境实测或官方答复 |
+
+5. **取证方法备注**：本次来源全部经浏览器会话读取（命令行侧的 403 不构成事实结论）；`learn.chatgpt.com/<页面>.md` 与 `raw.githubusercontent.com/<仓库>/<分支>/<路径>` 可直取全文，后续调研建议优先使用这两种形态。
+
 ### 6.4 对 9.3.6 的范围与边界的影响
 
 1. **无需改动**：M5 的目标、统一管理要求、可适配性要求、边界与排除项（不做宿主运行时与加载器、格式映射以官方规范为准、不做双向同步、不覆盖用户既有内容、不做第三方可加载适配器）均与本次事实一致，无需调整；
@@ -373,18 +410,29 @@
 | S-04 | Agent Skills 文档索引 | 官方标准站 | https://agentskills.io/llms.txt | 200 |
 | S-05 | Claude Code skills（含 frontmatter 全表与加载目录） | 官方文档 [已查证] | https://docs.claude.com/en/docs/claude-code/skills | 200（Markdown 形态可取全文） |
 | S-06 | Claude 平台 Agent Skills 概览 | 官方文档 [待确认] | https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview | 区域受限（空壳页） |
-| S-07 | Codex 技能文档（官方） | 官方文档 [待确认] | https://developers.openai.com/codex/skills/ | **403（自本环境不可访问）** |
+| S-07 | Codex 技能文档（官方） | 官方文档 [**已查证**（2026-10-16）] | https://developers.openai.com/codex/skills/ → `learn.chatgpt.com/docs/build-skills` | 2026-10-15 命令行侧 403；**2026-10-16 浏览器会话可达**（`.md` 形态取全文） |
 | S-08 | Cursor Skills | 官方文档 [已查证] | https://cursor.com/docs/context/skills | 200 |
 | S-09 | Cursor Rules | 官方文档 [已查证] | https://cursor.com/docs/context/rules | 200 |
 | S-10 | AGENTS.md 格式站点（含治理与支持清单） | 官方格式站点 [已查证] | https://agents.md/ | 200 |
 | S-11 | DeepSeek API 文档与 sitemap | 官方文档 [已查证] | https://api-docs.deepseek.com/ | 200 |
 | S-12 | DeepSeek × Codex 集成（Agent Integrations 示例） | 官方文档 [已查证] | https://api-docs.deepseek.com/quick_start/agent_integrations/codex | 200 |
 | S-13 | 豆包官网 / 应用页 | 官方站点 [待确认] | https://www.doubao.com/ | 200（前端渲染，正文不可提取） |
-| S-14 | DeepSeek Harness 仓库线索 | [一方称 / 待确认] | https://github.com/deepseek-ai/deepseek-harness | 本环境不可达 |
+| S-14 | DeepSeek Harness 仓库 | **官方开源仓库 [已查证**（2026-10-16）] | https://github.com/deepseek-ai/deepseek-harness | 2026-10-15 不可达；**2026-10-16 浏览器会话可达**（公开仓库，README 与 `docs/subsystems/skills.md` 取全文） |
 | S-15 | 应用内自带文档（Skill 与 Plugin 的界面定义） | 本机实测 [已查证] | `~/.codex/skills/.system/openai-docs/references/codex-self-knowledge.md` | 已读 |
 | S-16 | 本机 Codex 技能与插件包结构 | 本机实测 [已查证] | `~/.codex/skills`、`~/.codex/plugins/cache/**` | 已读 |
 | S-17 | 本机 Claude 用户目录（无 skills 子目录） | 本机实测 [已查证] | `~/.claude` | 已读 |
 | S-18 | 本机豆包客户端（存在 MCP 辅助组件，无技能目录） | 本机实测 [已查证] | `%APPDATA%\Doubao`、`%LOCALAPPDATA%\Doubao` | 已读 |
+
+**附录补记（2026-10-16 新增来源，浏览器会话访问）**
+
+| 编号 | 来源 | 类型 / 证据等级 | 链接 | 访问结果 |
+|---|---|---|---|---|
+| S-19 | Codex 技能文档（Markdown 形态全文） | 官方文档 [已查证] | https://learn.chatgpt.com/docs/build-skills.md | 200（全文可读：必需字段、可选元数据、加载位置、重名、禁用表达、上下文预算） |
+| S-20 | Codex 配置参考（`skills.*` 键） | 官方文档 [已查证] | https://learn.chatgpt.com/docs/config-file/config-reference.md | 200（`skills.config[].path` / `enabled`、`skills.max_context_tokens`） |
+| S-21 | Cursor Skills（Frontmatter 字段表，中文站） | 官方文档 [已查证] | https://cursor.com/docs/context/skills | 200（字段表含 `disable-model-invocation`、`metadata`） |
+| S-22 | dsh 仓库 README | 官方开源仓库 [已查证] | https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/README.md | 200 |
+| S-23 | dsh 技能子系统文档 | 官方文档（仓库内）[已查证] | https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/docs/subsystems/skills.md | 200（发现根优先级表、身份规则、调用策略键） |
+| S-24 | dsh 仓库内技能样例 | 官方开源仓库 [已查证] | https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/packages/preset/agent-preset/skills/agent-experience/SKILL.md | 200（frontmatter 为 `name` + `description`） |
 
 ---
 

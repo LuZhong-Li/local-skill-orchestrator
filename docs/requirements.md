@@ -2656,6 +2656,30 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 | 需求正文改动 | 无（本批只追加本回写批次与计数校验；第 9.3.1 与 9.4.1 措辞未改） |
 | 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
 
+### 回写批次 2026-10-16（M5 遗留事实点取证 · 只文档）
+
+来源：经浏览器会话对 M5 遗留事实点的一手取证（证据等级 [已查证·浏览器一手]；命令行侧的 403 / 不可达不构成事实结论）。**需求正文与 9.3.6 的分类、验收口径均未改动**——本条只登记取证结论、被关闭的待确认项与由此产生的待裁决项；指令、选项与契约份数无变化。
+
+| 序号 | 落点 | 本次变更 |
+|---|---|---|
+| 1 | Codex 官方规范（HD-06 / Q-01） | **已关闭**：官方页可达并重定向到 `learn.chatgpt.com/docs/build-skills`——`SKILL.md` 必需 `name` + `description`；扩展元数据在 `agents/openai.yaml`（`interface` / `policy.allow_implicit_invocation` / `dependencies.tools[]`）；加载位置为 `.agents/skills` 链（REPO，自 CWD 向上至仓库根）、`$HOME/.agents/skills`（USER）、`/etc/codex/skills`（ADMIN）与随包 SYSTEM；同名不合并；禁用走 `[[skills.config]]`。**残余**：官方 USER 根与本机实测 `~/.codex/skills` 不一致 → 待裁决项 ① |
+| 2 | Cursor 官方字段表（HD-01） | **部分更新**：官方 frontmatter 字段表较原记录新增 `disable-model-invocation`（`true` 时仅 `/skill-name` 显式调用）与 `metadata`；「标准外字段被忽略还是报错」文档未述，HD-01 保持开放 |
+| 3 | DeepSeek Harness（Q-03、9.3.6 分类） | **已取证**：`deepseek-ai/deepseek-harness` 为 DeepSeek 官方开源 agent harness，含**技能子系统**（发现根含 `<projectRoot>/.agents/skills`、`<dshHome>/skills`、`<agentsHome>/skills`；接受 `<名称>/SKILL.md` 与扁平 `<名称>.md`；不支持嵌套递归发现）。故「DeepSeek 无技能机制」的范围收窄为「其 API / 模型产品体系内无技能机制」，分类**待复议** → 待裁决项 ③ |
+| 4 | `disable-model-invocation` 语义（HD-02、DP-04 / D-02） | **取得部分证据**：Claude 本机实测、Cursor 官方字段表、`dsh` 官方子系统文档三处独立证据语义一致（`true` = 排除模型自动调用）；Codex 侧同类控制位于 `agents/openai.yaml` 的 `policy.allow_implicit_invocation`。是否解除 DP-04 的「全宿主禁止透传」→ 待裁决项 ② |
+| 5 | 待裁决项登记 | 四项（Codex 分发落位根 / `disable-model-invocation` 透传 / DeepSeek 分类 / Cursor 白名单）以「登记 + 待裁定，裁定前保持现实现」方式入 `docs/design/m5-host-adapter.md` 9.5 与 `docs/one-summary.md` M5-L-07；明细见 `docs/research/host-mechanisms.md` 6.3 补记（2026-10-16） |
+
+### 计数校验（M5 遗留事实点取证批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动；未新增选项 |
+| 功能需求编号 | FR-01 至 FR-12，未变动；里程碑需求条目仍为 35 条 |
+| 契约规范份数 / Schema 份数 | 5 份 / 5 份，未变动（本批未触及契约） |
+| 测试总数 | 358 项（单元 242、契约 55、端到端 61），全部通过；与本批前一致（本批只改文档） |
+| 实现改动 | 无：注册表、渲染层、适配器与测试未改动；四项待裁决项裁定前保持现实现 |
+| 需求正文改动 | 无（第 9.3.6 的分类与验收口径未改，仅登记待裁决） |
+| 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
+
 ---
 
 **文档结束**。本文档仅描述需求，不包含实现。一期功能清单在进入实现阶段后冻结，后续变更需先更新本文档再实施。

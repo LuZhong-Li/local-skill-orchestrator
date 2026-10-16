@@ -2,6 +2,40 @@
 
 ## 未发布
 
+### 调研：M5 遗留事实点取证（浏览器一手 · 只文档）
+
+把 M5 遗留项中三条**被网络 / 环境卡住**的事实点一次取齐：Codex 官方技能规范（原命令行侧 403）、DeepSeek Harness 线索（原不可达）、Cursor 官方字段表。取证经浏览器会话直接读取官方页面及其 `.md` / `raw` 纯文本形态，证据等级 **[已查证·浏览器一手]**。**本批次不改任何实现、不改需求、不动注册表与契约**（16 条指令、五份规范 / 五份 schema、358 项测试均未变）。
+
+#### 取证结论
+
+- **HD-06 / Q-01 关闭（Codex 官方规范）**：`developers.openai.com/codex/skills/` 现可达并重定向到 `learn.chatgpt.com/docs/build-skills`。要点：`SKILL.md` **必需 `name` + `description`**，扩展元数据在 `agents/openai.yaml`（`interface` / `policy.allow_implicit_invocation` / `dependencies.tools[]`）；加载位置为 `.agents/skills` 链（REPO，自 CWD 逐级向上至仓库根）、`$HOME/.agents/skills`（USER）、`/etc/codex/skills`（ADMIN）与随包 SYSTEM；同名技能**不合并**；禁用走 `~/.codex/config.toml` 的 `[[skills.config]]`；上下文预算 `skills.max_context_tokens`。
+- **HD-01 部分更新（Cursor）**：官方 frontmatter 字段表较原记录**新增 `disable-model-invocation` 与 `metadata`**（其余为 `name` 必填且须与父目录同名、`description` 必填、`paths` 可选、`icon` / `color` 可选）；「标准外字段被忽略还是报错」官方文档**未述**，仍需 Cursor 环境实测。
+- **Q-03 关闭（DeepSeek Harness）**：`deepseek-ai/deepseek-harness` 为 **DeepSeek 官方开源 agent harness**（公开仓库、开发者预览、everything-is-a-plugin，基于 Cordis），其中**技能是一等子系统**（`docs/subsystems/skills.md` + 本机文件系统 provider，仓库以 `.agents/skills/<名称>/SKILL.md` 组织技能、随 `packages/preset/agent-preset/skills/` 分发）。发现根与优先级：`<projectRoot>/.dsh/skills` → `<projectRoot>/.agents/skills` → `Config.customSkillDirs` → `<dshHome>/skills` → `<agentsHome>/skills` → `Config.bundledSkillDir`；接受目录包与扁平 `<名称>.md`，**不支持嵌套递归 `**/SKILL.md` 发现**；调用策略读取 `disable-model-invocation` 与 `user-invocable`。
+- **HD-02 取得部分证据**：`disable-model-invocation` 现有**三处独立证据**（Claude 本机实测、Cursor 官方字段表、`dsh` 官方子系统文档）且语义一致（`true` = 排除模型自动调用）；Codex 侧把同类控制放在 `agents/openai.yaml` 的 `policy.allow_implicit_invocation`，未列入 SKILL.md。
+
+#### 待裁决项（登记，不预判；裁定前保持现实现）
+
+| #   | 事项                                            | 现状                                           | 待裁决内容                                                                                                                                    |
+| --- | ----------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| ①   | Codex 分发落位根                                | 注册项用 `~/.codex/skills`（本机实测应用读取） | 是否改用 / 追加官方 USER 根 `$HOME/.agents/skills`（与 Cursor、`dsh` 的 `agents` 根同路径，可「一次落位、多宿主可见」），或并存并声明消费关系 |
+| ②   | `disable-model-invocation` 透传（DP-04 / D-02） | 已实施「全宿主禁止透传」                       | 证据语义一致后，是否解除禁止、改为按宿主白名单透传并登记语义                                                                                  |
+| ③   | DeepSeek 分类                                   | `not_applicable`（模型提供方）                 | 是否改判并新增 `dsh` 注册项（或标 `pending_evidence`），是否纳入后续适配批次                                                                  |
+| ④   | Cursor 透传白名单                               | 保守为空                                       | 待 HD-01 实测关闭；本次仅更新文档字段表依据                                                                                                   |
+
+#### 文档同步
+
+- `docs/research/host-mechanisms.md`：新增 6.3 补记（2026-10-16）与附录补记 S-19 ~ S-24；更新可访问性表、事实卡 C（Codex）/ D（Cursor）/ F（DeepSeek）、风险表 HR-02、来源表 S-07 与 S-14。
+- `docs/design/m5-host-adapter.md`：2.3 节「仍待确认」、2.5 节 HD-01 / HD-02 / HD-06 状态、9.2 节 Codex 补证行、9.4 节第 1 条，新增 9.5 节「取证更新与待裁决项」。
+- `docs/plan/m5-host-adapter.md`：第 5 章 HD-01 / HD-06 行更新，并加本批次执行状态。
+- `docs/one-summary.md`：7.3 节 M5-L-01 / M5-L-02 / M5-L-04 状态更新，新增 M5-L-07（四项待裁决）；交付现状表 DeepSeek 行加「待复议」。
+- `docs/requirements.md`：新增本批次回写与计数校验（需求正文未改动）。
+
+#### 未做（明确登记）
+
+- 未改动内核注册表、渲染层、适配器与任何测试（四项待裁决裁定前保持现实现）；
+- 未变更需求 9.3.6 的验收口径与分类表述；
+- Cursor 侧仍需具备环境后实测（HD-01）；`dsh` 若纳入适配，需先裁定 ③。
+
 ### 工程：CI 接入（M1-T4 验收闭合）
 
 M1 的收口批次：以真实运行证据闭合 9.3.1 的七条验收标准。**未新增指令与选项**（16 条不变）、未改动需求正文与任何门禁，只补齐验收证据与文档同步。

@@ -99,7 +99,7 @@
 | 插件清单字段 | `name` / `version` / `author.name` / `description` / `skills` / `apps` / `interface.*` | [已查证·本机实测] |
 | 插件 CLI 表面 | `codex plugin add / list / remove / marketplace {add, list, upgrade, remove}` | [已查证·本机实测] |
 | 技能级界面声明 | 技能目录内 `agents/<名称>.yaml` 可声明 `display_name` / `short_description` / 图标 / `default_prompt` | [已查证·本机实测] |
-| 仍待确认 | 官方字段全集与校验规则、技能根优先级（用户级 / 项目级）、跨平台字段限制 | [待确认] |
+| 仍待确认 | 官方字段全集与校验规则、技能根优先级（用户级 / 项目级）、跨平台字段限制 | **已取证（2026-10-16）**：官方技能文档可达（重定向到 `learn.chatgpt.com/docs/build-skills`）——`SKILL.md` 必需 `name` + `description`，扩展元数据在 `agents/openai.yaml`，加载位置为 `.agents/skills` 链 + `$HOME/.agents/skills` + `/etc/codex/skills` + 随包 SYSTEM；**残余**：官方 USER 根与本机实测 `~/.codex/skills` 不一致 → 待裁决（第 9.5 节 ①、调研 6.3 补记） |
 
 ### 2.5 待确认清单（设计期不得假定，实施期必须关闭）
 
@@ -108,11 +108,11 @@
 | 编号 | 待确认项 | 影响面 | 确认方法 |
 |---|---|---|---|
 | HD-01 | Cursor 对标准外字段的处理（忽略 / 报错） | 决定 Cursor 渲染是「白名单裁剪」还是「可透传」 | 安装 Cursor 后放置含扩展字段的技能，观察是否报错 / 是否显示 |
-| HD-02 | Codex 是否对 `disable-model-invocation` 等字段施加语义 | 决定这些字段是否可跨宿主透传 | 造 `true` 值技能后观察是否从模型可见清单移除 |
+| HD-02 | Codex 是否对 `disable-model-invocation` 等字段施加语义 | 决定这些字段是否可跨宿主透传 | **取得部分证据（2026-10-16）**：Codex 官方把隐式调用控制放在 `agents/openai.yaml` 的 `policy.allow_implicit_invocation`，未把该键列入 SKILL.md；而 Cursor 与 `dsh` 均在 SKILL.md frontmatter 中定义该键且语义一致（`true` = 排除模型自动调用）。是否因此解除 DP-04 的「全宿主禁止透传」见 9.5 待裁决项 ② |
 | HD-03 | 三端重新扫描时机（新会话 / 重启 / 热加载） | 决定 `enable` / `disable` 的生效延迟与提示文案 | 三端各做一次「改名 → 观察」实测，记录生效条件 |
 | HD-04 | 豆包用户技能落位根（`.user_skills/` 是否被加载） | — | **已关闭（T0）**：三重证据——运行期技能根列表（含 `.user_skills/`）、目录权限属性（用户可写、平台持有 `.skills/` 为只读）、T0 机械实测（本机可创建且现场可恢复）。残留观察项：「进入会话可用清单」为**人工确认项**，不阻塞 |
 | HD-05 | 豆包 `.skills/` 是否会被平台整体刷新覆盖 | 决定该根是否允许写入（结论已定：**禁止写入**） | **部分证据**：141 个技能目录的修改时间分布在多个日期（10-12 / 10-14 / 10-15），未观察到整体重写迹象，改动呈增量特征；仍保持禁止写入策略（保守），可继续在平台更新后复核 |
-| HD-06 | Codex 官方字段全集与目录优先级 | 决定 Codex 渲染白名单与多技能根选择 | 在可访问 `developers.openai.com` 的网络环境取证 |
+| HD-06 | Codex 官方字段全集与目录优先级 | 决定 Codex 渲染白名单与多技能根选择 | **已关闭（2026-10-16）**：经浏览器会话取证官方页（重定向到 `learn.chatgpt.com/docs/build-skills`）；要点见 2.3 节与 9.5 节、明细见调研 6.3 补记（2026-10-16） |
 | HD-07 | 豆包是否也扫描 `.agents/skills/`（本机工作区内不存在该目录） | 若成立，该根与 Cursor 的 `.agents/skills/` 同路径，构成跨宿主共享落位根（M5-R8 场景） | 创建该目录并放置测试技能后观察是否被扫描；或从运行期技能根列表的实现侧确认约定的根集合 |
 
 ---
@@ -360,7 +360,7 @@ type Finding       = { level: 'error' | 'warning'; code: string; where: string; 
 | Q-05 标准外字段接受度 | Claude / Codex / 豆包 已得结论；Cursor 待确认（HD-01），设计取白名单裁剪 |
 | Q-06 副本改名禁用表达 | 三端结构上成立（Claude / Cursor 官方文档，豆包本机实测）；再扫描时机待确认（HD-03） |
 | Q-07 豆包两级技能根 | 两级并存确认；`.skills/` 禁止写入；`.user_skills/` 为候选落位根，待确认（HD-04 / HD-05） |
-| Codex 官方规范补证 | 结构、插件、CLI 表面已补齐；官方字段全集与优先级仍待确认（HD-06） |
+| Codex 官方规范补证 | **已补齐（2026-10-16）**：必需字段、可选元数据（`agents/openai.yaml`）、加载位置（`.agents/skills` 链 / `$HOME/.agents/skills` / `/etc/codex/skills` / SYSTEM）、重名行为、禁用表达（`[[skills.config]]`）与上下文预算均已取证；**残余差异**：官方 USER 根与本机实测 `~/.codex/skills` 不一致 → 待裁决项 ①（见 9.5） |
 
 ### 9.3 设计决策点（需评审裁定）
 
@@ -374,11 +374,31 @@ type Finding       = { level: 'error' | 'warning'; code: string; where: string; 
 
 ### 9.4 留待实现期的事项
 
-1. 待确认项的实测关闭（**HD-04 已于 T0 关闭**；HD-01 / HD-03 / HD-06 / HD-07 保持开放；HD-05 已有部分证据并按保守策略处理；HD-03 的验收口径已定：**目录结构与命名状态正确即视为生效**，宿主运行时是否感知列为宿主侧行为、不计入自动验收；关闭结果回写本设计第 2.5 节与调研补记）；
+1. 待确认项的实测关闭（**HD-04 已于 T0 关闭**；**HD-06 已于 2026-10-16 关闭、HD-01 部分更新、HD-02 取得部分证据**，见 9.5；HD-03 / HD-07 保持开放；HD-05 已有部分证据并按保守策略处理；HD-03 的验收口径已定：**目录结构与命名状态正确即视为生效**，宿主运行时是否感知列为宿主侧行为、不计入自动验收；关闭结果回写本设计第 2.5 节与调研补记）；
 2. 规则文件类宿主的合并策略细则（写入安全约束的实现方案）；
 3. 注册表 schema 的具体字段与校验强度（随 DP-03 结论）；
 4. 界面侧是否需要「消费宿主」展示与「重叠提示」开关（随 DP-02 结论）；
 5. 首批各宿主的格式合规校验用例集（进入 M1 门禁，含「标准 6 字段模式」与 `host_declared` 透传边界的正反例）。
+
+### 9.5 取证更新（2026-10-16，浏览器一手）与待裁决项
+
+结论：**HD-06 关闭、HD-01 部分更新、HD-02 取得部分证据**，并新增「DeepSeek 分类需复议」；由此产生四项待裁决。**本批次不改任何实现与需求**，明细与出处见 `docs/research/host-mechanisms.md` 6.3 补记（2026-10-16）与附录补记 S-19 ~ S-24。
+
+| 项 | 状态 | 要点 |
+|---|---|---|
+| HD-06（Codex 官方字段全集与目录优先级） | **已关闭** | `SKILL.md` 必需 `name` + `description`；扩展元数据在 `agents/openai.yaml`（`interface` / `policy.allow_implicit_invocation` / `dependencies.tools[]`）；加载位置为 `.agents/skills` 链（REPO，自 CWD 向上至仓库根）、`$HOME/.agents/skills`（USER）、`/etc/codex/skills`（ADMIN）与随包 SYSTEM；同名不合并；禁用走 `~/.codex/config.toml` 的 `[[skills.config]]`；上下文预算 `skills.max_context_tokens` |
+| HD-01（Cursor 标准外字段处理） | 部分更新（仍开放） | 官方字段表较原记录**新增 `disable-model-invocation` 与 `metadata`**；「标准外字段被忽略还是报错」官方文档未述 |
+| HD-02（`disable-model-invocation` 语义） | 取得部分证据 | 三处独立证据语义一致（Claude 本机实测、Cursor 官方字段表、`dsh` 官方子系统文档：`true` = 排除模型自动调用）；Codex 侧把同类控制放在 `agents/openai.yaml` 的 `policy.allow_implicit_invocation` |
+| DeepSeek 分类（原 `not_applicable`） | **需复议** | DeepSeek 官方开源 agent harness（`dsh`）含技能子系统：六级发现根（含 `<projectRoot>/.agents/skills`、`<dshHome>/skills`、`<agentsHome>/skills`）、接受 `<名称>/SKILL.md` 与扁平 `<名称>.md`、不支持嵌套递归发现；开发者预览且明示破坏性变更 |
+
+**待裁决项（裁定后才进入实现；本次不预判）**：
+
+| # | 事项 | 现状 | 待裁决内容 |
+|---|---|---|---|
+| ① | Codex 分发落位根 | 注册项用 `~/.codex/skills`（本机实测应用读取该目录） | 是否改用 / 追加官方 USER 根 `$HOME/.agents/skills`（与 Cursor、`dsh` 的 `agents` 根同路径，可「一次落位、多宿主可见」），或两者并存并在注册表声明消费关系 |
+| ② | DP-04 中「`disable-model-invocation` 全宿主禁止透传」 | 已实施（注册表期拒登记 + 渲染期一律拒绝） | 在证据语义一致的前提下，是否解除禁止、改为按宿主白名单透传并登记语义 |
+| ③ | DeepSeek 注册项 | `not_applicable`（模型提供方） | 是否改判并新增 `dsh` 注册项（或标 `pending_evidence`），以及是否纳入后续适配批次 |
+| ④ | Cursor 透传白名单 | 保守为空 | 待 HD-01 实测关闭；本次仅更新字段表依据 |
 
 ### 9.5 DP-03 裁决的同步影响清单（供计划 T1 使用）
 
