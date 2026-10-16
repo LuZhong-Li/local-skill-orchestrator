@@ -53,8 +53,27 @@ jobs:
         if: runner.os != 'Windows'
         run: chmod +x build/kernel/skill-manager.exe
 
-      - name: 双线 N=100 烟测（场景全量、runs=1）
-        run: node scripts/bench/runner.mjs --n 100 --form both --runs 1 --load "CI 共享 runner（波动 17%~30%，仅记录不作门禁）"
+      - name: macOS SEA 取证（EX-13：内核被信号终止；不改测量结论）
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          set +e
+          sea_try() {
+            ./build/kernel/skill-manager.exe --version > /tmp/sea-out.txt 2>&1
+            echo $?
+          }
+          sea_code=$(sea_try)
+          cp "$(command -v node)" /tmp/node-copy
+          chmod +x /tmp/node-copy
+          /tmp/node-copy --version > /dev/null 2>&1
+          node_copy_code=$?
+          signature=$(codesign -dv build/kernel/skill-manager.exe 2>&1 | head -3 | tr '\n' ' ' | tr -s ' ')
+          bytes=$(stat -f %z build/kernel/skill-manager.exe)
+          mode=$(stat -f %Sp build/kernel/skill-manager.exe)
+          echo "::warning title=EX-13 取证::SEA 内核退出码=$sea_code（137/负数多为信号终止）；对照 node 副本退出码=$node_copy_code；mode=$mode；bytes=$bytes；codesign=$signature"
+
+      - name: 双线 N=100 烟测（场景全量、runs=1；macOS 暂只跑源码线，SEA 见 EX-13）
+        run: node scripts/bench/runner.mjs --n 100 --form ${{ runner.os == 'macOS' && 'source' || 'both' }} --runs 1 --load "CI 共享 runner（波动 17%~30%，仅记录不作门禁）"
 
       - name: 记录数据并检查测量链路（运行页注解；采样失败即红，性能数值不作门禁）
         if: always()
