@@ -81,6 +81,8 @@ jobs:
             build/bench/report-*.json
             build/bench/extra/report-*.json
             build/bench/logs/
+            build/bench/extra/logs/
             build/bench/failure-*.txt
+            build/bench/extra/failure-*.txt
           if-no-files-found: ignore
           retention-days: 14
