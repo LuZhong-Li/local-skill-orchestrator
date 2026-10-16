@@ -34,7 +34,14 @@ function parseArgs(argv) {
   return options;
 }
 
-const options = parseArgs(process.argv.slice(2));
+let options;
+try {
+  options = parseArgs(process.argv.slice(2));
+} catch (error) {
+  process.stderr.write(`夹具生成失败：${error instanceof Error ? error.message : String(error)}\n`);
+  process.exit(1);
+}
+
 const ownsRoot = options.root === null;
 const root =
   options.root ?? mkdtempSync(join(tmpdir(), `skill-manager-bench-${options.n}-${options.seed}-`));

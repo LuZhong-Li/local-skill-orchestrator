@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,6 +18,7 @@ import { createInitialIndex } from '../../kernel/core/index/index.ts';
 import { layoutOf } from '../../kernel/store/workspace/index.ts';
 
 const NOW = '2026-10-16T00:00:00Z';
+const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
 type Plan = ReturnType<typeof planFixture>;
 type Skill = Plan['skills'][number];
@@ -253,5 +255,34 @@ test('T0 夹具：内容差异只在声明的维度上（结构差异抽样）',
       );
     }
     assert.equal(skill.files[0].path, 'skill_meta.yaml');
+  }
+});
+
+test('T0 夹具：命令行入口的失败路径可定位（独立进程断言，非零退出码 + 明确原因）', () => {
+  const cli = join(root, 'scripts', 'bench', 'fixture-cli.mjs');
+  for (const [args, expected] of [
+    [['--n', '0'], '--n 必须是正整数'],
+    [['--bogus'], '未知选项'],
+    [['--n'], '缺少取值'],
+  ] as Array<[string[], string]>) {
+    const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+    assert.equal(result.status, 1, `${args.join(' ')} 应以非零退出码失败`);
+    assert.ok(
+      String(result.stderr).includes(expected),
+      `${args.join(' ')} 的错误信息应包含「${expected}」，实得 ${String(result.stderr)}`,
+    );
+  }
+
+  // 正常路径：显式 --root 落盘，且不在仓库内
+  const target = mkdtempSync(join(tmpdir(), 'bench-cli-'));
+  try {
+    const result = spawnSync(process.execPath, [cli, '--n', '50', '--root', target], {
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, String(result.stderr));
+    const summary = JSON.parse(String(result.stdout)) as { counts: { files: number } };
+    assert.equal(summary.counts.files, countFiles(join(target, 'skills')));
+  } finally {
+    rmSync(target, { recursive: true, force: true });
   }
 });
