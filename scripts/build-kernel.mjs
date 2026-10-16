@@ -20,6 +20,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { adHocSignMac, removeMacSignature } from './sea-signing.mjs';
+import { postjectArgs } from './sea-postject.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = join(ROOT, 'build', 'kernel');
@@ -28,8 +29,6 @@ const BUNDLE = join(WORK_DIR, 'kernel.cjs');
 const BLOB = join(WORK_DIR, 'kernel.blob');
 const SEA_CONFIG = join(WORK_DIR, 'sea-config.json');
 const EXECUTABLE = join(OUT_DIR, 'skill-manager.exe');
-/** Node 的单文件可执行注入所用的哨兵值，取自 Node 文档，非本项目自定 */
-const SEA_FUSE = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 
 function fail(message) {
   console.error(`内核构建失败：${message}`);
@@ -88,15 +87,12 @@ copyFileSync(process.execPath, EXECUTABLE);
 const removed = removeMacSignature({ executable: EXECUTABLE });
 if (removed.applied) console.log(`已移除 Node 副本签名：${removed.args.join(' ')}`);
 
+// 注入参数由 scripts/sea-postject.mjs 唯一提供：macOS 必须带 --macho-segment-name（EX-13）
 run(
   process.execPath,
   [
     join(ROOT, 'node_modules', 'postject', 'dist', 'cli.js'),
-    EXECUTABLE,
-    'NODE_SEA_BLOB',
-    BLOB,
-    '--sentinel-fuse',
-    SEA_FUSE,
+    ...postjectArgs({ executable: EXECUTABLE, blob: BLOB }),
   ],
   { quiet: true },
 );

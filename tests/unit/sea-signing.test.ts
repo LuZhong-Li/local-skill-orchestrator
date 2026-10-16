@@ -88,12 +88,18 @@ test('SEA 签名：三类失败按既有口径明确报错', () => {
 test('SEA 签名：构建脚本按「remove → 注入 → sign」的顺序调用（源码顺序断言）', () => {
   const source = readFileSync(join(root, 'scripts', 'build-kernel.mjs'), 'utf8');
   const removeAt = source.indexOf('removeMacSignature(');
-  const injectAt = source.indexOf("'NODE_SEA_BLOB'");
+  // 注入参数由 scripts/sea-postject.mjs 唯一提供（macOS 的 --macho-segment-name 在其中，见 EX-13）
+  const injectAt = source.indexOf('postjectArgs(');
   const signAt = source.indexOf('adHocSignMac(');
 
   assert.ok(removeAt > 0, '构建脚本应调用 removeMacSignature');
-  assert.ok(injectAt > 0, '构建脚本应执行 postject 注入');
+  assert.ok(injectAt > 0, '构建脚本应执行 postject 注入（经 postjectArgs 组装参数）');
   assert.ok(signAt > 0, '构建脚本应调用 adHocSignMac');
   assert.ok(removeAt < injectAt, '移除签名必须在注入之前');
   assert.ok(injectAt < signAt, 'ad-hoc 重签必须在注入之后');
+  assert.equal(
+    source.includes("'NODE_SEA_BLOB'"),
+    false,
+    '资源名不得在构建脚本里手写（唯一来源是 sea-postject.mjs）',
+  );
 });

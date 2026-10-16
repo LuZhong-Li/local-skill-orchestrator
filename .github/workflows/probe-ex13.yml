@@ -1,0 +1,58 @@
+# EX-13 临时取证工作流（探针分支专用，取证结束后删除）
+#
+# 触发限定在 probe/** 分支，因此不会影响 main 的 CI / Bench 口径。
+
+name: Probe EX-13
+
+on:
+  push:
+    branches:
+      - 'probe/**'
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: EX-13 取证（${{ matrix.arch }}）
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x64
+            runner: macos-15-intel
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建内核（构建期产物 = A 组）
+        run: npm run build:kernel
+
+      - name: 取证（执行 / 签名变体 / 系统杀因）
+        continue-on-error: true
+        run: bash scripts/bench/probe-ex13.sh
+
+      - name: 取证二（B 组打包后 .app / C 组 v0.1.0 发布 dmg）
+        continue-on-error: true
+        run: bash scripts/bench/probe-ex13-package.sh ${{ matrix.arch }}
+
+      - name: 上传取证附件
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probe-ex13-${{ matrix.arch }}
+          path: |
+            build/kernel/skill-manager.exe
+            build/desktop/*.dmg
+          if-no-files-found: ignore
+          retention-days: 7
