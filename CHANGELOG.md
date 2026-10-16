@@ -14,6 +14,13 @@
 - **影响面与升级建议**：**macOS 用户必须升级到 0.1.1**；Windows / Linux 用户不受该缺陷影响（同一代码路径实测正常），可按需升级。
 - **登记**：Node 官方文档明示 SEA 在 CI 上仅测 macOS arm64，「x64 目前不支持并在测试中跳过」——本项目的 macOS x64 包属官方未支持形态，修复后实测可执行（登记为已知形态差异，不外推为官方支持）。
 
+### 发布与发布后复核（v0.1.1）
+
+- **发布**：tag `v0.1.1`（指向 `df07a46`）→ pack 流水线 run 38981945186 **Success**（四 leg 打包 + 版本守卫 + 校验清单 + 发布 + 资产级冒烟 + 历史版本提示步骤全绿）；Release 为 **latest、非 draft、非 prerelease**，含 6 项资产（5 交付物 + `SHA256SUMS.txt`）。
+- **C 组复核（关键）**：从新 Release 回下载 `arm64.dmg` 与 `x64.dmg`、`hdiutil` 挂载后执行包内 `resources/kernel/skill-manager.exe`——**两个架构均 `--version` exit=0（输出 0.1.1）且 `init → scan` 闭环 0/0**（run 38982866885）。
+- **资产与页面**：`/releases/latest` 指向 v0.1.1；回下载 `arm64.dmg` 与 `x64.exe` 用 Release 上的 `SHA256SUMS.txt` 复算**一致**；`v0.1.0` 的 Release notes 顶部已追加 EX-13 已知问题提示（旧版与旧 notes 保留）。
+- **macOS 补录**：CI macOS 腿补跑三档曲线（`docs/benchmark/ci-smoke-0.1.1.json`）——N=1000 双线齐全、SEA 线 N=5000 齐全；**源码线 N=5000 在该 runner 上未产出数据**（按裁决降级为「N=1000 为准」并登记）；**SEA 启动开销档的峰值在 macOS 上不可靠**（进程约 84 ms，采样只取到 0.5 MB；该档位不参与阈值判定）——两点均按「不伪造、写清原因」登记。
+
 ### M3-T3 基线与报告（并定位/修复发布缺陷 EX-13）
 
 - **基线入库**：`docs/benchmark/baseline-0.1.0.json`（schema `bench-baseline/1`）+ `docs/benchmark/report-0.1.0.md`；基线由 `scripts/bench/baseline.mjs` 从原始报告与 CI 烟测记录合成，**逐次样本随文档入库**（`build/` 不入库，只留中位数会让基线不可复核）；缺失项以 `gaps` 显式登记（macOS SEA 线，EX-13）。

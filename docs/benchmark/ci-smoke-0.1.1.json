@@ -1,0 +1,85 @@
+{
+  "schema": "bench-ci-smoke/1",
+  "version": "0.1.1",
+  "collection": "从运行页注解抄录（job 日志需登录；注解对未登录会话公开可读）",
+  "note": "CI 为共享 runner，实测波动 17%~30%（设计 §1.5），数值仅记录、**不作门禁**；runs=1",
+  "macos_extra_matrix": {
+    "description": "v0.1.1 批次用 macOS 腿补的三档曲线（本机为 Windows，无法产出 macOS 曲线）；N=5000 的源码线在本平台异常、按裁决降级为「N=1000 为准」",
+    "run_id": 38981257916,
+    "runner": "macos-15",
+    "arch": "arm64",
+    "kernel": "0.1.1",
+    "samples": {
+      "source": {
+        "startup": { "wall_median_ms": 171, "peak_rss_max_mb": 97.2, "coverage": 0.09, "exit_codes": [0] },
+        "n1000": {
+          "scan-cold": { "wall_median_ms": 1069, "peak_rss_max_mb": 171, "coverage": 0.66, "exit_codes": [3] },
+          "scan-hot": { "wall_median_ms": 1177, "peak_rss_max_mb": 216.2, "coverage": 0.69, "exit_codes": [3] },
+          "validate": { "wall_median_ms": 1060, "peak_rss_max_mb": 197.6, "coverage": 0.6, "exit_codes": [1] },
+          "export": { "wall_median_ms": 734, "peak_rss_max_mb": 181.2, "coverage": 0.63, "exit_codes": [0] }
+        },
+        "n5000": null
+      },
+      "sea": {
+        "startup": { "wall_median_ms": 84, "peak_rss_max_mb": 0.5, "coverage": 0, "exit_codes": [0] },
+        "n1000": {
+          "scan-cold": { "wall_median_ms": 800, "peak_rss_max_mb": 153.7, "coverage": 0.33, "exit_codes": [3] },
+          "scan-hot": { "wall_median_ms": 1206, "peak_rss_max_mb": 203.4, "coverage": 0.28, "exit_codes": [3] },
+          "validate": { "wall_median_ms": 968, "peak_rss_max_mb": 183.9, "coverage": 0.23, "exit_codes": [1] },
+          "export": { "wall_median_ms": 602, "peak_rss_max_mb": 139.2, "coverage": 0.13, "exit_codes": [0] }
+        },
+        "n5000": {
+          "scan-cold": { "wall_median_ms": 6458, "peak_rss_max_mb": 248.6, "coverage": 0.56, "exit_codes": [3] },
+          "scan-hot": { "wall_median_ms": 6743, "peak_rss_max_mb": 558.5, "coverage": 0.33, "exit_codes": [3] },
+          "validate": { "wall_median_ms": 3894, "peak_rss_max_mb": 499.4, "coverage": 0.24, "exit_codes": [1] },
+          "export": { "wall_median_ms": 1985, "peak_rss_max_mb": 356.4, "coverage": 0.17, "exit_codes": [0] }
+        }
+      }
+    },
+    "gaps": [
+      {
+        "scope": "darwin-arm64:source:n5000",
+        "reason": "在 CI macOS runner 上未产出数据（异常；非门禁步骤，诊断附件在本批补齐前不可得）",
+        "fallback": "按裁决降级为「N=1000 为准」；SEA 线 N=5000 已取得"
+      },
+      {
+        "scope": "darwin-arm64:sea:startup",
+        "value_note": "启动开销档实测峰值 0.5 MB（进程约 84 ms，采样器只取到运行时空载前的采样点）——**极短进程的峰值不可靠**，该档位在 macOS 上不具代表性；启动内存以 Windows/Linux 数据为准（该档位本就不参与阈值判定，设计 §3.2 第 4 条）"
+      }
+    ]
+  },
+  "release_verification": {
+    "description": "v0.1.1 发布后复核（C 组：从 Release 下载 dmg、挂载、执行包内内核 + init/scan 闭环）",
+    "run_id": 38982866885,
+    "release": "v0.1.1",
+    "results": {
+      "darwin-arm64": {
+        "kernel_version": "0.1.1",
+        "version_exit_code": 0,
+        "closed_loop_init_scan": [0, 0],
+        "note": "C 组（发布 dmg 内内核）可执行；B 组（打包后 .app 内内核）同样 exit=0"
+      },
+      "darwin-x64": {
+        "kernel_version": "0.1.1",
+        "version_exit_code": 0,
+        "closed_loop_init_scan": [0, 0],
+        "note": "同上；x64 属官方未支持形态但实测可执行"
+      }
+    },
+    "asset_checks": {
+      "latest_flag": "v0.1.1",
+      "draft": false,
+      "prerelease": false,
+      "assets": [
+        "SHA256SUMS.txt",
+        "skill-manager-0.1.1-arm64.dmg",
+        "skill-manager-0.1.1-portable.exe",
+        "skill-manager-0.1.1-x64.dmg",
+        "skill-manager-0.1.1-x64.exe",
+        "skill-manager-0.1.1-x86_64.AppImage"
+      ],
+      "download_recheck": "回下载 arm64.dmg 与 x64.exe，用 Release 上的 SHA256SUMS.txt 复算一致",
+      "previous_release_annotated": "v0.1.0 的 Release notes 顶部已追加 EX-13 已知问题提示（旧版保留）"
+    }
+  }
+}

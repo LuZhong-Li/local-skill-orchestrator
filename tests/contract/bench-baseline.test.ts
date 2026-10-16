@@ -157,9 +157,22 @@ test('契约：报告的拐点判定与基线分类一致，且口径为三条�
 
 test('契约：报告说明 EX-13 与三处内核观察项（不留悬空）', () => {
   const doc = readFileSync(reportPath, 'utf8');
-  for (const marker of ['EX-13', 'O-1', 'O-2', 'O-3', '未测先收紧', '轻微超线性', '已修复并验证']) {
+  for (const marker of [
+    'EX-13',
+    'O-1',
+    'O-2',
+    'O-3',
+    '未测先收紧',
+    '轻微超线性',
+    '已修复',
+    '已发布',
+  ]) {
     assert.ok(doc.includes(marker), `报告应写明 ${marker}`);
   }
+  assert.ok(
+    doc.includes('exit=0') && doc.includes('init → scan'),
+    '报告应给出发布后 C 组复核结论（新发布物内内核可执行 + 闭环）',
+  );
   assert.ok(
     doc.includes('darwin-arm64') || doc.includes('macOS 全矩阵'),
     '缺测范围必须点名（macOS 本机全矩阵）',
