@@ -229,15 +229,6 @@ test('T0 夹具：N=1000 落盘规模（文件数按公式、占用与设计同�
   });
 });
 
-test('T0 夹具：N=5000 落盘规模与设计一致', () => {
-  withFixture(5000, (root, plan) => {
-    assert.equal(plan.counts.files, 15000 - 2 * plan.counts.noContent);
-    assert.equal(countFiles(join(root, 'skills')), plan.counts.files);
-    const mib = plan.counts.bytes / 1024 / 1024;
-    assert.ok(mib > 120 && mib < 220, `N=5000 占用应与设计同量级（实测 ${mib.toFixed(1)} MB）`);
-  });
-});
-
 test('T0 夹具：内容差异只在声明的维度上（结构差异抽样）', () => {
   const plan = planFixture({ seed: DEFAULT_SEED, n: 100 });
   const invalid = plan.skills.filter((skill: Skill) => skill.invalidKind !== null);

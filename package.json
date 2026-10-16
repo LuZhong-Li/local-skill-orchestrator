@@ -23,14 +23,16 @@
     "typecheck": "npm run typecheck:kernel && npm run typecheck:gui",
     "typecheck:kernel": "tsc --build kernel/tsconfig.json",
     "typecheck:gui": "npm run typecheck -w @skill-manager/gui",
-    "test": "node --test tests/**/*.test.ts",
+    "test": "node --test tests/unit/*.test.ts tests/contract/*.test.ts tests/e2e/*.test.ts",
     "smoke:gui": "node scripts/gui-smoke.mjs",
     "smoke:kernel": "node scripts/smoke-kernel.mjs",
     "bench:fixture": "node scripts/bench/fixture-cli.mjs",
+    "bench": "node scripts/bench/runner.mjs",
     "check:node": "node scripts/check-node-version.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:slow": "node --test tests/slow/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

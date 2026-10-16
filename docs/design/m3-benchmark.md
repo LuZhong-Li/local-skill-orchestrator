@@ -62,6 +62,8 @@
 
 **结论**：两档夹具在任何环境都可实测内生成（最慢的 Windows runner 上 N=5000 约 14 s），**不必入库夹具**；N=5000 的 160 MB 规模在临时目录可承受 ✓。
 
+**测试口径**：夹具生成器的 N=100 / N=1000 落盘用例进**常规套件**（`npm test`）；**N=5000 落盘用例隔离为慢测试**（`tests/slow/`，经 `npm run test:slow` 执行）——常规套件保持秒级，规模验证不删也不降级为纯计划级（T2 的三档跑测本就会真实生成 N=5000，两处互为印证）。
+
 ### 1.4 发布二进制 vs 源码运行的启动开销
 
 「`<内核> --version`」与「`node kernel/entry/cli.ts --version`」各 5 次取中位（含进程启动）：
@@ -129,6 +131,13 @@ GitHub 官方 runner 表（2026-10-16 读取）：公共仓库的标准 runner �
 
 > 该现象同时是 M3 的**观察结论**（登记为遗留项）：环问题码在收敛后被报告清单吞掉、以及级联的轮数与依赖图深度相关，都会影响 `scan` 的成本与可解释性；M3 只记录，不改内核行为（M3-R5）。
 
+**2.1.3 T1 实测新增的两处观察项（M3 只记录，不改内核）**
+
+| 编号 | 现象 | 影响 | 处置 |
+|---|---|---|---|
+| O-1 | **元文件 YAML 错误落到退出码 3**：`exitCodeFor` 对 `YAML` 类别一律返回 3（`kernel/dispatch/result/index.ts`），而结果规范 §5.2 第 3 步限定「问题对象为**索引或配置文件**」 | 技能元文件写坏时调用方看到的是「索引/配置损坏」档位，与「某个 Skill 不合格」的语义不符 | M3 按预期码表记录（`scan` 允许 0/1/3）；语义是否收紧另立批次 |
+| O-2 | **标识与目录名不一致的技能在索引里出现两条记录**：`scanWorkspace` 以 `dirName` 删除 `existing`，而 `existing` 以记录 `id` 为键，键不一致导致该记录既被写入又被当作「磁盘上已不存在」再写一次 | 索引体积被高估（本夹具 +2 条），并在 `validate` 里报出 `E-ID-002 标识出现多次`；`W-INDEX`/`E-INDEX-002` 语义被噪声污染 | M3 记录体积影响（每条约 1 KB，可忽略）并在报告中标注；修复属内核行为变更，另立批次 |
+
 ### 2.2 目录布局与不入库
 
 ```
@@ -150,57 +159,142 @@ N=1000 时为 `3000 − 2 × 内容缺失样本数`（该样本数由 8% 无效�
 
 ---
 
-## 3. 测量器设计（`scripts/bench/measure.mjs`）
+## 3. 测量器设计（`scripts/bench/measure.mjs`，配套 `rss.mjs` / `profile-split.mjs` / `fs-watch.mjs`）
 
 ### 3.1 指标
 
 | 指标 | 取法 |
 |---|---|
-| 墙钟（端到端） | `process.hrtime.bigint()` 外层计时，覆盖 spawn → 退出 |
-| 启动开销（固定成本） | 单独测 `<内核> --version`，用于拆分固定项与规模项 |
-| 峰值 RSS | 1.1 的握手 + 存活期采样（三平台各自口径）；**采样失败即报错**，不用 0 兜底 |
-| CPU 时间 | 跨进程拿不到时**显式记 `null`**（POSIX 的 `/usr/bin/time` 不可移植、macOS BSD `time` 无 `-v`），不伪造 |
-| 索引体积 | 测量前后递归求和 `<工作区>/index/` 字节数 + 单技能平均 |
+| 墙钟（端到端） | `process.hrtime.bigint()` 外层计时，覆盖 spawn → 退出（**含真实启动开销**）；SEA 线 / 源码线分开报告 |
+| 启动开销（固定成本） | 单独测 `<内核> --version`（每形态 1 项），用于拆分固定项与规模项 |
+| 峰值 RSS | 3.2 的采样器与握手；存活期连续采样取最大；**采样失败即报错**，不用 0 兜底 |
+| CPU 时间 | 与 RSS 同一次采样取得（Linux `/proc/<pid>/stat` 的 utime+stime；macOS `ps -o rss=,time=`；Windows `(Get-Process).TotalProcessorTime`），取末次值；**取不到记 `null`**，不伪造 |
+| 索引体积 | `<工作区>/skill_index.yaml` 字节数 + 单技能平均 |
 | 导出体积 | 导出文件字节数 + 单技能平均 |
-| 逐文件摘要成本 | 由「冷热 scan 差值」与「索引体积 / 技能数」共同刻画（`scan` 是摘要写入路径） |
+| 阶段归集 | 源码线 `--cpu-prof` 剖面按帧自耗时归集（3.4）；SEA 线的 `--cpu-prof` 支持性记 **BX-01**（T2 实测） |
+| 索引写入延迟 | 归集结果中「序列化 + 原子写」之和，另以 fs 观测（3.5）交叉验证 |
+| 逐文件摘要成本 | 归集结果中「逐文件摘要」阶段总耗时 / 文件数（三档各一值） |
 
-### 3.2 冷热两态与命令固定
+### 3.2 采样器与握手（定稿）
+
+被测进程是**内核自身**——它不会输出握手行，因此「READY」按**可观测证据**判定，而不是约定协议：
+
+1. spawn 后即刻取得 pid，采样器只在**子进程存活期内**读取；
+2. **READY = 首次成功取得合法采样值**（值 > 0）。首次采样之前，空读一律视为「尚未就绪」：不采样、不记 0；
+3. 子进程退出（`exitCode !== null`，或读取到「进程不存在」）后采样器停止；
+4. **失败口径**：直到退出都没有一次成功采样 → 该样本记为**测量失败**（`rss_ok: false` + 原因），峰值记 `null`，**绝不用 0 兜底**；启动开销场景（`--version`，几十毫秒）属已知不可采样，允许失败并记原因，不计入阈值判定；
+5. 采样实现按平台，且都用**一个长驻采样助手**避免逐次 spawn；助手按会话复用（stdin 收 `<pid> <迭代数>`，采完回报 `END <pid>`），**会话开始时先用父进程自身做一次预热采样**——实测教训：Windows 上 PowerShell 冷启动约 300 ms，而 N=100 的 `scan` 只有约 200 ms，逐次启动的采样器会把整个场景漏掉（实测表现为 `no-sample-before-exit`）。等待规则同时是硬约束：目标进程存活时一直等，**退出后只再等宽限期（2 s）**，另有绝对上限兜底（否则助手卡死会把测量挂住——已实测踩到）：
+
+| 平台 | 采样方式 | 抽样间隔 | 依据 |
+|---|---|---|---|
+| Linux | 父进程直接读 `/proc/<pid>/status` 的 `VmHWM` 与 `/proc/<pid>/stat` 的 utime+stime（无外部命令） | 10 ms | 零 spawn 开销；`VmHWM` 由内核维护，单次读取即准确 |
+| macOS | 单个长驻 `sh -c` 循环输出 `ps -o rss=,time= -p <pid>` 一行 | 25 ms | BSD `ps` 无 `-v`；长驻助手避免逐次 spawn |
+| Windows | 单个长驻 PowerShell：`$p.Refresh()` 后输出 `PeakWorkingSet64` 与 `TotalProcessorTime.TotalSeconds` 一行 | 50 ms | PowerShell 启动约百毫秒，只能长驻一次；`PeakWorkingSet64` 由系统维护 |
+
+三平台口径同量纲（对「分配 192 MB」的子进程分别报 238 / 231 / 224 / 228 MB）见 1.1；退出竞态与静默 0 两个坑即由上述 2 / 4 两条规则消除。
+
+### 3.3 冷热两态与命令固定
 
 - 冷：`mkdtemp` 新工作区 → `init` → `scan`（计时）→ `list --json`（不计时，仅确认规模）；
 - 热：同一工作区再跑 `scan`、`validate`、`export <导出文件路径>`（各自计时；`export` 的目标为**位置参数**，见 `docs/specification/cli-contract.md` 4.14，`--workspace` 属通用选项）；
 - 命令一律 spawn **独立进程**（工程约定④），stdout / stderr 落文件备查；**任何非 0 退出码记为失败样本**，不静默重试。
+- 重复口径：`runs` 默认 3（取中位与极值）；**Windows 上 N=5000 默认为 1**（BX-03 显式例外），可 `--runs` 覆盖。
 
-### 3.3 输出 JSON（固定格式，供基线与回归）
+**冷态的确切构造（实测校正）**：不能「删掉索引文件再跑」——索引文件是工作区已初始化的标记，缺它时 `scan` 直接判 `E-ENV-001`（工作区尚未初始化）而根本不执行。因此冷态定义为**空索引首跑**，构造为「删索引 → 重新 `init` → 扫描」，与全新工作区等价；每次冷样本前重做一次，保证「首次扫描」语义。
+
+**退出码口径（实测校正）**：夹具刻意含不合格项（8% 无效样本 + 5% 悬空依赖），因此 `scan` / `validate` / `export` 返回非 0 是**预期语义**（「执行完成，但环境中存在不合格项」），不是测量失败。判定改用**预期码表**：
+
+| 场景 | 允许退出码 | 依据 |
+|---|---|---|
+| `scan-cold` / `scan-hot` | `0` / `1` / `3` | 派生规则：`FIELD` 类 → 1，含 `E-YAML-001` 时落到 `YAML` 档位 → 3（实测；与需求 §5.2 第 3 步的「对象为索引或配置文件」限定不符，登记为观察项） |
+| `validate` | `0` / `1` | 指令契约 4.12 的专属口径：存在错误级问题即 1 |
+| `export` | `0` / `1` | 导出属只读动作，实测本夹具下为 0 |
+| `startup` | `0` | `--version` 必须成功 |
+
+超出码表取值即**失败样本**（参数 / 文件系统 / 远端 / 依赖类档位说明测量链路出了问题）。`export` 的目标文件必须落在**工作区之内**（越界会被 `E-PATH-001` 拒绝），本设计取 `<工作区>/bench-export.yaml`，并注意它不在 `skills/` 下、不进扫描范围。
+
+### 3.4 阶段归集（源码线）
+
+- 采集：`node --cpu-prof --cpu-prof-dir <目录> --cpu-prof-name <名> kernel/entry/cli.ts <指令>`（1 ms 粒度剖面；**不改内核**，只加 Node 侧启动参数）；
+- 归集规则**启发式**，自叶向根匹配（先看更深帧）：`readdir*` → **读目录**；`createHash|digest` → **逐文件摘要**；`writeFileSync|atomicWrite|rename|openSync` → **原子写**；`stringify*` → **序列化**；`parseYaml|parse*Document|lex*|tokeniz*` → **YAML 解析**；`readFileSync|read*` → **读元文件**；未命中 → **other**；
+- 报告必须同时给出未归集占比（`other` / 总耗时）；占比过高时**明说归集结论弱化**，不得只给六阶段数字；
+- **索引写入延迟** = 序列化 + 原子写；逐文件摘要成本 = 摘要阶段总耗时 / 文件数；
+- SEA 线是否支持 `--cpu-prof` 记 **BX-01**：T2 实测；不支持则该线只用 fs 观测并在报告中标注。
+
+### 3.5 fs 观测（交叉验证）
+
+被测命令运行期间轮询索引文件，判定依据是**尺寸或修改时间发生变化**，而不是「尺寸与前一次相同」——两个实测反例决定了这一点：
+
+1. 冷态下工作区已有一个空索引（`init` 的产物，约 170 字节），它在 t=0 就「存在且非空」，按「首次出现」判定会立刻误报；
+2. 热态重写的索引与旧文件**逐字节相同**，尺寸不变，只看尺寸会完全观测不到这次写入。
+
+因此记录 `baseline_size`（开始观测时的现场）、`changed_ms`（首次观测到尺寸或 mtime 变化的时刻）、`stable_ms`（变化之后连续两次读数一致的时刻）与 `size`（末次读数）。进程结束前未观测到则记 `null` + 原因（`not-observed` / `not-stable-before-exit` / `deadline-exceeded`）。该结果**只用于交叉验证**，不替代阶段归集。
+
+### 3.6 输出 JSON（固定格式，供基线与回归）
 
 ```json
 {
   "schema": "bench/1",
-  "generated_at": "2026-10-16T00:00:00Z",
+  "generated_at": "2026-10-17T00:00:00Z",
   "environment": {
     "platform": "win32",
     "arch": "x64",
     "node": "v24.14.1",
+    "os_release": "10.0.26100",
+    "cpu_model": "…",
+    "cpu_count": 8,
+    "total_mem_mb": 32768,
     "kernel": "0.1.0",
-    "kernel_form": "sea"
+    "kernel_form": "sea",
+    "kernel_path": "build/kernel/skill-manager.exe",
+    "kernel_sha256": "…",
+    "load_condition": "本机空闲，开机后尽快跑"
   },
-  "fixture": { "seed": 23063, "n": 1000, "files": 3000, "bytes": 33554432, "generation_ms": 3384 },
+  "fixture": { "seed": 23063, "n": 1000, "files": 2968, "bytes": 34412270, "generation_ms": 1083 },
   "samples": [
     {
       "scenario": "scan-cold",
+      "state": "cold",
       "n": 1000,
+      "form": "sea",
       "runs": 3,
       "wall_ms": { "min": 0, "median": 0, "max": 0 },
       "peak_rss_mb": { "min": 0, "median": 0, "max": 0 },
+      "cpu_time_ms": { "min": null, "median": null, "max": null },
       "index_bytes": 0,
       "export_bytes": null,
+      "index_write_ms": null,
+      "stages": null,
+      "fs_observation": {
+        "baseline_size": 170,
+        "changed_ms": 9,
+        "stable_ms": 14,
+        "size": 40213,
+        "polls": 12,
+        "reason": null
+      },
       "startup_ms": 59,
-      "exit_codes": [0, 0, 0]
+      "exit_codes": [0, 0, 0],
+      "run_details": [
+        {
+          "run": 1,
+          "wall_ms": 0,
+          "peak_rss_mb": 0,
+          "rss_ok": true,
+          "rss_samples": 12,
+          "rss_reason": null,
+          "cpu_time_ms": null,
+          "exit_code": 0,
+          "profile": null,
+          "fs_observation": null
+        }
+      ]
     }
   ]
 }
 ```
 
-数值仅为格式示例；`runs` 默认 3 次取中位与极值，可 `--runs 1` 快速预演。
+数值仅为格式示例。字段口径：`state` 取 `cold` / `hot`；`form` 取 `source` / `sea`；`scenario` 取 `scan-cold` / `scan-hot` / `validate` / `export` / `startup`；`startup` 场景的 `n` / `state` 为 `null`；`stages` 与 `fs_observation` 只在采集到时非 `null`（`fs_observation` 的字段见 3.5），缺项一律以 `null` + 原因表达。该字段集合由契约测试与本文档逐项比对（文档与产物不得分叉）。
 
 ---
 
