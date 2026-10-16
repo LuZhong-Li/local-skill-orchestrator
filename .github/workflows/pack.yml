@@ -79,15 +79,33 @@ jobs:
       - name: 安装依赖（按锁文件）
         run: npm ci
 
+      # AppImage 工具链依赖 FUSE 2：runner 镜像未预装（设计 7.1 / R-2、R-6），在此显式安装
+      - name: 安装 Linux 打包依赖（AppImage 工具链需要 FUSE 2）
+        if: >-
+          (github.event_name != 'workflow_dispatch' || inputs.platforms == '' ||
+          inputs.platforms == matrix.platform) && matrix.platform == 'linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2
+
       # Windows 沿用二期入口（配置与产物口径不变）：图标 → 内核 → 安装包 + 便携单文件
+      # 失败时把关键行折进注解：未登录会话也能读到失败原因（运行页的 Annotations 区）
       - name: 打包（Windows：nsis 安装包 + 便携单文件）
         if: >-
           (github.event_name != 'workflow_dispatch' || inputs.platforms == '' ||
           inputs.platforms == matrix.platform) && matrix.platform == 'windows'
+        shell: bash
         run: |
-          npm run build:icon
-          npm run build:kernel
-          npm run pack:win -w @skill-manager/gui
+          set +e
+          output="$( { npm run build:icon && npm run build:kernel && npm run pack:win -w @skill-manager/gui; } 2>&1 )"
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            reason="$(printf '%s\n' "$output" | grep -E 'Error|error|ERROR|failed|ENOENT|cannot|Cannot' | tail -n 3 | tr '\n' ' ' | cut -c1-600)"
+            echo "::error title=打包失败（${{ matrix.leg }}）::${reason:-见 job 日志}"
+            exit "$status"
+          fi
 
       # macOS / Linux：走打包入口（内部按平台串联 图标 →（mac）icns → 内核 → 界面 → electron-builder）
       - name: 打包（macOS / Linux，未签名）
@@ -98,7 +116,16 @@ jobs:
           PACK_ARCH: ${{ matrix.arch }}
           ARCH_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.arch || '' }}
         shell: bash
-        run: node scripts/pack.mjs --platform ${{ matrix.platform }} --arch "${ARCH_OVERRIDE:-$PACK_ARCH}"
+        run: |
+          set +e
+          output="$(node scripts/pack.mjs --platform ${{ matrix.platform }} --arch "${ARCH_OVERRIDE:-$PACK_ARCH}" 2>&1)"
+          status=$?
+          printf '%s\n' "$output"
+          if [ "$status" -ne 0 ]; then
+            reason="$(printf '%s\n' "$output" | grep -E 'Error|error|ERROR|failed|ENOENT|cannot|Cannot' | tail -n 3 | tr '\n' ' ' | cut -c1-600)"
+            echo "::error title=打包失败（${{ matrix.leg }}）::${reason:-见 job 日志}"
+            exit "$status"
+          fi
 
       # 真机证据：icns 由 iconutil 产出（EX-03）＋ 独立的未签名断言复核（pack.mjs 内已断言一次）
       - name: 真机验证（macOS）：icns 产物与未签名断言
