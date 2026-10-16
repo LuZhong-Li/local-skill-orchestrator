@@ -126,6 +126,19 @@ export function scenarioArgv(options) {
   return { command: nodePath, args: [...profilerArgs, sourceEntry, ...kernelArgs] };
 }
 
+/**
+ * SEA 线的剖面开关：单文件可执行**不接受** Node 命令行参数（实测 `--cpu-prof` 会被 CLI 参数校验
+ * 判 `E-INPUT-002`），但 `NODE_OPTIONS` 仍生效（实测能产出含内核帧的剖面）→ BX-01 以该方式关闭。
+ */
+export function seaProfileEnv(profileDir, profileName) {
+  if (profileDir === null) return {};
+  if (/\s/.test(profileDir)) {
+    throw new Error(`SEA 线的 NODE_OPTIONS 不支持含空白的剖面目录：${profileDir}`);
+  }
+  const name = profileName === null ? '' : ` --cpu-prof-name=${profileName}`;
+  return { NODE_OPTIONS: `--cpu-prof --cpu-prof-dir=${profileDir}${name}` };
+}
+
 /** 汇总：返回 min / median / max（过滤 null 与非有限值；全空则三项皆 null） */
 export function summarize(values) {
   const numeric = values.filter((value) => Number.isFinite(value)).sort((a, b) => a - b);

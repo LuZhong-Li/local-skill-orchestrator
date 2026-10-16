@@ -33,6 +33,7 @@ import {
   buildReport,
   exitCodeExpected,
   formatReportText,
+  seaProfileEnv,
   scenarioArgv,
   summarizeScenario,
 } from './measure.mjs';
@@ -70,10 +71,18 @@ export function parseArgs(argv) {
       return argv[i];
     };
     if (token === '--n') {
-      options.sizes = next()
+      // 支持 `--n 100 1000 5000` 与 `--n 100,1000`：吃到下一个选项为止
+      const values = [];
+      while (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
+        values.push(argv[i + 1]);
+        i += 1;
+      }
+      options.sizes = values
+        .join(',')
         .split(/[,\s]+/)
         .filter((part) => part !== '')
         .map((part) => Number(part));
+      if (options.sizes.length === 0) throw new Error('选项 --n 缺少取值');
     } else if (token === '--form') options.form = next();
     else if (token === '--runs') options.runs = Number(next());
     else if (token === '--seed') options.seed = Number(next());
@@ -109,6 +118,7 @@ export async function runOnce(options) {
     now = monotonicMs,
     watch = null,
     onChild = null,
+    env = null,
   } = options;
 
   const startedAt = now();
@@ -116,6 +126,7 @@ export async function runOnce(options) {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    ...(env === null ? {} : { env: { ...process.env, ...env } }),
   });
   const stdoutChunks = [];
   const stderrChunks = [];
@@ -191,6 +202,16 @@ function sha256OfFile(path) {
   }
 }
 
+/** SEA 线的来源溯源：优先读内核同目录的 provenance.json（发布资产解包时写入），否则标注本地构建 */
+function seaProvenanceOf(kernelPath) {
+  const file = join(kernelPath, '..', 'provenance.json');
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return { source: 'local-build' };
+  }
+}
+
 function environmentInfo({ form, kernelPath, kernelVersionText, load }) {
   const cpuList = cpus();
   return {
@@ -205,6 +226,7 @@ function environmentInfo({ form, kernelPath, kernelVersionText, load }) {
     kernel_form: form,
     kernel_path: form === 'sea' ? kernelPath : SOURCE_ENTRY,
     kernel_sha256: form === 'sea' ? sha256OfFile(kernelPath) : null,
+    kernel_provenance: form === 'sea' ? seaProvenanceOf(kernelPath) : null,
     load_condition: load,
   };
 }
@@ -220,18 +242,20 @@ async function measureScenario(context, entry) {
       await resetCold();
     }
     const profileName =
-      entry.form === 'source' && profileDir !== null
-        ? `${entry.scenario}-n${String(entry.n ?? 0)}-run${String(run)}.cpuprofile`
-        : null;
+      profileDir === null
+        ? null
+        : `${entry.form}-${entry.scenario}-n${String(entry.n ?? 0)}-run${String(run)}.cpuprofile`;
     const argv = scenarioArgv({
       scenario: entry.scenario,
       workspace,
       exportFile,
       kernelPath: entry.form === 'sea' ? kernelPath : null,
       sourceEntry: SOURCE_ENTRY,
-      profileDir,
-      profileName,
+      profileDir: entry.form === 'source' ? profileDir : null,
+      profileName: entry.form === 'source' ? profileName : null,
     });
+    // SEA 线：剖面只能经 NODE_OPTIONS 打开（见 measure.seaProfileEnv 注释）
+    const env = entry.form === 'sea' ? seaProfileEnv(profileDir, profileName) : null;
     const watchIndex =
       entry.scenario === 'scan-cold' || entry.scenario === 'scan-hot'
         ? {
@@ -250,6 +274,7 @@ async function measureScenario(context, entry) {
     const result = await runOnce({
       ...argv,
       sampler,
+      env,
       logBase: join(
         logDir,
         `${entry.form}-n${String(entry.n ?? 0)}-${entry.scenario}-run${String(run)}`,
@@ -291,8 +316,8 @@ async function measureForm(options, form) {
   const root = options.root ?? mkdtempSync(join(tmpdir(), 'skill-manager-bench-'));
   const outDir = options.outDir;
   const logDir = join(outDir, 'logs');
-  const profileDir =
-    form === 'source' && options.profile !== false ? join(outDir, 'profile') : null;
+  // 两条线都采集剖面：源码线走命令行参数，SEA 线走 NODE_OPTIONS（BX-01 实测，见设计 §3.4）
+  const profileDir = options.profile === false ? null : join(outDir, 'profile');
   mkdirSync(logDir, { recursive: true });
   if (profileDir !== null) mkdirSync(profileDir, { recursive: true });
 

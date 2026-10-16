@@ -18,13 +18,36 @@ export const STAGES = [
   'other',
 ];
 
-const RULES = [
-  { stage: 'readdir', pattern: /readdir/i },
-  { stage: 'digest', pattern: /createHash|hashUpdate|digest|Hash\.update/i },
-  { stage: 'atomic_write', pattern: /atomicWrite|writeFileSync|rename|openSync|writeSync/i },
+/**
+ * 锚点规则：内核自身的函数名（语义唯一，优先于库与本地帧）。
+ *
+ * 为什么要分两趟：yaml 库的内部帧（`resolveProps`、`writeNode`…）在**解析**与**序列化**两条路径上
+ * 都会出现，只看帧名会把序列化误判成解析；先找栈里的内核锚点（`parseYaml` / `stringifyYaml`）才不会错位。
+ */
+const ANCHOR_RULES = [
   { stage: 'serialize', pattern: /stringify/i },
-  { stage: 'parse_yaml', pattern: /parseYaml|parseDocument|lex|tokeniz|scanFlow|composeNode/i },
-  { stage: 'read_meta', pattern: /readFileSync|readSync|readFile/i },
+  { stage: 'parse_yaml', pattern: /parseYaml|readCandidate|toMeta/i },
+  { stage: 'digest', pattern: /computeDigests|computeChecksum|collectHashEntries|createHash/i },
+  { stage: 'atomic_write', pattern: /atomicWrite|saveIndex/i },
+  { stage: 'readdir', pattern: /collectCandidates|readdirSync|readdir/i },
+  { stage: 'read_meta', pattern: /readFileSync|readMeta|readFile/i },
+];
+
+/** 库 / 本地帧规则：栈里没有锚点时的兜底；V8 合成帧（`(program)`、`(garbage collector)`…）留空进 `other` */
+const LIBRARY_RULES = [
+  { stage: 'serialize', pattern: /stringify/i },
+  {
+    stage: 'parse_yaml',
+    pattern:
+      /node_modules\/yaml|node_modules\\yaml|parseDocument|composeNode|resolveProps|scanFlow|lex|tokeniz/i,
+  },
+  { stage: 'digest', pattern: /node:internal\/crypto\/hash|hashUpdate|Hash\.update|digest/i },
+  {
+    stage: 'atomic_write',
+    pattern: /atomicWrite|writeFileUtf8|writeFileSync|writeSync|rename|openSync/i,
+  },
+  { stage: 'readdir', pattern: /readdir|scandir|lstat|statSync/i },
+  { stage: 'read_meta', pattern: /readFileSync|readSync|readFile|open|close|read/i },
 ];
 
 /** 单个帧是否值得作为归集依据（内核自身代码优先，内部实现帧次之） */
@@ -34,13 +57,35 @@ function frameText(frame) {
   return `${name} ${url}`;
 }
 
-/** 按规则匹配单个帧；不命中返回 null */
-export function classifyFrame(frame) {
+/** 按规则集匹配单个帧；不命中返回 null */
+function stageOf(rules, frame) {
   const text = frameText(frame);
-  for (const rule of RULES) {
+  for (const rule of rules) {
     if (rule.pattern.test(text)) return rule.stage;
   }
   return null;
+}
+
+/** 按锚点规则匹配单个帧（导出供单测） */
+export function classifyFrame(frame) {
+  return stageOf(ANCHOR_RULES, frame);
+}
+
+/** 按库 / 本地帧规则匹配单个帧（导出供单测） */
+export function classifyLibraryFrame(frame) {
+  return stageOf(LIBRARY_RULES, frame);
+}
+
+/**
+ * 整个调用栈的归集：**先在栈内找内核锚点**（叶到根），找不到再退化到库 / 本地帧规则（叶到根）。
+ * 这样 `writeNode` 这类库内部帧会被归到序列化（其栈里有 `stringifyYaml`），而不会被误判成解析。
+ */
+export function classifyStack(stack) {
+  return (
+    stack.map((frame) => classifyFrame(frame)).find((stage) => stage !== null) ??
+    stack.map((frame) => classifyLibraryFrame(frame)).find((stage) => stage !== null) ??
+    'other'
+  );
 }
 
 /** 建立 节点 id → 调用栈（叶到根）的映射 */
@@ -83,9 +128,7 @@ export function splitProfile(profile) {
     const deltaMs = (deltas[index] ?? 0) / 1000;
     totalMs += deltaMs;
     const stack = stackOf(nodeId);
-    const stage =
-      stack.map((frame) => classifyFrame(frame)).find((value) => value !== null) ?? 'other';
-    totals[stage] += deltaMs;
+    totals[classifyStack(stack)] += deltaMs;
   });
 
   const round = (value) => Math.round(value * 100) / 100;

@@ -334,3 +334,44 @@ test('契约：pack.yml 含 Release 资产级冒烟（回下载 + 校验 + 结�
   assert.match(run, /::notice/, '结论以注解公开');
   assert.match(run, /降级结论/, 'GUI 跑不通时按降级口径登记，不写「未验证」');
 });
+
+test('契约：bench.yml 触发为推送验证路径 + 手工触发，且明确不作性能门禁', () => {
+  const { text, doc } = readWorkflow('bench.yml');
+  assert.deepEqual(doc.on.push?.branches, ['main'], '推送验证路径（与 ci.yml 同策略）');
+  assert.equal('workflow_dispatch' in doc.on, true, '手工触发');
+  assert.equal('pull_request' in doc.on, false, '不在 PR 上跑');
+  assert.equal('schedule' in doc.on, false, '不做定期（裁决 ③：N=5000 仅人工触发）');
+  assert.equal(doc.concurrency?.['cancel-in-progress'], true, '同 ref 取消旧运行');
+  assert.match(text, /只记录数据，不做性能门禁/, '定位写明：CI 数值不作门禁');
+  assert.equal(text.includes('--runs 1'), true, 'CI 烟测只跑 runs=1');
+  assert.equal(text.includes('--form both'), true, '两条线都跑到（源码线 + 内核 SEA）');
+});
+
+test('契约：bench.yml 三平台矩阵与测量链路健康检查（采样失败即红）', () => {
+  const { text, doc } = readWorkflow('bench.yml');
+  const smoke = doc.jobs['smoke'] as WorkflowJob;
+  const runsOn = (smoke.strategy?.matrix as { include?: Array<Record<string, string>> })?.include;
+  assert.deepEqual(
+    runsOn?.map((item) => item.runner),
+    ['ubuntu-24.04', 'windows-latest', 'macos-15'],
+    '三平台矩阵：Linux / Windows / macOS（arm64）',
+  );
+  assert.equal(smoke.strategy?.['fail-fast'], false, '一个平台失败不影响其余平台出结论');
+
+  const names = (smoke.steps ?? []).map((step) => String(step.name));
+  assert.ok(
+    names.some((name) => name.includes('构建内核')),
+    'SEA 线需要先构建内核（同时验证 mac/Linux 的 SEA 可执行）',
+  );
+  assert.ok(
+    names.some((name) => name.includes('测量链路')),
+    '需要一步检查测量链路（采样失败即红）',
+  );
+  const upload = (smoke.steps ?? []).find((step) =>
+    String(step.uses ?? '').includes('upload-artifact'),
+  );
+  assert.ok(upload !== undefined, '原始数据随 artifact 上传');
+  assert.match(String(upload.with?.path), /build\/bench\/report-\*\.json/, '上传测量结果 JSON');
+  // 注解通道：未登录也能读结论
+  assert.equal(text.includes('annotate.mjs'), true, '结论经注解脚本公开');
+});

@@ -1,0 +1,68 @@
+# 性能压测烟测（三平台 N=100，双线）
+#
+# 定位（设计 §5 执行策略）：**只记录数据，不做性能门禁**——CI 是共享 runner，实测波动 17%~30%，
+# 拿它当阈值判定没有意义。但「测量链路本身是否健康」必须有信号：采样失败或退出码超出预期码表
+# 都会让本工作流变红（那是测量器坏了，不是性能波动）。
+#
+# 触发沿用推送验证路径（与 ci.yml 一致）+ 手工触发；`workflow_dispatch` 的首跑仍留 BX-02
+# （当前会话无已登录浏览器，无法点 Run workflow）。
+
+name: Bench
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: bench-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: 烟测（${{ matrix.platform }}）
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+          - platform: windows
+            runner: windows-latest
+          - platform: macos
+            runner: macos-15
+    steps:
+      - name: 检出
+        uses: actions/checkout@v4
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建内核（SEA：两条线里的交付形态）
+        run: npm run build:kernel
+
+      - name: 双线 N=100 烟测（场景全量、runs=1）
+        run: node scripts/bench/runner.mjs --n 100 --form both --runs 1 --load "CI 共享 runner（波动 17%~30%，仅记录不作门禁）"
+
+      - name: 记录数据并检查测量链路（运行页注解；采样失败即红，性能数值不作门禁）
+        if: always()
+        run: node scripts/bench/annotate.mjs build/bench
+
+      - name: 上传测量数据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ matrix.platform }}-run${{ github.run_id }}
+          path: |
+            build/bench/report-*.json
+            build/bench/logs/
+          if-no-files-found: ignore
+          retention-days: 14

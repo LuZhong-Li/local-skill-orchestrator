@@ -45,6 +45,7 @@ function writerReport() {
       kernel_form: 'sea',
       kernel_path: 'x',
       kernel_sha256: null,
+      kernel_provenance: { source: 'local-build' },
       load_condition: 'x',
     },
     fixture: { seed: 1, n: 1000, files: 1, bytes: 1, generation_ms: 1 },

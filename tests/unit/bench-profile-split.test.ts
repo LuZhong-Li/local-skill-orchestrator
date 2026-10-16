@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   STAGES,
   classifyFrame,
+  classifyLibraryFrame,
+  classifyStack,
   splitProfile,
   stacksOf,
 } from '../../scripts/bench/profile-split.mjs';
@@ -83,6 +85,28 @@ test('T1 剖面：栈构建自叶向根，分类按帧名与来源', () => {
   assert.equal(classifyFrame({ functionName: 'readdirSync', url: 'node:fs' }), 'readdir');
   assert.equal(classifyFrame({ functionName: 'computeDigests', url: 'x' }), 'digest');
   assert.equal(classifyFrame({ functionName: 'nothingKnown', url: 'x' }), null);
+  assert.equal(
+    classifyLibraryFrame({
+      functionName: 'resolveProps',
+      url: 'file:///repo/node_modules/yaml/dist/compose.js',
+    }),
+    'parse_yaml',
+    '库内部帧由兜底趟归到解析',
+  );
+  assert.equal(
+    classifyLibraryFrame({ functionName: '(garbage collector)', url: '' }),
+    null,
+    'V8 合成帧留给 other',
+  );
+  assert.equal(
+    classifyStack([
+      { functionName: 'writeNode', url: 'file:///repo/node_modules/yaml/dist/compose.js' },
+      { functionName: 'stringifyYaml', url: 'file:///repo/kernel/store/yaml/index.ts' },
+    ]),
+    'serialize',
+    '库内部帧必须按栈里的内核锚点归到序列化（而不是解析）',
+  );
+  assert.equal(classifyStack([{ functionName: '(program)', url: '' }]), 'other');
 });
 
 test('T1 剖面：六阶段归集 + 未归集占比 + 索引写入延迟（序列化 + 原子写）', () => {

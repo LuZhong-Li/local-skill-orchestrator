@@ -216,10 +216,14 @@ N=1000 时为 `3000 − 2 × 内容缺失样本数`（该样本数由 8% 无效�
 ### 3.4 阶段归集（源码线）
 
 - 采集：`node --cpu-prof --cpu-prof-dir <目录> --cpu-prof-name <名> kernel/entry/cli.ts <指令>`（1 ms 粒度剖面；**不改内核**，只加 Node 侧启动参数）；
-- 归集规则**启发式**，自叶向根匹配（先看更深帧）：`readdir*` → **读目录**；`createHash|digest` → **逐文件摘要**；`writeFileSync|atomicWrite|rename|openSync` → **原子写**；`stringify*` → **序列化**；`parseYaml|parse*Document|lex*|tokeniz*` → **YAML 解析**；`readFileSync|read*` → **读元文件**；未命中 → **other**；
+- 归集规则**启发式**，且分**两趟**：
+  1. **锚点趟**（语义唯一，优先）：在栈内自叶向根找内核自身的函数名——`stringify*` → **序列化**；`parseYaml|readCandidate|toMeta` → **YAML 解析**；`computeDigests|computeChecksum|collectHashEntries|createHash` → **逐文件摘要**；`atomicWrite|saveIndex` → **原子写**；`collectCandidates|readdir*` → **读目录**；`readFileSync|readMeta|readFile` → **读元文件**；
+  2. **兜底趟**（栈内无锚点时）：按库 / 本地帧名匹配——yaml 库内部帧（`parseDocument|composeNode|resolveProps|node_modules/yaml`）→ 解析；`node:internal/crypto/hash|digest` → 摘要；`writeFileUtf8|writeSync|rename|openSync` → 原子写；`readdir|scandir|lstat` → 读目录；`read|open|close|readFileSync` → 读元文件；V8 合成帧（`(program)`、`(garbage collector)`、`(idle)`）与其余未命中 → **other**。
+  **为什么要分两趟（实测校正）**：yaml 库的内部帧在**解析**与**序列化**两条路径上都出现，只按帧名匹配会把序列化误算成解析——分两趟后同一剖面的归集覆盖率由 0.32 升到 0.70；
+- **跨线的阶段耗时不可横向比较**：SEA 是打包产物，库内部帧名被改写 / 压缩，`parse_yaml` 归集系统性偏低（实测同档 N=1000 的 `scan-cold`：源码线 257 ms vs SEA 线 25 ms）。跨线只比**总墙钟与峰值内存**，阶段构成只在**同一线内**做趋势比较，并在报告中标注；
 - 报告必须同时给出未归集占比（`other` / 总耗时）；占比过高时**明说归集结论弱化**，不得只给六阶段数字；
 - **索引写入延迟** = 序列化 + 原子写；逐文件摘要成本 = 摘要阶段总耗时 / 文件数；
-- SEA 线是否支持 `--cpu-prof` 记 **BX-01**：T2 实测；不支持则该线只用 fs 观测并在报告中标注。
+- **SEA 线的剖面（BX-01 已实测关闭）**：单文件可执行**不接受** Node 命令行参数——`--cpu-prof` 会被 CLI 参数校验判 `E-INPUT-002`（实测，退出码 2，无剖面）；但 **`NODE_OPTIONS` 仍生效**：`NODE_OPTIONS="--cpu-prof --cpu-prof-dir=<目录>" <内核> scan` 能产出含内核帧（`parseYaml` / `stringifyYaml` / `atomicWriteFile`）的剖面。因此两条线的阶段归集都可用，SEA 线经 `NODE_OPTIONS` 打开；剖面目录不得含空白（`NODE_OPTIONS` 以空白分词，实现里对此有显式拒绝）。
 
 ### 3.5 fs 观测（交叉验证）
 
@@ -248,6 +252,13 @@ N=1000 时为 `3000 − 2 × 内容缺失样本数`（该样本数由 8% 无效�
     "kernel_form": "sea",
     "kernel_path": "build/kernel/skill-manager.exe",
     "kernel_sha256": "…",
+    "kernel_provenance": {
+      "source": "release-asset",
+      "release": "v0.1.0",
+      "asset": "skill-manager-0.1.0-portable.exe",
+      "asset_sha256": "…",
+      "kernel_sha256": "…"
+    },
     "load_condition": "本机空闲，开机后尽快跑"
   },
   "fixture": { "seed": 23063, "n": 1000, "files": 2968, "bytes": 34412270, "generation_ms": 1083 },
@@ -294,7 +305,7 @@ N=1000 时为 `3000 − 2 × 内容缺失样本数`（该样本数由 8% 无效�
 }
 ```
 
-数值仅为格式示例。字段口径：`state` 取 `cold` / `hot`；`form` 取 `source` / `sea`；`scenario` 取 `scan-cold` / `scan-hot` / `validate` / `export` / `startup`；`startup` 场景的 `n` / `state` 为 `null`；`stages` 与 `fs_observation` 只在采集到时非 `null`（`fs_observation` 的字段见 3.5），缺项一律以 `null` + 原因表达。该字段集合由契约测试与本文档逐项比对（文档与产物不得分叉）。
+数值仅为格式示例。字段口径：`state` 取 `cold` / `hot`；`form` 取 `source` / `sea`；`scenario` 取 `scan-cold` / `scan-hot` / `validate` / `export` / `startup`；`startup` 场景的 `n` / `state` 为 `null`；`stages` 与 `fs_observation` 只在采集到时非 `null`（`fs_observation` 的字段见 3.5），缺项一律以 `null` + 原因表达；`kernel_provenance` 仅 SEA 线非 `null`（源码线为 `null`）。该字段集合由契约测试与本文档逐项比对（文档与产物不得分叉）。
 
 ---
 
