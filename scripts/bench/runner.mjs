@@ -179,13 +179,32 @@ export async function runOnce(options) {
   };
 }
 
-/** 单次运行不带采样器的「准备型」命令（init 等） */
-function runQuiet(command, args, cwd = ROOT) {
+/** 单次运行不带采样器的「准备型」命令（init 等）：返回退出码与失败原因，便于失败自证 */
+export function runQuiet(command, args, cwd = ROOT) {
   return new Promise((resolve) => {
-    const child = spawn(command, args, { cwd, stdio: 'ignore', windowsHide: true });
-    child.on('close', (code) => resolve(code === null ? -1 : code));
-    child.on('error', () => resolve(-1));
+    const child = spawn(command, args, {
+      cwd,
+      stdio: ['ignore', 'ignore', 'pipe'],
+      windowsHide: true,
+    });
+    let stderr = '';
+    child.stderr?.on('data', (chunk) => {
+      if (stderr.length < 2000) stderr += String(chunk);
+    });
+    child.on('close', (code) =>
+      resolve({ code: code === null ? -1 : code, spawnError: null, stderr }),
+    );
+    child.on('error', (error) => resolve({ code: -1, spawnError: error.message, stderr }));
   });
+}
+
+/** 把「准备型命令失败」写成可读原因（退出码 / 启动错误 / stderr 末段） */
+export function describeReadyFailure(label, detail) {
+  const parts = [`exit=${String(detail.code)}`];
+  if (detail.spawnError !== null) parts.push(`spawn=${detail.spawnError}`);
+  const tail = detail.stderr.trim().split('\n').slice(-3).join(' | ');
+  if (tail !== '') parts.push(`stderr=${tail}`);
+  return `${label}（${parts.join('，')}）`;
 }
 
 /** 读内核版本号（启动开销场景复用同一路径） */
@@ -360,8 +379,9 @@ async function measureForm(options, form) {
   const resetCold = async (workspace) => {
     rmSync(join(workspace, 'skill_index.yaml'), { force: true });
     const initPlan = prefix(['init', '--workspace', workspace]);
-    if ((await runQuiet(initPlan.command, initPlan.args)) !== 0) {
-      throw new Error(`冷态重置失败：${workspace}`);
+    const detail = await runQuiet(initPlan.command, initPlan.args);
+    if (detail.code !== 0) {
+      throw new Error(describeReadyFailure(`冷态重置失败：${workspace}`, detail));
     }
   };
 
@@ -399,8 +419,9 @@ async function measureForm(options, form) {
     const generationMs = monotonicMs() - fixtureStarted;
 
     const initPlan = prefix(['init', '--workspace', workspace]);
-    if ((await runQuiet(initPlan.command, initPlan.args)) !== 0) {
-      throw new Error(`工作区初始化失败：${workspace}`);
+    const initDetail = await runQuiet(initPlan.command, initPlan.args);
+    if (initDetail.code !== 0) {
+      throw new Error(describeReadyFailure(`工作区初始化失败：${workspace}`, initDetail));
     }
 
     for (const entry of buildMatrix({
