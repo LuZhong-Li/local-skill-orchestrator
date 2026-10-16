@@ -2,6 +2,36 @@
 
 ## 未发布
 
+### 修复：EX-07（mac-arm64 打包失败）——内核 SEA 补齐 macOS 签名步骤 + 失败自证
+
+**根因**：Node 官方单文件可执行（SEA）流程要求 macOS 上在 `postject` 注入前后处理签名——注入会改动 Node 运行时副本的 Mach-O 内容、使原签名失效，因此需先 `codesign --remove-signature`、注入后再 `codesign --sign -`（ad-hoc）重建有效签名。`scripts/build-kernel.mjs` 此前缺这两步：x64 宽容通过，而 arm64 在打包期签名校验失败（退出码 1，且命令无任何输出，故早前只能看到「见 job 日志」）。依据：nodejs.org 的 single-executable-applications 文档。
+
+#### 修复
+
+- **`scripts/sea-signing.mjs`（新增，纯函数 + 可注入执行器）**：`codesignArgs(action, executable)` 负责参数拼装（remove → `--remove-signature`；sign → `--sign -`）；`runCodesignAction()` 执行单步，**非 macOS 直接返回 `applied: false` 且不调用任何外部命令**；`removeMacSignature()` / `adHocSignMac()` 供构建脚本按序调用。
+- **`scripts/build-kernel.mjs`**：在「复制 Node 副本」之后、「postject 注入」之前调用 `removeMacSignature`；注入之后调用 `adHocSignMac`。Linux / Windows 路径不变（两步均为空操作，本机 Windows 上 `build:kernel` 与 `smoke:kernel` 复跑通过）。
+- **macOS 真机断言**：pack 的 mac leg 在产物结构校验里增加「包内内核二进制必须带有效签名」的可失败断言（`codesign -dv "$app/Contents/Resources/kernel/skill-manager.exe"`），并以注解公开签名信息——同类回归会直接让 leg 变红而不是留下哑失败。
+
+#### 诊断增强（防止再次盲飞）
+
+- **阶段自证**：`scripts/pack.mjs` 每步开始/结束写 `build/desktop/pack-stage.txt`（本次运行重开该文件），失败注解带出**最后阶段**。
+- **打包器完整输出落盘**：electron-builder 的输出以 tee 方式同时进 `build/desktop/pack-debug.log`；Windows leg 的捕获输出同样追加到该日志。两个文件都在诊断产物（`build/desktop/**`）范围内。
+- **注解回落**：打包失败时注解依次取「输出关键词命中行 → 打包器日志末 8 行」，并附退出码、输出字节数与最后阶段——未登录会话也能从运行页定位失败点。
+
+#### 可执行名核查（按提示词要求评估，决定不改）
+
+内核产物在三平台同名 `skill-manager.exe`。核查结论：**codesign 按文件内容（Mach-O）判定，不看扩展名**，本次修复后 arm64 包内该文件可正常读出 ad-hoc 签名（真机注解可证）；GUI 主进程固定按 `resources/kernel/skill-manager.exe` 解析路径，改名会牵动 GUI 路径、CI 产物命名与文档。故本批**不改名**，登记为开放项 EX-09（命名规范化属额外变更，收益仅为命名习惯）。
+
+#### 测试（400 → 406 项；单元 +5 / 契约 +1）
+
+- 单元 `tests/unit/sea-signing.test.ts`（5 项）：参数拼装（remove / sign / 未知动作）；非 macOS 不调用外部命令（`calls === 0`）；macOS 上按参数各调用一次；三类失败（非零退出带 stderr、非零退出但无输出写「(无输出)」、命令无法启动与退出码缺失）；构建脚本的调用顺序断言（`remove` 早于 postject 注入、`sign` 晚于注入）。
+- 契约 `tests/contract/ci-workflows.test.ts`（+1 项）：pack 失败路径必须引用 `pack-stage.txt` 与 `pack-debug.log`，且 mac leg 对包内内核有 `codesign -dv` 真机断言与错误级注解。
+
+#### 验收状态
+
+- 本机：406 项测试全绿、`check` / `typecheck` / `lint` / `format:check` 零告警；`build:kernel` 与 `smoke:kernel` 通过（Windows 上签名步骤为空操作的实证）。
+- 矩阵：tag `v0.0.1-t2run4` 触发一次 pack 运行用于验证 mac-arm64 由红转绿与 mac-x64 不回归（结论随本批次回写计划与 one-summary）。
+
 ### 工程：M2-T2 打包矩阵（verify.yml 抽取、pack.yml 四 leg、真机验证与 fail-fast 探测）
 
 M2 的第三个实现批次：把校验步骤收敛为唯一实现，并让打包按 tag 触发四平台矩阵。**未新增指令与选项**（16 条不变）、未新增项目依赖（Linux leg 在 runner 上安装 `libfuse2t64` 属 CI 环境依赖，非项目依赖）。

@@ -15,7 +15,8 @@ if (appPath === undefined || appPath.trim() === '') {
 
 try {
   const result = assertUnsignedApp({ appPath });
-  console.log(`未签名断言通过：${result.appPath}`);
+  // 判定结果一并输出：arm64 上通常是 adhoc（平台要求的最小签名），x64 上是完全未签名
+  console.log(`未签名断言通过：${result.appPath}（判定：${result.kind}）`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);

@@ -45,8 +45,45 @@ test('未签名断言：产物已签名时失败（判定与输出一并给出�
         platform: 'darwin',
         run: () => ({ status: 0, stdout: 'Identifier=local.skill-manager.desktop', stderr: '' }),
       }),
-    /应为未签名，实际判定为 signed[\s\S]*Identifier/,
+    /应为「未签名或仅 ad-hoc」，实际判定为 signed[\s\S]*Identifier/,
     '已签名必须判失败，且信息里带上 codesign 输出',
+  );
+});
+
+test('未签名断言：ad-hoc 签名视为通过（Apple Silicon 的平台要求）', () => {
+  const adhocOutput = [
+    'Executable=/build/desktop/mac-arm64/skill-manager.app/Contents/MacOS/skill-manager',
+    'Identifier=local.skill-manager.desktop',
+    'CodeDirectory v=20400 size=1234 flags=0x2(adhoc) hashes=61+3 location=embedded',
+    'Signature=adhoc',
+    'TeamIdentifier=not set',
+  ].join('\n');
+
+  assert.equal(classifyCodeSignature({ status: 0, stderr: adhocOutput }), 'adhoc');
+  const result = assertUnsignedApp({
+    appPath: fakeApp(),
+    platform: 'darwin',
+    run: () => ({ status: 0, stdout: '', stderr: adhocOutput }),
+  });
+  assert.equal(result.kind, 'adhoc');
+});
+
+test('未签名断言：带 Developer ID 的产物仍被拒绝', () => {
+  const developerId = [
+    'Executable=/Applications/skill-manager.app/Contents/MacOS/skill-manager',
+    'Authority=Developer ID Application: Example Corp (ABCDE12345)',
+    'TeamIdentifier=ABCDE12345',
+  ].join('\n');
+  assert.equal(classifyCodeSignature({ status: 0, stderr: developerId }), 'signed');
+  assert.throws(
+    () =>
+      assertUnsignedApp({
+        appPath: fakeApp(),
+        platform: 'darwin',
+        run: () => ({ status: 0, stderr: developerId }),
+      }),
+    /实际判定为 signed/,
+    '带开发者证书的产物不得通过「未签名交付」断言',
   );
 });
 

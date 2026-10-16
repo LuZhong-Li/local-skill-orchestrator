@@ -10,8 +10,22 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
-/** codesign 对未签名产物的判定文本 */
+/** codesign 对完全未签名产物的判定文本 */
 export const UNSIGNED_MARKER = 'code object is not signed at all';
+
+/**
+ * ad-hoc 签名标志。
+ *
+ * 为什么必须接受：Apple Silicon（arm64）上可执行文件**必须**至少带 ad-hoc 签名才能运行，
+ * 因此 arm64 产物带 ad-hoc 签名是平台要求，而不是「被签名交付」。本项目的交付口径是
+ * 「未使用开发者证书签名与公证」（无 Developer ID / 不公证），ad-hoc 属于其允许形态——
+ * 真机实测：mac-x64 的产物完全未签名，mac-arm64 的产物为 ad-hoc（两端都通过本断言）。
+ * 带 Developer ID 的产物仍会被判定为 `signed` 并拒绝。
+ */
+export const ADHOC_MARKERS = ['signature=adhoc', 'flags=0x2(adhoc)', 'adhoc'];
+
+/** 允许通过的判定：完全未签名，或仅 ad-hoc 签名 */
+export const ACCEPTED_KINDS = ['unsigned', 'adhoc'];
 
 /**
  * 把 codesign 的执行结果归类：
@@ -22,12 +36,14 @@ export const UNSIGNED_MARKER = 'code object is not signed at all';
 export function classifyCodeSignature({ status, stdout = '', stderr = '' }) {
   const text = `${String(stdout)}\n${String(stderr)}`.toLowerCase();
   if (text.includes(UNSIGNED_MARKER)) return 'unsigned';
+  if (ADHOC_MARKERS.some((marker) => text.includes(marker))) return 'adhoc';
   if (status === 0) return 'signed';
   return 'unknown';
 }
 
 /**
- * 断言 macOS 产物未签名；不满足即抛错（含原始输出片段，便于定位）。
+ * 断言 macOS 产物**未使用开发者证书签名**（完全未签名或仅 ad-hoc）；不满足即抛错
+ * （含判定与原始输出片段，便于定位）。
  *
  * @param {{ appPath: string, platform?: NodeJS.Platform, run?: typeof spawnSync }} input
  */
@@ -41,9 +57,9 @@ export function assertUnsignedApp({ appPath, platform = process.platform, run = 
   const result = run('codesign', ['-dv', appPath], { encoding: 'utf8' });
   const kind = classifyCodeSignature(result);
   const output = `${String(result.stdout ?? '')}${String(result.stderr ?? '')}`.trim();
-  if (kind !== 'unsigned') {
+  if (!ACCEPTED_KINDS.includes(kind)) {
     throw new Error(
-      `macOS 产物应为未签名，实际判定为 ${kind}：${output === '' ? '(codesign 无输出)' : output.slice(0, 400)}`,
+      `macOS 产物应为「未签名或仅 ad-hoc」，实际判定为 ${kind}：${output === '' ? '(codesign 无输出)' : output.slice(0, 400)}`,
     );
   }
   return { appPath, kind, output };

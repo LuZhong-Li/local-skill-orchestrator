@@ -249,6 +249,8 @@
 | EX-05 | macOS runner 排队与镜像标签可用性 | T2 / T3 时长 | 固定标签 + 按需触发 + 同 ref 取消旧运行；标签变更按开放项 ⑥ 显式决策 |
 | EX-06 | AppImage FUSE 与 Electron 沙箱的 CI 环境差异 | T2 / T4 的 Linux 断言 | 以 `--appimage-extract-and-run` 与沙箱参数处理，并在 T4 登记为 CI 差异 |
 | EX-07 | **mac-arm64 leg 打包失败**（T2 实测）：Windows / Linux / mac-x64 三 leg 全绿，仅 macos-15（arm64）失败，且被包装命令无任何输出（疑似 runner 侧中断或 OOM），517 MB 诊断产物已上传 | T2 的四 leg 首跑未全绿；M2 验收第 1 条缺 mac-arm64 产物 | 需读 job 日志（或被包装命令的真实输出）定性；诊断通道已备（失败原因注解），下一步在包装里补 exit code 与末行回落后重跑 |
+| EX-07（**根因已查明并修复**） | **根因**：Node 官方 SEA 流程要求 macOS 上在 `postject` 注入前后处理签名（注入前 `codesign --remove-signature`、注入后 `codesign --sign -` ad-hoc），`build-kernel.mjs` 此前缺这两步——x64 宽容通过、arm64 在打包期签名校验失败（退出码 1 且无输出，故早前只剩「见 job 日志」） | 已修：新增 `scripts/sea-signing.mjs`（可注入、非 macOS 不调用命令）并在 `build-kernel.mjs` 按序接入；mac leg 增加「包内内核有效签名」可失败断言；pack 增加阶段文件与打包器日志自证 | 待 tag `v0.0.1-t2run4` 的矩阵运行确认 mac-arm64 由红转绿、mac-x64 不回归后关闭 |
+| EX-09 | 内核产物在三平台同名 `skill-manager.exe`（扩展名与平台习惯不符） | 仅命名规范；无功能影响 | 核查结论：codesign 按 Mach-O 内容判定、与扩展名无关；GUI 按 `resources/kernel/skill-manager.exe` 固定解析。本批**不改名**（改名属额外变更，牵动 GUI/CI/文档），登记待评估 |
 | EX-08 | `workflow_dispatch` 触发路径未实测（当前会话无已登录浏览器，无法点 Run workflow） | 「手工触发」这条入口缺真实运行证据 | 有已登录会话时补一次 dispatch 首跑（含 platforms / arch 输入）；触发定义与步骤级守卫已由契约测试覆盖 |
 
 ---

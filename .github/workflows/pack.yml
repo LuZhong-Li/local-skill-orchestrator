@@ -147,8 +147,9 @@ jobs:
           echo "::notice title=EX-03 iconutil 真机验证::${{ matrix.leg }} 上 icon.icns 由 iconutil 产出（${icns_bytes} 字节）"
           app="$(ls -d build/desktop/mac*/*.app | head -n 1)"
           echo "app=$app"
-          node scripts/assert-unsigned.mjs "$app"
-          echo "::notice title=codesign 未签名断言::${app} 判定为未签名（断言通过）"
+          verdict="$(node scripts/assert-unsigned.mjs "$app")"
+          echo "$verdict"
+          echo "::notice title=codesign 未签名断言::${verdict}"
           # EX-07：包内内核二进制必须带有效签名（ad-hoc）。缺签名曾是 arm64 打包失败的原因，
           # 这里把它变成可失败断言 + 公开注解，防止同类回归。
           kernel="$app/Contents/Resources/kernel/skill-manager.exe"

@@ -247,6 +247,7 @@ Windows 产物是否随 Release 一并上传见开放项 ⑤（现状：`pack:wi
 | CI 内产物的可执行性 | CI 构建产物由构建机直接产出，**不带 quarantine 属性** | 产物结构校验可在 CI 内直接执行 `.app` 内的内核可执行文件；这与「用户下载后首次打开被拦」是两件事，分别登记 |
 | 签名关闭方式 | 官方环境变量 `CSC_IDENTITY_AUTO_DISCOVERY=false` 关闭身份自动发现 [R-5] | 以环境变量而非配置键表达（规避 electron-builder v26/v27 之间签名键位迁移的差异——官网当前展示的是 v27 文档，其中签名选项已移入 `mac.sign` 组 [R-3]） |
 | `iconutil` 可用性 | 系 macOS 自带工具，用于由 iconset 生成 icns | T0（图标管线）在 macOS runner 上实测并登记；不可用时按裁决 5 的备选（脚本自行拼装 icns）处理 |
+| **SEA 注入的签名处理**（EX-07 实测） | `postject` 注入会改动 Node 运行时副本的 Mach-O，使原签名失效；**arm64 会在打包期签名校验失败**（x64 可能宽容通过）。官方 SEA 文档要求：注入前 `codesign --remove-signature`、注入后 `codesign --sign -`（ad-hoc） | 已在 `scripts/build-kernel.mjs` 按序接入（仅 darwin；封装为可注入模块 `scripts/sea-signing.mjs`）；pack 的 mac leg 以「包内内核 `codesign -dv` 可读」作可失败断言与公开注解 |
 
 ### 7.3 跨平台与已知项
 
