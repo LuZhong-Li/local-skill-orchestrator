@@ -49,6 +49,10 @@ jobs:
       - name: 构建内核（SEA：两条线里的交付形态）
         run: npm run build:kernel
 
+      - name: 赋可执行位（SEA 产物在 POSIX 上必须可直接执行）
+        if: runner.os != 'Windows'
+        run: chmod +x build/kernel/skill-manager.exe
+
       - name: 双线 N=100 烟测（场景全量、runs=1）
         run: node scripts/bench/runner.mjs --n 100 --form both --runs 1 --load "CI 共享 runner（波动 17%~30%，仅记录不作门禁）"
 
@@ -64,5 +68,6 @@ jobs:
           path: |
             build/bench/report-*.json
             build/bench/logs/
+            build/bench/failure-*.txt
           if-no-files-found: ignore
           retention-days: 14

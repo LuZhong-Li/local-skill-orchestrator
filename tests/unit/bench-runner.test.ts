@@ -204,3 +204,34 @@ test('T1 编排：spawn 选项固定（独立进程、无 shell、隐藏窗口�
   assert.equal(seen[0].options.windowsHide, true);
   assert.deepEqual(seen[0].options.stdio, ['ignore', 'pipe', 'pipe']);
 });
+
+test('T1 编排：进程启动失败（spawn error）如实记录，不抛未捕获异常', async () => {
+  const child = new EventEmitter() as FakeChild;
+  child.pid = undefined as unknown as number;
+  child.exitCode = null;
+  child.signalCode = null;
+  child.stdout = Readable.from([]);
+  child.stderr = Readable.from([]);
+  child.kill = () => undefined;
+  setImmediate(() => child.emit('error', new Error('spawn EACCES')));
+
+  const result = await runOnce({
+    command: 'kernel',
+    args: ['scan'],
+    spawnChild: fakeSpawn(child),
+    sampler: {
+      begin: () => ({
+        finish: async () => ({
+          ok: false,
+          peakMb: null,
+          cpuMs: null,
+          samples: 0,
+          reason: 'no-sample-before-exit',
+        }),
+      }),
+    },
+  });
+  assert.equal(result.spawn_error, 'spawn EACCES', '启动失败必须留下可读原因');
+  assert.equal(result.exit_code, -1);
+  assert.equal(result.peak_rss_mb, null);
+});

@@ -147,9 +147,13 @@ export async function runOnce(options) {
           sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
         });
 
-  const exitCode = await new Promise((resolve) => {
-    child.on('close', (code) => resolve(code === null ? -1 : code));
+  // spawn 失败（EACCES / ENOENT 等）只会发 'error'、不会发 'close'：必须单独接住，
+  // 否则会变成未捕获异常，让整轮测量直接崩掉且不留痕迹（macOS 腿实测踩到过）。
+  const outcome = await new Promise((resolve) => {
+    child.on('close', (code) => resolve({ exitCode: code === null ? -1 : code }));
+    child.on('error', (error) => resolve({ spawnError: error.message }));
   });
+  const exitCode = outcome.exitCode ?? -1;
   const wallMs = now() - startedAt;
   const rss = await handle.finish();
   const fsObservation = watching === null ? null : await watching;
@@ -169,6 +173,7 @@ export async function runOnce(options) {
     rss_reason: rss.ok ? null : (rss.reason ?? RSS_FAILURE_REASONS.NO_SAMPLE),
     cpu_time_ms: rss.cpuMs,
     exit_code: exitCode,
+    spawn_error: outcome.spawnError ?? null,
     profile: null,
     fs_observation: fsObservation,
   };
@@ -179,6 +184,7 @@ function runQuiet(command, args, cwd = ROOT) {
   return new Promise((resolve) => {
     const child = spawn(command, args, { cwd, stdio: 'ignore', windowsHide: true });
     child.on('close', (code) => resolve(code === null ? -1 : code));
+    child.on('error', () => resolve(-1));
   });
 }
 
@@ -191,6 +197,7 @@ async function kernelVersion(command, argsPrefix, cwd = ROOT) {
       out += String(chunk);
     });
     child.on('close', (code) => resolve(code === 0 ? out.trim() : 'unknown'));
+    child.on('error', () => resolve('unknown'));
   });
 }
 
@@ -282,11 +289,20 @@ async function measureScenario(context, entry) {
       watch: watchIndex,
     });
     const profilePath = profileName === null ? null : join(profileDir, profileName);
-    const profile =
-      profilePath !== null && existsSync(profilePath)
-        ? { path: profilePath, ...splitProfile(JSON.parse(readFileSync(profilePath, 'utf8'))) }
-        : null;
-    runs.push({ ...result, run, profile });
+    // 剖面解析失败不该把整轮测量带走：记成 profile_error 留在数据里（失败可定位）
+    let profile = null;
+    let profileError = null;
+    if (profilePath !== null && existsSync(profilePath)) {
+      try {
+        profile = {
+          path: profilePath,
+          ...splitProfile(JSON.parse(readFileSync(profilePath, 'utf8'))),
+        };
+      } catch (error) {
+        profileError = `${profilePath}: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+    runs.push({ ...result, run, profile, profile_error: profileError });
   }
 
   const indexFile = join(workspace, 'skill_index.yaml');
@@ -409,6 +425,22 @@ async function measureForm(options, form) {
         entry,
       );
       samples.push(sample);
+      const spawnErrors = sample.run_details
+        .map((run) => run.spawn_error)
+        .filter((message) => message !== null && message !== undefined);
+      if (spawnErrors.length > 0) {
+        failures.push(
+          `${sample.scenario}@N=${String(n)}：进程未能启动（${[...new Set(spawnErrors)].join(' / ')}）`,
+        );
+      }
+      const profileErrors = sample.run_details
+        .map((run) => run.profile_error)
+        .filter((message) => message !== null && message !== undefined);
+      if (profileErrors.length > 0) {
+        failures.push(
+          `${sample.scenario}@N=${String(n)}：剖面解析失败（${[...new Set(profileErrors)].join(' / ')}）`,
+        );
+      }
       const unexpected = sample.exit_codes.filter(
         (code) => !exitCodeExpected(sample.scenario, code),
       );
@@ -488,8 +520,16 @@ async function main() {
 
   const failures = [];
   for (const form of forms) {
-    const result = await measureForm(options, form);
-    failures.push(...result.failures);
+    try {
+      const result = await measureForm(options, form);
+      failures.push(...result.failures);
+    } catch (error) {
+      // 诊断通道：异常也不能让数据与原因消失（EX-07 的教训——失败必须自证）
+      const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+      failures.push(`${form} 线测量中断：${message}`);
+      mkdirSync(options.outDir, { recursive: true });
+      writeFileSync(join(options.outDir, `failure-${form}.txt`), `${message}\n`);
+    }
   }
   if (failures.length > 0) {
     process.stderr.write(`测量失败项（${String(failures.length)}）：\n${failures.join('\n')}\n`);
