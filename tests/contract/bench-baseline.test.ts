@@ -65,8 +65,8 @@ test('契约：基线 JSON 的 schema / 口径声明 / 缺口 / 原始样本', (
   }
   assert.deepEqual(
     baseline.gaps.map((gap) => `${gap.platform}:${gap.form}`),
-    ['darwin-arm64:sea'],
-    '缺测项必须显式登记（不伪造、不留空）',
+    ['darwin-arm64:local-matrix'],
+    '缺测项必须显式登记（不伪造、不留空）：macOS 缺的是本机全矩阵，不是 CI 数据',
   );
   for (const form of ['source', 'sea']) {
     assert.ok(
@@ -86,9 +86,9 @@ test('契约：基线 JSON 的 schema / 口径声明 / 缺口 / 原始样本', (
     ['linux', 'windows', 'macos'],
   );
   assert.equal(
-    baseline.ci_smoke.platforms.find((item) => item.platform === 'macos')?.samples['sea'],
-    null,
-    'macOS 的 SEA 线在 CI 记录里必须是显式空值（缺测，不伪造）',
+    baseline.ci_smoke.platforms.find((item) => item.platform === 'macos')?.samples['sea'] !== null,
+    true,
+    'EX-13 修复后 macOS 的 SEA 线必须已有真机数据（此前缺测已补）',
   );
 });
 
@@ -157,8 +157,11 @@ test('契约：报告的拐点判定与基线分类一致，且口径为三条�
 
 test('契约：报告说明 EX-13 与三处内核观察项（不留悬空）', () => {
   const doc = readFileSync(reportPath, 'utf8');
-  for (const marker of ['EX-13', 'O-1', 'O-2', 'O-3', '未测先收紧', '轻微超线性']) {
+  for (const marker of ['EX-13', 'O-1', 'O-2', 'O-3', '未测先收紧', '轻微超线性', '已修复并验证']) {
     assert.ok(doc.includes(marker), `报告应写明 ${marker}`);
   }
-  assert.ok(doc.includes('darwin-arm64'), '缺测平台必须点名（macOS arm64）');
+  assert.ok(
+    doc.includes('darwin-arm64') || doc.includes('macOS 全矩阵'),
+    '缺测范围必须点名（macOS 本机全矩阵）',
+  );
 });

@@ -183,11 +183,28 @@ function main() {
     gaps: [
       {
         platform: 'darwin-arm64',
-        form: 'sea',
-        reason: 'EX-13：该轮（修复前）产物在 macOS 上启动即被系统终止，测不到数据',
-        evidence:
-          'CI run 38938465443 的 macOS 腿；后续对照实验定位为 SEA 注入缺 --macho-segment-name（修复已验证 A 组可执行）',
-        follow_up: '修复批次验证 A/B/C 三组通过后补齐 macOS 双线数据',
+        form: 'local-matrix',
+        reason:
+          '无本机 macOS 环境：三档 × 双线 × runs=3 的全矩阵无法在本机执行（环境限制，非缺陷）',
+        evidence: 'CI N=100 双线数据见 ci_smoke（修复后 run 38942732908，macOS 双线均有数据）',
+        follow_up: '如需三档 macOS 曲线，需专用 macOS 环境或长跑 runner（登记为后续可选项）',
+      },
+    ],
+    closed_defects: [
+      {
+        id: 'EX-13',
+        title: 'macOS 上 SEA 内核启动即被系统终止（SIGSEGV 139）',
+        root_cause: 'SEA 注入缺 macOS 必需参数 --macho-segment-name NODE_SEA（Node 官方文档口径）',
+        fix: 'scripts/sea-postject.mjs（postject 参数唯一实现，仅 darwin 加段名）+ build-kernel.mjs 改用它',
+        verification: {
+          'darwin-arm64': { A: 0, B: 0, C: 139 },
+          'darwin-x64': { A: 0, B: 0, C: 139 },
+        },
+        notes: [
+          'A = 构建期产物、B = electron-builder 打包后 .app 内内核、C = v0.1.0 发布 dmg 内内核；数值为 --version 的退出码',
+          'C 组 139 说明 v0.1.0 的 macOS 包（arm64 与 x64）内嵌内核不可执行 —— 是否发 v0.1.1 补丁由维护者裁决',
+          '排除项：签名校验有效、可执行位正常、裸 node 副本可运行、Linux/Windows 同流程正常',
+        ],
       },
     ],
     notes: [
