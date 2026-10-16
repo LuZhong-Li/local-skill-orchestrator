@@ -87,13 +87,14 @@
 
 ### T2 矩阵 workflow（实现第三批）
 
-**执行状态**：**部分完成（2026-10-16）**——四 leg 矩阵、可复用校验工作流与 fail-fast 口径已落地并实测；**mac-arm64 leg 仍红**（原因待日志取证，登记 EX-07），其余三 leg 产物齐备。
+**执行状态**：**已完成（2026-10-16）**——四 leg 矩阵、可复用校验工作流与 fail-fast 口径均已落地并实测，**四 leg 全绿**（EX-07 已查明根因、修复并验证关闭）。
 
 | 项 | 实测结果 |
 |---|---|
 | `verify.yml` 抽取 | ci.yml 改为消费可复用工作流：run 38869061706 **Success 1m 57s**，job 显示为「校验 / 读取版本声明」与「校验 / 验证（…）」；步骤名称与顺序由契约测试逐条钉住（抽取前后一致） |
 | 四 leg 首跑（tag `v0.0.1-t2firstrun`） | run 38869913530：Windows ✓ 238 MB、Linux ✗、mac-x64 ✓ 148 MB、mac-arm64 ✗ |
 | 修复后重跑（tag `v0.0.1-t2run3`） | run 38871300587：Windows ✓ 238 MB、**Linux ✓ 156 MB AppImage**、mac-x64 ✓ 148 MB、mac-arm64 ✗（517 MB 诊断产物已上传） |
+| **四项修复后重跑（tag `v0.0.1-t2run5`）** | run 38887140603：**四 leg 全绿** —— Windows ✓ 238 MB、Linux ✓ 156 MB AppImage、mac-x64 ✓ 149 MB dmg、**mac-arm64 ✓ 145 MB dmg**；真机注解：两端包内内核签名可读（`EX-07 内核 ad-hoc 签名`）、未签名断言分别判定 `adhoc`（arm64）与 `unsigned`（x64）、`iconutil` 产出 79768 字节 icns |
 | 三项真机结论 | 均以运行页**注解**公开输出（未登录也可读）：**EX-03 iconutil** 真机产出 `icon.icns`（79768 字节，mac-x64）；**codesign 未签名断言**真机通过（`build/desktop/mac/skill-manager.app` 判定未签名）；**`linux.maintainer`** 单侧实测 **not-consumed**（产物树中未出现该字符串，已回写配置注释） |
 | fail-fast 探测 | 探测分支 `probe/pack-failfast`（tag `v0.0.1-t2probe`）run 38869954307：linux leg 按探测步骤**红**，同一次运行中 Windows 与 mac-x64 **仍产出并上传产物**（`fail-fast: false` 的实证）；探测分支与四个临时 tag 已删除，正式 pack.yml 不含探测代码 |
 
@@ -249,7 +250,7 @@
 | EX-05 | macOS runner 排队与镜像标签可用性 | T2 / T3 时长 | 固定标签 + 按需触发 + 同 ref 取消旧运行；标签变更按开放项 ⑥ 显式决策 |
 | EX-06 | AppImage FUSE 与 Electron 沙箱的 CI 环境差异 | T2 / T4 的 Linux 断言 | 以 `--appimage-extract-and-run` 与沙箱参数处理，并在 T4 登记为 CI 差异 |
 | EX-07 | **mac-arm64 leg 打包失败**（T2 实测）：Windows / Linux / mac-x64 三 leg 全绿，仅 macos-15（arm64）失败，且被包装命令无任何输出（疑似 runner 侧中断或 OOM），517 MB 诊断产物已上传 | T2 的四 leg 首跑未全绿；M2 验收第 1 条缺 mac-arm64 产物 | 需读 job 日志（或被包装命令的真实输出）定性；诊断通道已备（失败原因注解），下一步在包装里补 exit code 与末行回落后重跑 |
-| EX-07（**根因已查明并修复**） | **根因**：Node 官方 SEA 流程要求 macOS 上在 `postject` 注入前后处理签名（注入前 `codesign --remove-signature`、注入后 `codesign --sign -` ad-hoc），`build-kernel.mjs` 此前缺这两步——x64 宽容通过、arm64 在打包期签名校验失败（退出码 1 且无输出，故早前只剩「见 job 日志」） | 已修：新增 `scripts/sea-signing.mjs`（可注入、非 macOS 不调用命令）并在 `build-kernel.mjs` 按序接入；mac leg 增加「包内内核有效签名」可失败断言；pack 增加阶段文件与打包器日志自证 | 待 tag `v0.0.1-t2run4` 的矩阵运行确认 mac-arm64 由红转绿、mac-x64 不回归后关闭 |
+| EX-07（**已关闭**） | **根因**：Node 官方 SEA 流程要求 macOS 上在 `postject` 注入前后处理签名（注入前 `codesign --remove-signature`、注入后 `codesign --sign -` ad-hoc），`build-kernel.mjs` 此前缺这两步——x64 宽容通过、arm64 在打包期签名校验失败。**修复过程中另发现第二处问题**：未签名断言口径过严（arm64 产物按平台要求带 ad-hoc 签名，被判为 `signed`） | 修复：① `scripts/sea-signing.mjs` + `build-kernel.mjs` 按序接入；② `unsigned-check.mjs` 判定扩为三态、**接受 `unsigned` 与 `adhoc`**、仍拒绝 `signed`/`unknown`；③ mac leg 增加「包内内核有效签名」可失败断言；④ pack 增加阶段文件与打包器日志自证 | **已验证关闭**：run 38887140603 四 leg 全绿（arm64 dmg 145 MB、x64 dmg 149 MB），真机注解显示两端内核签名可读、判定分别为 `adhoc` / `unsigned` |
 | EX-09 | 内核产物在三平台同名 `skill-manager.exe`（扩展名与平台习惯不符） | 仅命名规范；无功能影响 | 核查结论：codesign 按 Mach-O 内容判定、与扩展名无关；GUI 按 `resources/kernel/skill-manager.exe` 固定解析。本批**不改名**（改名属额外变更，牵动 GUI/CI/文档），登记待评估 |
 | EX-08 | `workflow_dispatch` 触发路径未实测（当前会话无已登录浏览器，无法点 Run workflow） | 「手工触发」这条入口缺真实运行证据 | 有已登录会话时补一次 dispatch 首跑（含 platforms / arch 输入）；触发定义与步骤级守卫已由契约测试覆盖 |
 

@@ -135,7 +135,7 @@
 | 界面冒烟 | 真实窗口与真实内核调用 | `npm run smoke:gui` |
 | 打包验证 | 免安装目录与便携单文件的启动闭环 | `npm run smoke:gui -- --app <产物>` |
 
-当前测试总数 **400 项**（单元 262、契约 77、端到端 61），全部通过。其中 M5 宿主适配层贡献：注册表与适配器契约测试、渲染层断言、落位执行器与外部根解析用例、`--host` 接线的端到端断言、收口审计用例，以及 2026-10-16 收口批次的准入与落位根用例；M2 贡献图标管线用例（T0：尺寸、iconset 结构、确定性、不入库、`iconutil` 封装）与构建配置用例（T1：打包计划与平台分支、未签名三口径、`maintainer` 判定、配置结构、README 文案）。
+当前测试总数 **408 项**（单元 269、契约 78、端到端 61），全部通过。其中 M5 宿主适配层贡献：注册表与适配器契约测试、渲染层断言、落位执行器与外部根解析用例、`--host` 接线的端到端断言、收口审计用例，以及 2026-10-16 收口批次的准入与落位根用例；M2 贡献图标管线用例（T0：尺寸、iconset 结构、确定性、不入库、`iconutil` 封装）与构建配置用例（T1：打包计划与平台分支、未签名三口径、`maintainer` 判定、配置结构、README 文案）。
 
 ### 4.3 工程约定
 
@@ -236,7 +236,7 @@
 | 首批宿主 | `claude`、`codex`、`cursor`、`doubao`，以及两个通用条目 `agentskills`（标准目标）与 `agents-md`（指令文件载体）；`deepseek` 维持**不适用**（模型提供方，2026-10-16 复议后不变）；`dsh`（DeepSeek Harness）以**外部消费方**登记在 agents 根下，不立宿主条目 |
 | 落位根 | 各宿主默认根由注册表 + 默认路径表给出，可用 `config set host.<id>.root` 覆盖；**Codex 默认 `$HOME/.agents/skills`**（2026-10-16 起，官方文档依据；与 Cursor、`dsh` 共享，一次落位多宿主可见），旧版 `~/.codex/skills` 作为遗留兼容根仅经配置启用，**不默认双写** |
 | 分发语义 | `--host <宿主>` 分发到宿主真实根（默认路径 + 配置覆盖）；与 `--target` **正交**，后者保持一期工作区目标语义不变 |
-| 验证 | 400 项测试全绿；M5 专属用例覆盖注册表、适配器、渲染、落位、`--host` 接线、收口审计与 2026-10-16 收口批次，M2 覆盖图标管线（T0）与构建配置（T1：打包计划 / 未签名三口径 / `maintainer` 判定 / 配置结构 / README 文案）；验收映射见 `docs/plan/m5-host-adapter.md` 第 3 章与 `docs/plan/m2-packaging.md` 第 3 章 |
+| 验证 | 408 项测试全绿；M5 专属用例覆盖注册表、适配器、渲染、落位、`--host` 接线、收口审计与 2026-10-16 收口批次，M2 覆盖图标管线（T0）与构建配置（T1：打包计划 / 未签名三口径 / `maintainer` 判定 / 配置结构 / README 文案）；验收映射见 `docs/plan/m5-host-adapter.md` 第 3 章与 `docs/plan/m2-packaging.md` 第 3 章 |
 
 **遗留项（登记，不关闭）**
 
@@ -255,7 +255,7 @@
 | 里程碑 | 状态 |
 |---|---|
 | M1 CI 接入 | **已收官（2026-10-16）**。落地物：工作流 `.github/workflows/ci.yml`、缩减冒烟 `scripts/smoke-kernel.mjs`、版本守卫 `scripts/check-node-version.mjs`（均为 CI 支撑物，未新增指令与选项）。四次真实运行给出全部验收证据：首次 run 38769499271（三 job 齐备、两平台 × Node 22、358 项同时通过、两份产物）、加固后 run 38828716615（Success 1m 58s，动作主版本升级 + Linux runner 固定、告警清零）、刻意失败探测 run 38829261658、合并请求 run 38834451784（事件 `pull_request`，探测 PR 已关闭且分支已删除）。9.3.1 七条验收 6 条闭合，缓存条目以「机制已验证 + 时长未达成并附原因」闭合；详见 `docs/design/m1-ci.md` 第 14 章与 `docs/plan/m1-ci.md` 3.1 |
-| M2 跨平台打包验证 | **T0 / T1 已完成，T2 部分完成（四 leg 中三 leg 绿），T3 / T4 待做**——`docs/design/m2-packaging.md`、`docs/plan/m2-packaging.md`（T2 执行状态与 EX-07 / EX-08 登记在计划第 1 节）。**T0 图标管线**：纯函数渲染（按目标尺寸直接渲染、零图形库）+ `build-icon.mjs`（14 个文件）+ `iconutil` 封装（可注入、非 macOS 写盘前拒绝）；生成物不入库（`.gitignore` + `git check-ignore` 双证）；既有 `icon.ico` / `icon.png` 零漂移。**T1 构建配置**：`mac`（dmg / icns / 不写签名键）与 `linux`（AppImage / 图标目录 / `executableName` / `maintainer`）段；打包入口 `pack.mjs` + 计划模块 `pack-plan.mjs`；未签名断言 `unsigned-check.mjs`（三口径）＋ `assert-unsigned.mjs`；`maintainer` 实测 `maintainer-probe.mjs` + `check-maintainer.mjs`；README 增「跨平台分发与安装」；签名预留（五个 secrets 名 + 条件骨架，仅文档）。**T2 矩阵**：`verify.yml` 抽取为可复用工作流（ci.yml 改消费、步骤逐条不变）＋ `pack.yml` 四 leg（`windows-latest` / `ubuntu-24.04` / `macos-15` / `macos-15-intel`，`fail-fast: false`、tag 不取消旧运行）；实测三 leg 产物齐备（Windows 238 MB、Linux AppImage 156 MB、macOS x64 dmg 148 MB），**mac-arm64 leg 仍红（EX-07 待取证）**；三项真机结论以运行页注解公开：`iconutil` 产出 icns（79768 字节）✓、`codesign` 未签名断言通过 ✓、`linux.maintainer` **not-consumed**（已回写配置注释）；fail-fast 探测实证（单 leg 红时其余 leg 仍出产物）。**EX-08**：`workflow_dispatch` 首跑待有已登录会话时补测。测试 389 → 400 项全绿 |
+| M2 跨平台打包验证 | **T0 / T1 / T2 已完成，T3 / T4 待做**——`docs/design/m2-packaging.md`、`docs/plan/m2-packaging.md`（T2 执行状态与 EX-07 / EX-08 登记在计划第 1 节）。**T0 图标管线**：纯函数渲染（按目标尺寸直接渲染、零图形库）+ `build-icon.mjs`（14 个文件）+ `iconutil` 封装（可注入、非 macOS 写盘前拒绝）；生成物不入库（`.gitignore` + `git check-ignore` 双证）；既有 `icon.ico` / `icon.png` 零漂移。**T1 构建配置**：`mac`（dmg / icns / 不写签名键）与 `linux`（AppImage / 图标目录 / `executableName` / `maintainer`）段；打包入口 `pack.mjs` + 计划模块 `pack-plan.mjs`；未签名断言 `unsigned-check.mjs`（三口径）＋ `assert-unsigned.mjs`；`maintainer` 实测 `maintainer-probe.mjs` + `check-maintainer.mjs`；README 增「跨平台分发与安装」；签名预留（五个 secrets 名 + 条件骨架，仅文档）。**T2 矩阵**：`verify.yml` 抽取为可复用工作流（ci.yml 改消费、步骤逐条不变）＋ `pack.yml` 四 leg（`windows-latest` / `ubuntu-24.04` / `macos-15` / `macos-15-intel`，`fail-fast: false`、tag 不取消旧运行）；**终态四 leg 全绿**（run 38887140603：Windows 238 MB、Linux AppImage 156 MB、macOS x64 dmg 149 MB、macOS arm64 dmg 145 MB）；**EX-07 根因与修复**：Node 官方 SEA 流程要求 macOS 注入前后处理签名（`--remove-signature` → 注入 → `--sign -`），原构建脚本缺失导致 arm64 打包期签名校验失败，已由 `scripts/sea-signing.mjs` 按序接入并加「包内内核有效签名」可失败断言（同批次并修正未签名断言语义：ad-hoc 为 arm64 平台要求）；三项真机结论以运行页注解公开：`iconutil` 产出 icns（79768 字节）✓、未签名断言判定 `adhoc`（arm64）/ `unsigned`（x64）✓、`linux.maintainer` **not-consumed**（已回写配置注释）；fail-fast 探测实证（单 leg 红时其余 leg 仍出产物）。**EX-08**：`workflow_dispatch` 首跑待有已登录会话时补测。测试 389 → 408 项全绿（T2 批次与 EX-07 修复批次） |
 | M3 性能与规模压测 | 未启动（N = 100 / 1000 / 5000 与阈值、拐点规则已定稿于 9.3.3 与 9.4.3） |
 | M4a 自动更新 / M4b 插件生态 | 未启动（M4a 收敛为「手动检查 + 提示」；M4b 只定高层边界与候选字段，契约层设计须单独立项） |
 

@@ -27,10 +27,18 @@
 - 单元 `tests/unit/sea-signing.test.ts`（5 项）：参数拼装（remove / sign / 未知动作）；非 macOS 不调用外部命令（`calls === 0`）；macOS 上按参数各调用一次；三类失败（非零退出带 stderr、非零退出但无输出写「(无输出)」、命令无法启动与退出码缺失）；构建脚本的调用顺序断言（`remove` 早于 postject 注入、`sign` 晚于注入）。
 - 契约 `tests/contract/ci-workflows.test.ts`（+1 项）：pack 失败路径必须引用 `pack-stage.txt` 与 `pack-debug.log`，且 mac leg 对包内内核有 `codesign -dv` 真机断言与错误级注解。
 
+#### 真机口径修正（同一批次内发现的第二处问题）
+
+SEA 签名修复后重跑矩阵（run 38886354657）：mac-arm64 的**打包已经成功**（阶段文件显示已到「未签名断言」阶段），但 leg 仍红——原因是**断言口径过严**。真机实测：mac-x64 的产物**完全未签名**，而 mac-arm64 的产物带 **ad-hoc 签名**（Apple Silicon 上可执行文件必须至少带 ad-hoc 签名才能运行，属平台要求）。
+
+- **`scripts/unsigned-check.mjs`**：判定扩展为三态可辨——`unsigned`（完全未签名，`code object is not signed at all`）、`adhoc`（`Signature=adhoc` / `flags=0x2(adhoc)`）、`signed`（含 Developer ID 等身份签名）。**`unsigned` 与 `adhoc` 均通过**，`signed` 与 `unknown` 仍拒绝；断言文案改为「应为『未签名或仅 ad-hoc』」。
+- **`assert-unsigned.mjs`**：输出带上判定（`（判定：unsigned|adhoc）`），pack 的注解直接引用该文本——**交付口径「未使用开发者证书签名与公证」在运行页即可读**。
+- 口径澄清（并回写设计 4.5 / 7.2）：本项目的「未签名交付」= 不携带开发者身份证书、不做公证；**ad-hoc 是 arm64 的运行前提，必须保留**，不是「被签名交付」。
+
 #### 验收状态
 
-- 本机：406 项测试全绿、`check` / `typecheck` / `lint` / `format:check` 零告警；`build:kernel` 与 `smoke:kernel` 通过（Windows 上签名步骤为空操作的实证）。
-- 矩阵：tag `v0.0.1-t2run4` 触发一次 pack 运行用于验证 mac-arm64 由红转绿与 mac-x64 不回归（结论随本批次回写计划与 one-summary）。
+- 本机：**408 项测试全绿**、`check` / `typecheck` / `lint` / `format:check` 零告警；`build:kernel` 与 `smoke:kernel` 通过（Windows 上签名步骤为空操作的实证）。
+- 矩阵（tag `v0.0.1-t2run5` → run 38887140603）：**四 leg 全绿** —— Windows 238 MB、Linux AppImage 156 MB、macOS x64 dmg 149 MB、**macOS arm64 dmg 145 MB**；验证 job 两条亦绿。真机注解：mac-arm64 与 mac-x64 的包内内核均可读出签名（`EX-07 内核 ad-hoc 签名`），未签名断言分别判定 `adhoc` 与 `unsigned`，两端 `iconutil` 均产出 79768 字节 icns。**EX-07 关闭**。
 
 ### 工程：M2-T2 打包矩阵（verify.yml 抽取、pack.yml 四 leg、真机验证与 fail-fast 探测）
 
