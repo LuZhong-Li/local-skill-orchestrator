@@ -34,6 +34,14 @@
 
 ### 变更明细（工程批次）
 
+#### M2-T3 发布机制（版本守卫、资产归位与校验清单、gh 幂等发布）
+
+- **版本守卫**（`scripts/release-guard.mjs`）：tag 号 = CHANGELOG 顶部版本段 = 根与 gui 的 `package.json` 版本，三方一致才发布；同时把该版本段写成 Release notes。**严格自测**：临时 tag `v0.1.0-t3run1` 的矩阵四 leg 全绿后，release job 因守卫中止并公开列出三处不一致，**未创建任何 Release**。
+- **资产归位与校验清单**（`scripts/release-publish.mjs`）：交付目录必须恰好含 5 个产物，生成 `SHA256SUMS.txt`。自测即抓出真实差异：Linux 产物实名 `skill-manager-0.1.0-x86_64.AppImage`（`${arch}` 在 Linux 取 `x86_64`），已修正清单与 README / CHANGELOG / 设计表述。
+- **发布与幂等**：`gh` 参数按官方手册核对（`create`：`--title/--notes-file/--verify-tag/--latest`；`edit`：`--title/--notes-file/--latest`；`upload`：`--clobber`）；已存在则 edit + 覆盖资产，不打 prerelease 标记；仅 release job 具 `contents: write`。
+- **口径修正**：Release notes 写在交付目录之外（写进去会被归位检查判为非交付物）；汇总产物改用 `actions/download-artifact@v8`（v6 面向 Node 20）。
+- **未闭环**：尚无一次全绿干跑运行——最近一次被 mac-x64 的 dmg 构建抖动（`hdiutil: couldn't eject "disk2" - Resource busy`，登记 EX-10）打断；真实 `v0.1.0` 发布待 EX-02 授权。
+
 ### 修复：EX-07（mac-arm64 打包失败）——内核 SEA 补齐 macOS 签名步骤 + 失败自证
 
 **根因**：Node 官方单文件可执行（SEA）流程要求 macOS 上在 `postject` 注入前后处理签名——注入会改动 Node 运行时副本的 Mach-O 内容、使原签名失效，因此需先 `codesign --remove-signature`、注入后再 `codesign --sign -`（ad-hoc）重建有效签名。`scripts/build-kernel.mjs` 此前缺这两步：x64 宽容通过，而 arm64 在打包期签名校验失败（退出码 1，且命令无任何输出，故早前只能看到「见 job 日志」）。依据：nodejs.org 的 single-executable-applications 文档。

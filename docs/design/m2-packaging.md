@@ -215,6 +215,8 @@
 
 **说明**：`gh release create` 的具体参数（`--verify-tag` / `--notes-file` / 资产覆盖方式）属实现细节，**待 T3 实现期以 GitHub CLI 官方手册核对**并登记（当前只引用「runner 预装 gh」这一已查证事实）[R-2]。
 
+**实现登记（T3，2026-10-16）**：参数已按官方手册核对并落实——`create` 用 `--title/--notes-file/--verify-tag/--latest`，`edit` 用 `--title/--notes-file/--latest`（手册中 edit 无 `--verify-tag`），`upload` 用 `--clobber` 覆盖同名资产实现幂等；版本守卫（tag = CHANGELOG 顶部版本段 = 根与 gui 的 `package.json`）与资产归位检查（**恰好 5 个交付物**）分别由 `scripts/release-guard.mjs`、`scripts/release-publish.mjs` 承载，均可注入、可单测。**实测修正两处**：① Linux 产物实名为 `skill-manager-<version>-x86_64.AppImage`（electron-builder 的 `${arch}` 在 Linux 取 `x86_64`）；② Release notes 必须写在交付目录**之外**（写在里面会被归位检查判为非交付物）。另将汇总产物改用 `actions/download-artifact@v8`（v6 面向 Node 20，与 DP-D 的「主版本 = 运行时」口径冲突）。
+
 ### 6.3 产物清单（每次 tag 发布）
 
 | 平台 | 架构 | 文件 | 备注 |

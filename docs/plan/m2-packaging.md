@@ -132,6 +132,20 @@
 
 ### T3 发布（实现第四批）
 
+**执行状态**：**机制已完成并自测；真实发布待 EX-02 授权（2026-10-16）**。
+
+| 项 | 结果 |
+|---|---|
+| 版本守卫 | `scripts/release-guard.mjs`（纯函数 + CLI）：tag / CHANGELOG 顶部版本段 / 根与 gui 的 `package.json` 三方比对；**严格自测已证**——tag `v0.1.0-t3run1`（run 38889620993）四 leg 全绿后 release job **中止**，运行页注解列出三处不一致，**未创建任何 Release** |
+| 资产归位与校验清单 | `scripts/release-publish.mjs`：交付目录必须**恰好**含 5 个产物，缺失或混入非交付物即失败；生成 `SHA256SUMS.txt`（仅交付物，哈希可复算）。**自测即发现真实差异**：Linux 产物实名是 `skill-manager-0.1.0-x86_64.AppImage`（electron-builder 的 `${arch}` 在 Linux 取 `x86_64`），已修正资产清单、README / CHANGELOG / 设计三处表述 |
+| 发布与幂等 | `gh` 参数按官方手册核对（EX-04 **关闭**）：`create` 支持 `--title/--notes-file/--verify-tag/--latest`，`edit` 支持 `--title/--notes-file/--latest`，`upload` 支持 `--clobber`；Release 已存在则 edit + 覆盖资产，不产生第二个 Release；不打 prerelease 标记 |
+| 权限与触发 | release job `needs: pack`、`if: startsWith(github.ref, 'refs/tags/v')`、job 级 `permissions: contents: write`（工作流级仍只读） |
+| Release notes | 由版本守卫把 CHANGELOG 的 `## 0.1.0` 段写成 `RELEASE_NOTES.md`（**放在交付目录之外**——放进去会被归位检查判为非交付物，干跑自测已实测此点并修正） |
+| 动作版本 | 汇总产物改用 `actions/download-artifact@v8`（v6 面向 Node 20，会产生废弃告警，与 DP-D 口径冲突） |
+| 干跑链路 | 探测分支 + 临时 tag 干跑（守卫降级、`--version` 固定 0.1.0、`--dry-run` 只打印 gh 命令、不创建 Release）：链路跑到「发布预演」前的真实差异已被抓出并修复；**尚未取得一次全绿干跑运行**——最近一次由 **EX-10**（mac-x64 的 dmg 构建 `hdiutil: couldn't eject "disk2" - Resource busy`，属 electron-builder 的已知抖动，与 T3 无关）打断 |
+
+**EX-04 关闭依据**：官方手册页 `gh_release_create` / `gh_release_edit` / `gh_release_upload` 的 flag 列表（2026-10-16 抓取），脚本参数与之逐项对齐。
+
 **目标**：把三（+1）平台产物与校验清单发布为 GitHub Release，并让版本口径成为可失败检查。
 
 **依赖**：T2（打包矩阵产出齐备）。
@@ -252,6 +266,8 @@
 | EX-07 | **mac-arm64 leg 打包失败**（T2 实测）：Windows / Linux / mac-x64 三 leg 全绿，仅 macos-15（arm64）失败，且被包装命令无任何输出（疑似 runner 侧中断或 OOM），517 MB 诊断产物已上传 | T2 的四 leg 首跑未全绿；M2 验收第 1 条缺 mac-arm64 产物 | 需读 job 日志（或被包装命令的真实输出）定性；诊断通道已备（失败原因注解），下一步在包装里补 exit code 与末行回落后重跑 |
 | EX-07（**已关闭**） | **根因**：Node 官方 SEA 流程要求 macOS 上在 `postject` 注入前后处理签名（注入前 `codesign --remove-signature`、注入后 `codesign --sign -` ad-hoc），`build-kernel.mjs` 此前缺这两步——x64 宽容通过、arm64 在打包期签名校验失败。**修复过程中另发现第二处问题**：未签名断言口径过严（arm64 产物按平台要求带 ad-hoc 签名，被判为 `signed`） | 修复：① `scripts/sea-signing.mjs` + `build-kernel.mjs` 按序接入；② `unsigned-check.mjs` 判定扩为三态、**接受 `unsigned` 与 `adhoc`**、仍拒绝 `signed`/`unknown`；③ mac leg 增加「包内内核有效签名」可失败断言；④ pack 增加阶段文件与打包器日志自证 | **已验证关闭**：run 38887140603 四 leg 全绿（arm64 dmg 145 MB、x64 dmg 149 MB），真机注解显示两端内核签名可读、判定分别为 `adhoc` / `unsigned` |
 | EX-09 | 内核产物在三平台同名 `skill-manager.exe`（扩展名与平台习惯不符） | 仅命名规范；无功能影响 | 核查结论：codesign 按 Mach-O 内容判定、与扩展名无关；GUI 按 `resources/kernel/skill-manager.exe` 固定解析。本批**不改名**（改名属额外变更，牵动 GUI/CI/文档），登记待评估 |
+| EX-10 | **macOS dmg 构建抖动**：`dmgbuild`/`hdiutil` 偶发 `couldn't eject "disk2" - Resource busy`（T3 干跑自测 run 38891909354 命中，此前多次运行未出现） | 单 leg 变红；重跑可恢复，非确定性失败影响发布节奏 | 处置顺序：先重跑证据（确认是抖动而非回归）；若复现频繁，按「在 packing 步骤加重试」处理并登记（不改交付物口径） |
+| EX-11 | Release notes 与交付目录的关系（干跑自测实测） | 若把 notes 写进交付目录，归位检查会判其为非交付物 | 已修：notes 写在交付目录之外（`RELEASE_NOTES.md`），并有契约断言钉住「不得落在 release/ 内」 |
 | EX-08 | `workflow_dispatch` 触发路径未实测（当前会话无已登录浏览器，无法点 Run workflow） | 「手工触发」这条入口缺真实运行证据 | 有已登录会话时补一次 dispatch 首跑（含 platforms / arch 输入）；触发定义与步骤级守卫已由契约测试覆盖 |
 
 ---
