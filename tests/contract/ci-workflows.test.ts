@@ -200,3 +200,32 @@ test('契约：三个工作流的官方动作主版本同口径', () => {
     }
   }
 });
+
+test('契约：job 级 if 不得引用 matrix（GitHub 工作流校验规则）', () => {
+  for (const name of ['ci.yml', 'verify.yml', 'pack.yml']) {
+    const { doc } = readWorkflow(name);
+    for (const [jobId, job] of Object.entries(doc.jobs ?? {}) as Array<
+      [string, Record<string, any>]
+    >) {
+      if (typeof job.if === 'string') {
+        assert.equal(
+          /matrix\./.test(job.if),
+          false,
+          `${name} 的 job ${jobId} 在 job 级 if 中引用了 matrix：GitHub 会判为 Invalid workflow file`,
+        );
+      }
+    }
+  }
+});
+
+test('契约：pack.yml 的 platforms 输入在步骤级过滤（打包、证据与上传步骤均受控）', () => {
+  const { doc } = readWorkflow('pack.yml');
+  const steps = (doc.jobs.pack.steps ?? []) as Array<Record<string, any>>;
+  const guarded = steps.filter(
+    (step) => typeof step.if === 'string' && String(step.if).includes('inputs.platforms'),
+  );
+  assert.ok(guarded.length >= 4, '打包 / 真机证据 / 上传步骤应带平台过滤');
+  const upload = steps.find((step) => String(step.name) === '上传产物');
+  assert.ok(upload !== undefined, 'pack 应含上传步骤');
+  assert.match(String(upload.if), /inputs\.platforms/, '未选中的 leg 不得上传产物');
+});

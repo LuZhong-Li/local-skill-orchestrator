@@ -39,8 +39,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     # 硬上限 60 分钟（设计 8 章）
     timeout-minutes: 60
-    # 可选输入过滤：留空跑全部 leg；tag 推送（非 dispatch）不受输入影响，永远全量
-    if: github.event_name != 'workflow_dispatch' || inputs.platforms == '' || inputs.platforms == matrix.platform
+    # 说明：job 级 if 不能引用 matrix（工作流校验会拒绝），因此 platforms 输入在**步骤级**过滤：
+    # 选中的 leg 才执行打包/证据/上传步骤；未选中的 leg 只完成检出与依赖安装即结束。
+    # 判定表达式：`github.event_name != 'workflow_dispatch' || inputs.platforms == '' || inputs.platforms == matrix.platform`
     strategy:
       # 一个平台失败不掩盖其他平台结论（设计 3.4；fixture 探测见 CHANGELOG）
       fail-fast: false
@@ -80,7 +81,9 @@ jobs:
 
       # Windows 沿用二期入口（配置与产物口径不变）：图标 → 内核 → 安装包 + 便携单文件
       - name: 打包（Windows：nsis 安装包 + 便携单文件）
-        if: matrix.platform == 'windows'
+        if: >-
+          (github.event_name != 'workflow_dispatch' || inputs.platforms == '' ||
+          inputs.platforms == matrix.platform) && matrix.platform == 'windows'
         run: |
           npm run build:icon
           npm run build:kernel
@@ -88,7 +91,9 @@ jobs:
 
       # macOS / Linux：走打包入口（内部按平台串联 图标 →（mac）icns → 内核 → 界面 → electron-builder）
       - name: 打包（macOS / Linux，未签名）
-        if: matrix.platform != 'windows'
+        if: >-
+          (github.event_name != 'workflow_dispatch' || inputs.platforms == '' ||
+          inputs.platforms == matrix.platform) && matrix.platform != 'windows'
         env:
           PACK_ARCH: ${{ matrix.arch }}
           ARCH_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.arch || '' }}
@@ -97,7 +102,9 @@ jobs:
 
       # 真机证据：icns 由 iconutil 产出（EX-03）＋ 独立的未签名断言复核（pack.mjs 内已断言一次）
       - name: 真机验证（macOS）：icns 产物与未签名断言
-        if: matrix.platform == 'mac'
+        if: >-
+          (github.event_name != 'workflow_dispatch' || inputs.platforms == '' ||
+          inputs.platforms == matrix.platform) && matrix.platform == 'mac'
         shell: bash
         run: |
           ls -l gui/packaging/icon.icns
@@ -107,7 +114,9 @@ jobs:
 
       # 真机证据：AppImage 是否消费 linux.maintainer（T1 判定逻辑，单侧实测；结论回写配置）
       - name: 真机验证（Linux）：maintainer 消费实测
-        if: matrix.platform == 'linux'
+        if: >-
+          (github.event_name != 'workflow_dispatch' || inputs.platforms == '' ||
+          inputs.platforms == matrix.platform) && matrix.platform == 'linux'
         shell: bash
         run: |
           appimage="$(ls build/desktop/*.AppImage | head -n 1)"
@@ -116,6 +125,10 @@ jobs:
           node scripts/check-maintainer.mjs --with squashfs-root
 
       - name: 上传产物
+        # 未选中的 leg 不上传（其打包步骤已被跳过）
+        if: >-
+          github.event_name != 'workflow_dispatch' || inputs.platforms == '' ||
+          inputs.platforms == matrix.platform
         uses: actions/upload-artifact@v6
         with:
           name: pack-${{ matrix.leg }}-run${{ github.run_id }}
