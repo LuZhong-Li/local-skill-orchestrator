@@ -172,15 +172,21 @@ test('契约：ci.yml 触发与并发口径保持不变', () => {
 });
 
 test('契约：pack.yml 触发为 tag v* 与手工触发，且只跑打包不发布', () => {
-  const { text, doc } = readWorkflow('pack.yml');
+  const { doc } = readWorkflow('pack.yml');
   assert.deepEqual(doc.on.push?.tags, ['v*'], 'tag 触发');
   assert.equal('workflow_dispatch' in doc.on, true, '手工触发');
   assert.equal('pull_request' in doc.on, false, 'push/PR 不触发打包（裁决 3）');
   assert.equal('workflow_run' in doc.on, false, 'tag 场景不用 workflow_run 串联');
 
-  // T2 范围：只产出 artifact；Release 发布留 T3
-  assert.equal(text.includes('gh release'), false, 'T2 不含 Release 创建');
-  assert.match(String(doc.permissions?.['contents']), /read/, 'T2 只读权限');
+  // 打包 job 只产出 artifact：发布动作（脚本或 gh）都在独立的 release job 里（T3 起）
+  const packSteps = (doc.jobs['pack'] as WorkflowJob).steps ?? [];
+  const packCommands = packSteps.map((step) => String(step.run ?? '')).join('\n');
+  assert.equal(
+    /gh release|release-publish\.mjs/.test(packCommands),
+    false,
+    '打包 job 不得包含发布动作',
+  );
+  assert.match(String(doc.permissions?.['contents']), /read/, '打包 job 只读权限');
 });
 
 test('契约：pack.yml 四 leg 矩阵、fail-fast: false、tag 不取消旧运行', () => {
@@ -383,4 +389,43 @@ test('契约：bench.yml 三平台矩阵与测量链路健康检查（采样失�
   assert.match(String(upload.with?.path), /build\/bench\/report-\*\.json/, '上传测量结果 JSON');
   // 注解通道：未登录也能读结论
   assert.equal(text.includes('annotate.mjs'), true, '结论经注解脚本公开');
+});
+
+test('契约：bench.yml 的 macOS 三档补充矩阵（非门禁、失败只降级为警告）', () => {
+  const { text, doc } = readWorkflow('bench.yml');
+  const smoke = doc.jobs['smoke'] as WorkflowJob;
+  const extra = (smoke.steps ?? []).find((step) => String(step.name).includes('macOS 补充矩阵'));
+  assert.ok(extra !== undefined, '应有 macOS 三档补充矩阵步骤（v0.1.1 批次补 macOS 曲线）');
+  assert.equal(
+    String(extra.if),
+    "runner.os == 'macOS'",
+    '只在 macOS 腿执行（本机 Windows 无法产出 macOS 曲线）',
+  );
+  assert.equal(extra['continue-on-error'], true, '非门禁：失败不得让工作流变红');
+  assert.match(String(extra.run), /--n 1000 5000 --form both/, 'N=1000/5000 双线');
+  assert.match(
+    String(extra.run),
+    /annotate\.mjs build\/bench\/extra \|\| echo "::warning::/,
+    '补充矩阵的异常降级为警告（数据以已产出的报告为准）',
+  );
+  assert.match(text, /build\/bench\/extra\/report-\*\.json/, '补充矩阵数据随 artifact 上传');
+});
+
+test('契约：pack.yml 在 v0.1.1 发布时给受影响的历史版本追加缺陷提示（幂等、失败不阻断发布）', () => {
+  const { doc } = readWorkflow('pack.yml');
+  const release = doc.jobs['release'] as WorkflowJob;
+  const step = (release.steps ?? []).find((item) =>
+    String(item.name).includes('标注受影响的历史版本'),
+  );
+  assert.ok(step !== undefined, '应有历史版本缺陷提示步骤（EX-13）');
+  assert.equal(String(step.if), "github.ref == 'refs/tags/v0.1.1'", '只在 v0.1.1 发布时执行');
+  assert.equal(step['continue-on-error'], true, '提示失败不得阻断发布');
+  const run = String(step.run);
+  assert.match(run, /gh release view v0\.1\.0 --json body/, '先取回旧 notes');
+  assert.match(run, /grep -q 'EX-13'/, '幂等：已含提示则跳过');
+  assert.match(
+    run,
+    /gh release edit v0\.1\.0 --notes-file/,
+    '在原 notes 前追加提示（保留旧版不删）',
+  );
 });

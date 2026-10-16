@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # EX-13 验证脚本之二：B 组（electron-builder 打包后的 .app 内内核）与 C 组（v0.1.0 发布 dmg 内内核）
 #
-# 用法（macOS runner）：bash scripts/bench/probe-ex13-package.sh <arm64|x64>
+# 用法（macOS runner）：bash scripts/bench/probe-ex13-package.sh <arm64|x64> [发布 tag，默认 v0.1.1]
 # 结论同样以注解输出（未登录可读）。
 set -u
 
 ARCH="${1:-arm64}"
-DMG_NAME="skill-manager-0.1.0-${ARCH}.dmg"
+TAG="${2:-v0.1.1}"
+VERSION="${TAG#v}"
+DMG_NAME="skill-manager-${VERSION}-${ARCH}.dmg"
 
 note() { printf '::notice::%s\n' "$1"; }
 warn() { printf '::warning::%s\n' "$1"; }
@@ -19,7 +21,19 @@ try_run() {
   fi
   out=$("$path" --version 2>&1)
   code=$?
-  note "${label} → exit=${code}；输出=$(printf '%s' "$out" | head -2 | tr '\n' ' ')"
+  note "${label} --version → exit=${code}；输出=$(printf '%s' "$out" | head -2 | tr '\n' ' ')"
+  # 闭环检查：init → scan（比 --version 强，能证明内核真能干活）
+  WORKSPACE=$(mktemp -d)
+  "$path" init --workspace "$WORKSPACE" > /dev/null 2>&1
+  init_code=$?
+  "$path" scan --workspace "$WORKSPACE" > /dev/null 2>&1
+  scan_code=$?
+  if [ "$init_code" -eq 0 ] && [ "$scan_code" -eq 0 ]; then
+    note "${label} 闭环 init/scan → exit=${init_code}/${scan_code}（通过）"
+  else
+    warn "${label} 闭环 init/scan → exit=${init_code}/${scan_code}"
+  fi
+  rm -rf "$WORKSPACE"
 }
 
 sign_of() {
@@ -47,10 +61,10 @@ else
   warn "B 组未找到 .app（打包可能失败，见日志）"
 fi
 
-# ---------- C 组：v0.1.0 发布 dmg ----------
-note "C 组开始（v0.1.0 ${DMG_NAME}）"
+# ---------- C 组：发布 dmg ----------
+note "C 组开始（${TAG} ${DMG_NAME}）"
 curl -sL --ssl-no-revoke -o /tmp/release.dmg \
-  "https://github.com/LuZhong-Li/skill-manager/releases/download/v0.1.0/${DMG_NAME}"
+  "https://github.com/LuZhong-Li/skill-manager/releases/download/${TAG}/${DMG_NAME}"
 note "C 组下载：$(ls -l /tmp/release.dmg | awk '{print $5}') 字节"
 
 MOUNT=$(mktemp -d /tmp/dmg.XXXXXX)

@@ -10,6 +10,7 @@ import { parseArgs, flag, option, optionList } from '../dispatch/parsers/index.t
 import { render } from '../dispatch/render/index.ts';
 import { buildResult, exitCodeFor } from '../dispatch/result/index.ts';
 import { CODES, finding } from '../store/contract.ts';
+import { TOOL_VERSION } from '../core/index/index.ts';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import type { Interaction } from '../dispatch/policy/index.ts';
@@ -51,7 +52,8 @@ export async function run(
   const color = !flag(args, 'no-color');
 
   if (flag(args, 'version')) {
-    process.stdout.write('0.1.0\n');
+    // 版本号的唯一来源是 TOOL_VERSION（与索引 tool_version 同源），不得在此写死字面量
+    process.stdout.write(`${TOOL_VERSION}\n`);
     return 0;
   }
   if (flag(args, 'help') || args.command === '') {

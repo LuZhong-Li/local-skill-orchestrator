@@ -12,9 +12,16 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { run } from '../../kernel/entry/cli.ts';
+import { TOOL_VERSION } from '../../kernel/core/index/index.ts';
 import type { Interaction } from '../../kernel/dispatch/policy/index.ts';
 import { parseYaml as parseYamlDocument } from '../../kernel/store/yaml/index.ts';
 import semver from 'semver';
+
+const repoRoot = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+const packageVersionOf = (path: string) =>
+  (JSON.parse(readFileSync(join(repoRoot, path), 'utf8')) as { version: string }).version;
+const kernelPackageVersion = () => packageVersionOf('kernel/package.json');
+const rootPackageVersion = () => packageVersionOf('package.json');
 import { spawnSync } from 'node:child_process';
 
 function workspace(): string {
@@ -165,8 +172,10 @@ test('缺少选项取值返回输入类错误与退出码 2', async () => {
   assert.equal(await run(['scan', '--workspace']), 2);
 });
 
-test('--version 输出后直接返回 0', async () => {
+test('--version 输出版本号并返回 0（版本号与 TOOL_VERSION / package.json 同源）', async () => {
   assert.equal(await run(['--version']), 0);
+  assert.equal(TOOL_VERSION, kernelPackageVersion(), '内核版本常量与内核包版本一致');
+  assert.equal(TOOL_VERSION, rootPackageVersion(), '内核版本常量与根包版本一致');
 });
 
 /** 造一份可安装的来源目录 */

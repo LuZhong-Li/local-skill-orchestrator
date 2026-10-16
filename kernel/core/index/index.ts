@@ -19,7 +19,8 @@ import { validateIndexVersion, validateValidationBlock } from '../metadata/valid
 /** 一期默认的 Skill 根目录，相对于工作区根目录 */
 export const DEFAULT_SKILL_ROOT = './skills';
 
-export const TOOL_VERSION = '0.1.0';
+/** 内核版本号（`--version` 与索引 `tool_version` 的唯一来源）：随发布版本同步 */
+export const TOOL_VERSION = '0.1.1';
 
 export interface LoadedIndex {
   exists: boolean;

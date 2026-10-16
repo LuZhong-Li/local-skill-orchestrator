@@ -1,6 +1,18 @@
 # 变更记录
 
-## 未发布
+## 0.1.1
+
+补丁版本：修复 `v0.1.0` 在 macOS 上不可用的缺陷（见下）。Windows / Linux 产物不受该缺陷影响。
+
+### 修复：macOS 内核 SEA 注入缺少 `--macho-segment-name NODE_SEA`（EX-13）
+
+- **现象**：`v0.1.0` 的 macOS 包（arm64 与 x64）内嵌内核**一执行即被系统终止**（`--version` 退出码 **139 = SIGSEGV**），安装后所有依赖内核的功能（扫描 / 校验 / 导出 / 宿主分发等）全部不可用。
+- **根因**：Node 官方 SEA 文档要求 macOS 把 blob 注入 `NODE_SEA` 段内的 `NODE_SEA_BLOB` 节（`postject --macho-segment-name NODE_SEA`），构建脚本漏了该参数。**与代码签名无关**——`codesign --verify --deep --strict` 判定签名有效、可执行位正常、裸 `node` 副本可运行、Windows/Linux 同流程正常，这些排除项由 CI 对照实验逐条给出。
+- **修复实现**：新增 `scripts/sea-postject.mjs`（postject 参数唯一实现，仅 `darwin` 追加段名）并由 `scripts/build-kernel.mjs` 调用；`kernel/core/index/index.ts` 的 `TOOL_VERSION` 与三处 `package.json` 同步到 `0.1.1`（内核 `--version` 与索引 `tool_version` 随之更新）。
+- **顺带修掉的版本号漂移**：`kernel/entry/cli.ts` 的 `--version` 曾写死字面量 `0.1.0`（版本号因此有两份来源），已改为只读 `TOOL_VERSION`；三处 `package.json`、`TOOL_VERSION` 与 CHANGELOG 顶部版本段的一致性由契约测试钉住（发布准备可自查）。
+- **验证**（macos-15 arm64 与 macos-15-intel x64 各一遍）：A 构建期产物 `--version` **exit=0**、B electron-builder 打包后 `.app` 内内核 **exit=0**；**C `v0.1.0` 发布 dmg 内内核 exit=139（两个架构）**——即本补丁必须升级才能恢复 macOS 可用性。
+- **影响面与升级建议**：**macOS 用户必须升级到 0.1.1**；Windows / Linux 用户不受该缺陷影响（同一代码路径实测正常），可按需升级。
+- **登记**：Node 官方文档明示 SEA 在 CI 上仅测 macOS arm64，「x64 目前不支持并在测试中跳过」——本项目的 macOS x64 包属官方未支持形态，修复后实测可执行（登记为已知形态差异，不外推为官方支持）。
 
 ### M3-T3 基线与报告（并定位/修复发布缺陷 EX-13）
 

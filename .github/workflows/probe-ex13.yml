@@ -9,6 +9,10 @@ on:
     branches:
       - 'probe/**'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 要复核的发布 tag（默认 v0.1.1）
+        required: false
 
 jobs:
   probe:
@@ -42,9 +46,9 @@ jobs:
         continue-on-error: true
         run: bash scripts/bench/probe-ex13.sh
 
-      - name: 取证二（B 组打包后 .app / C 组 v0.1.0 发布 dmg）
+      - name: 取证二（B 组打包后 .app / C 组发布 dmg，默认复核 v0.1.1）
         continue-on-error: true
-        run: bash scripts/bench/probe-ex13-package.sh ${{ matrix.arch }}
+        run: bash scripts/bench/probe-ex13-package.sh ${{ matrix.arch }} ${{ inputs.tag || 'v0.1.1' }}
 
       - name: 上传取证附件
         if: always()

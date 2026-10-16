@@ -58,6 +58,16 @@ jobs:
       - name: 双线 N=100 烟测（场景全量、runs=1）
         run: node scripts/bench/runner.mjs --n 100 --form both --runs 1 --load "CI 共享 runner（波动 17%~30%，仅记录不作门禁）"
 
+      # macOS 的三档补充矩阵（v0.1.1 批次顺手补，非门禁）：本机 Windows 无法产出 macOS 曲线，
+      # 这里用 CI 的 macOS runner 跑 N=1000/5000 双线；若 N=5000 在本平台异常，已产出的 N=1000
+      # 报告仍然有效（runner 按档位分文件写出），失败只降级为注解警告。
+      - name: macOS 补充矩阵（N=1000/5000 双线，非门禁）
+        if: runner.os == 'macOS'
+        continue-on-error: true
+        run: |
+          node scripts/bench/runner.mjs --n 1000 5000 --form both --runs 1 --out build/bench/extra --load "CI macOS 共享 runner（波动 17%~30%，仅记录不作门禁）"
+          node scripts/bench/annotate.mjs build/bench/extra || echo "::warning::macOS 补充矩阵未全绿（非门禁：以已产出的报告为准，未产出档位按缺测登记）"
+
       - name: 记录数据并检查测量链路（运行页注解；采样失败即红，性能数值不作门禁）
         if: always()
         run: node scripts/bench/annotate.mjs build/bench
@@ -69,6 +79,7 @@ jobs:
           name: bench-${{ matrix.platform }}-run${{ github.run_id }}
           path: |
             build/bench/report-*.json
+            build/bench/extra/report-*.json
             build/bench/logs/
             build/bench/failure-*.txt
           if-no-files-found: ignore
