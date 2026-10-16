@@ -11,7 +11,10 @@ import {
   renderWithPolicy,
 } from '../../kernel/core/render/index.ts';
 import type { RenderSource } from '../../kernel/core/render/types.ts';
-import { FORBIDDEN_TRANSMISSION_FIELD } from '../../kernel/core/hosts/types.ts';
+import { SECURITY_CONTROL_FIELDS } from '../../kernel/core/hosts/types.ts';
+
+/** HR-09 的安全控制字段（当前登记为 `disable-model-invocation`） */
+const SECURITY_FIELD = SECURITY_CONTROL_FIELDS[0];
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
@@ -93,7 +96,7 @@ test('契约：host_declared 白名单命中透传、未命中回报 W-FIELD-004
       provenance: 'manual',
       version: '9.9.9',
       unknown_field: 'x',
-      [FORBIDDEN_TRANSMISSION_FIELD]: 'true',
+      [SECURITY_FIELD]: 'true',
     },
   });
 
@@ -101,20 +104,19 @@ test('契约：host_declared 白名单命中透传、未命中回报 W-FIELD-004
   const { front } = splitArtifact(codex.files[0]!.content);
   assert.equal(front['provenance'], 'manual', 'Codex 白名单内字段应透传');
   assert.equal(front['version'], '9.9.9', 'Codex 白名单内字段应透传（顶层 version）');
+  assert.equal(front[SECURITY_FIELD], 'true', 'Codex 已登记语义证据，安全控制字段应透传');
   assert.equal('unknown_field' in front, false, '白名单外字段不得写入产物');
-  assert.equal(FORBIDDEN_TRANSMISSION_FIELD in front, false, '禁用字段不得写入产物');
-  assert.deepEqual(codex.ledger.extensions, ['provenance', 'version']);
-  assert.deepEqual(codex.ledger.dropped, ['disable-model-invocation', 'unknown_field']);
+  assert.deepEqual(codex.ledger.extensions, [SECURITY_FIELD, 'provenance', 'version']);
+  assert.deepEqual(codex.ledger.dropped, ['unknown_field']);
 
   const warnings = codex.findings.filter((item) => item.code === 'W-FIELD-004');
   assert.equal(warnings.length, 1, '白名单外字段应回报一条警告');
   assert.equal(warnings[0]!.severity, 'warning');
   assert.match(warnings[0]!.message, /unknown_field/, '警告须点名被忽略的字段（不静默）');
-  assert.ok(
-    codex.findings.some(
-      (item) => item.severity === 'error' && item.message.includes(FORBIDDEN_TRANSMISSION_FIELD),
-    ),
-    '禁用字段应回报错误级问题',
+  assert.equal(
+    codex.findings.some((item) => item.severity === 'error'),
+    false,
+    '已登记语义证据的安全控制字段不应产生错误级问题',
   );
 
   // 豆包白名单同样生效（含平台自有字段）
@@ -140,51 +142,79 @@ test('契约：保守渲染——standard6 宿主忽略全部扩展声明（含 
   assert.equal(claude.findings.filter((item) => item.code === 'W-FIELD-004').length, 2);
 });
 
-test('契约：禁用字段双层防线（注册表加载期拒绝登记 + 渲染期无条件拒绝）', () => {
-  const source = sample({ extensions: { [FORBIDDEN_TRANSMISSION_FIELD]: 'true' } });
+test('契约：安全控制字段两层准入（注册表语义证据 + 渲染期复核）', () => {
+  const source = sample({ extensions: { [SECURITY_FIELD]: 'true' } });
 
-  // 一、注册表策略路径：任何宿主都不出现该字段
+  // 一、注册表策略路径：仅 Codex 已登记语义证据；其余宿主一律拒绝且产物不含该字段
   for (const hostId of ['claude', 'codex', 'cursor', 'doubao', 'agentskills', 'agents-md']) {
     const outcome = renderSkill(hostId, source);
-    for (const file of outcome.files) {
+    const content = outcome.files.map((file) => file.content).join('\n');
+    if (hostId === 'codex') {
+      assert.equal(content.includes(`${SECURITY_FIELD}:`), true, 'Codex 产物应含安全控制字段');
+      assert.deepEqual(outcome.ledger.extensions, [SECURITY_FIELD]);
       assert.equal(
-        file.content.includes(`${FORBIDDEN_TRANSMISSION_FIELD}:`),
+        outcome.findings.some((item) => item.severity === 'error'),
         false,
-        `${hostId} 产物不得含禁用字段`,
+        'Codex 不应因该字段报错误级问题',
       );
+      continue;
     }
+    assert.equal(content.includes(`${SECURITY_FIELD}:`), false, `${hostId} 产物不得含该字段`);
     assert.ok(
-      outcome.findings.some((item) => item.severity === 'error'),
-      `${hostId} 应对禁用字段报错误级问题`,
+      outcome.findings.some(
+        (item) => item.severity === 'error' && item.message.includes(SECURITY_FIELD),
+      ),
+      `${hostId} 未登记语义证据，应报错误级问题`,
     );
   }
 
-  // 二、渲染期防线：即使策略被显式构造为「白名单包含该字段」，渲染仍无条件拒绝
+  // 二、渲染期防线：策略被构造为「白名单包含该字段」但未给语义证据时，渲染仍拒绝
   const hostile = renderWithPolicy(
     'skill',
     {
       host_id: 'claude',
       field_mode: 'host_declared',
-      allowed_extensions: [FORBIDDEN_TRANSMISSION_FIELD],
+      allowed_extensions: [SECURITY_FIELD],
     },
     source,
   );
   assert.equal(
-    hostile.files[0]!.content.includes(`${FORBIDDEN_TRANSMISSION_FIELD}:`),
+    hostile.files[0]!.content.includes(`${SECURITY_FIELD}:`),
     false,
-    '渲染期防线：即使白名单被构造为包含禁用字段，也不写入产物',
+    '渲染期防线：缺少语义证据时即使白名单命中也不写入产物',
   );
-  assert.deepEqual(hostile.ledger.extensions, [], '禁用字段不得进入透传台账');
-  assert.ok(
-    hostile.ledger.dropped.includes(FORBIDDEN_TRANSMISSION_FIELD),
-    '禁用字段应进入被丢弃台账',
-  );
+  assert.deepEqual(hostile.ledger.extensions, [], '缺少证据的字段不得进入透传台账');
+  assert.ok(hostile.ledger.dropped.includes(SECURITY_FIELD), '被拒字段应进入被丢弃台账');
   assert.ok(
     hostile.findings.some(
-      (item) => item.severity === 'error' && item.message.includes(FORBIDDEN_TRANSMISSION_FIELD),
+      (item) => item.severity === 'error' && item.message.includes(SECURITY_FIELD),
     ),
     '渲染期应回报错误级问题（与注册表加载期的第一层防线相互独立）',
   );
+
+  // 三、对照：同一策略补上语义证据后即准入——拒绝的原因是证据缺失，而非字段本身
+  const withEvidence = renderWithPolicy(
+    'skill',
+    {
+      host_id: 'claude',
+      field_mode: 'host_declared',
+      allowed_extensions: [SECURITY_FIELD],
+      security_control_evidence: {
+        [SECURITY_FIELD]: {
+          semantics: '示例语义：true 时排除模型自动调用',
+          level: 'verified_official',
+          sources: ['https://example.test/spec'],
+        },
+      },
+    },
+    source,
+  );
+  assert.equal(
+    splitArtifact(withEvidence.files[0]!.content).front[SECURITY_FIELD],
+    'true',
+    '补上语义证据后应准入透传',
+  );
+  assert.deepEqual(withEvidence.ledger.extensions, [SECURITY_FIELD]);
 });
 
 test('契约：通用标准目标与逐宿主适配器共用同一渲染核心', () => {

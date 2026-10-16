@@ -15,7 +15,8 @@ import { KernelError } from '../../store/errors.ts';
 import { HOST_REGISTRY_DATA } from './registry-data.ts';
 import { asHostRegistry, errorsOf, isSelectable, validateHostRegistry } from './validate.ts';
 import {
-  FORBIDDEN_TRANSMISSION_FIELD,
+  isSecurityControlEvidenceComplete,
+  isSecurityControlField,
   type HostEntry,
   type HostRenderPolicy,
   type HostRegistry,
@@ -64,7 +65,7 @@ function loadFailure(findings: readonly Finding[]): KernelError {
 }
 
 /**
- * 加载注册表：校验 HR-01 至 HR-12，全部通过才返回。
+ * 加载注册表：校验 HR-01 至 HR-13，全部通过才返回。
  * 结果被冻结并缓存：注册表是只读事实源，调用方不得就地修改。
  */
 export function loadHostRegistry(): HostRegistry {
@@ -137,7 +138,8 @@ export function consumersOfRoot(hostId: string, kind: RootKind): string[] {
 /**
  * 透传白名单判定的**唯一实现**（DP-04）：
  * 白名单命中即透传；未命中忽略并回报警告（不静默丢弃）；
- * 禁用字段在任何宿主下都被拒绝（HR-09）。
+ * 安全控制字段（如 `disable-model-invocation`）**按宿主语义证据准入**（HR-09，2026-10-16 裁决）：
+ * 命中所属宿主的白名单即透传；未命中则该宿主未登记语义证据，一律拒绝且给出可定位的问题条目。
  *
  * 由注册表查询路径与渲染层共用，保证「先查注册表」与「显式给出策略」两种调用
  * 不会出现两套判定逻辑。
@@ -150,18 +152,26 @@ export function resolveDeclaredExtensions(
   const transmitted: string[] = [];
   const findings: Finding[] = [];
   for (const field of declared) {
-    if (field === FORBIDDEN_TRANSMISSION_FIELD) {
+    const permitted = whitelist.has(field);
+    if (isSecurityControlField(field)) {
+      const admitted =
+        permitted && isSecurityControlEvidenceComplete(policy.security_control_evidence?.[field]);
+      if (admitted) {
+        transmitted.push(field);
+        continue;
+      }
       findings.push(
         finding(CODES.FIELD_INVALID_VALUE, {
           source: SOURCE,
           target: field,
-          message: `字段被禁止透传：${field}`,
-          remedy: '该字段语义不明，任何宿主都不得透传（HR-09、DP-04）',
+          message: `安全控制字段未通过准入，已拒绝透传：${field}`,
+          remedy:
+            '该字段既可能未进入宿主白名单，也可能缺少语义证据（需 semantics + 一手 level + 非空 sources）；补登记后再启用（HR-09）',
         }),
       );
       continue;
     }
-    if (whitelist.has(field)) {
+    if (permitted) {
       transmitted.push(field);
       continue;
     }

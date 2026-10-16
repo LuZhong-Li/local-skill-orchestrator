@@ -4,11 +4,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { adapterFor, allAdapters, formImplementationOf } from '../../kernel/core/adapters/index.ts';
 import { selectableHostIds, hostById } from '../../kernel/core/hosts/index.ts';
-import { FORBIDDEN_TRANSMISSION_FIELD } from '../../kernel/core/hosts/types.ts';
+import { SECURITY_CONTROL_FIELDS } from '../../kernel/core/hosts/types.ts';
 import { renderWithPolicy } from '../../kernel/core/render/index.ts';
 import type { RenderSource } from '../../kernel/core/render/types.ts';
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+
+/** HR-09 的安全控制字段（当前登记为 `disable-model-invocation`） */
+const SECURITY_FIELD = SECURITY_CONTROL_FIELDS[0];
 
 function read(relative: string): string {
   return readFileSync(join(root, relative), 'utf8');
@@ -63,14 +66,14 @@ test('契约：六个宿主适配器产物结构合规（verify 无错误）', (
   );
 });
 
-test('契约：字段策略边界（Claude 无扩展、Codex/豆包白名单生效、禁用字段全宿主不出现）', () => {
+test('契约：字段策略边界（Claude 无扩展、Codex/豆包白名单生效、安全控制字段按证据准入）', () => {
   const source = sample({
     extensions: {
       provenance: 'manual',
       version: '9.9.9',
       bins: 'ffmpeg',
       unknown_field: 'x',
-      [FORBIDDEN_TRANSMISSION_FIELD]: 'true',
+      [SECURITY_FIELD]: 'true',
     },
   });
 
@@ -99,18 +102,27 @@ test('契约：字段策略边界（Claude 无扩展、Codex/豆包白名单生�
   assert.equal('bins' in doubaoFields, true, '豆包白名单内字段应透传');
   assert.equal('provenance' in doubaoFields, false, 'Codex 侧字段不在豆包白名单内');
 
-  // 禁用字段：任何宿主、任何形态的产物中都不出现
+  // 安全控制字段：仅 Codex 已登记语义证据（产物含该字段），其余宿主与形态不出现
   for (const adapter of allAdapters()) {
     for (const form of adapter.forms) {
-      const outcome = adapter.render(
-        sample({ extensions: { [FORBIDDEN_TRANSMISSION_FIELD]: 'true' } }),
-        form,
+      const outcome = adapter.render(sample({ extensions: { [SECURITY_FIELD]: 'true' } }), form);
+      const content = outcome.files.map((file) => file.content).join('\n');
+      if (adapter.host_id === 'codex') {
+        assert.equal(content.includes(`${SECURITY_FIELD}:`), true, 'Codex 应透传该字段');
+        continue;
+      }
+      assert.equal(
+        content.includes(`${SECURITY_FIELD}:`),
+        false,
+        `${adapter.host_id}/${form} 产物不得含安全控制字段`,
       );
-      for (const file of outcome.files) {
-        assert.equal(
-          file.content.includes(`${FORBIDDEN_TRANSMISSION_FIELD}:`),
-          false,
-          `${adapter.host_id}/${form} 产物不得含禁用字段`,
+      // 规则文件形态没有字段映射，不产出字段级问题；带字段映射的形态必须回报错误级问题
+      if (form !== 'rules') {
+        assert.ok(
+          outcome.findings.some(
+            (item) => item.severity === 'error' && item.message.includes(SECURITY_FIELD),
+          ),
+          `${adapter.host_id}/${form} 应对未准入的安全控制字段报错误级问题`,
         );
       }
     }

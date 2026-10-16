@@ -8,8 +8,8 @@
  * 三条硬性行为：
  * 一、保守渲染优先——默认只渲染标准六字段；扩展字段仅在宿主策略为 host_declared
  * 且命中白名单时渲染，未命中一律忽略并回报 W-FIELD-004 警告（不静默丢弃）；
- * 二、禁用字段双重拦截——注册表加载期拒绝白名单登记该字段（T2），渲染期再次拦截，
- * 任何宿主的产物中都不会出现它；
+ * 二、安全控制字段准入——注册表加载期要求「白名单中的安全控制字段必须有语义证据」（HR-09），
+ * 渲染期再由同一判定原语复核：未登记语义证据的宿主下该字段一律拒绝，产物中不出现；
  * 三、渲染与落位解耦——只产出内存中的文本与结构，一律不写盘，落位由 T5 承担。
  *
  * 形态边界：本层实现「技能形态」（SKILL.md）与「指令文件降级形态」（AGENTS.md 片段）；
@@ -157,6 +157,9 @@ function policyOf(hostId: string): RenderPolicyInput {
   }
   if (policy.degrade_form !== undefined) {
     result.degrade_form = policy.degrade_form;
+  }
+  if (policy.security_control_evidence !== undefined) {
+    result.security_control_evidence = policy.security_control_evidence;
   }
   if (entry.capability.max_description_chars !== undefined) {
     result.max_description_chars = entry.capability.max_description_chars;

@@ -13,10 +13,13 @@ import {
   selectableHostIds,
 } from '../../kernel/core/hosts/index.ts';
 import { validateHostRegistry } from '../../kernel/core/hosts/validate.ts';
-import { FORBIDDEN_TRANSMISSION_FIELD, type HostEntry } from '../../kernel/core/hosts/types.ts';
+import { SECURITY_CONTROL_FIELDS, type HostEntry } from '../../kernel/core/hosts/types.ts';
 import type { Finding } from '../../kernel/store/contract.ts';
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+
+/** HR-09 的安全控制字段（当前登记为 `disable-model-invocation`） */
+const SECURITY_FIELD = SECURITY_CONTROL_FIELDS[0];
 
 function read(relative: string): string {
   return readFileSync(join(root, relative), 'utf8');
@@ -112,17 +115,65 @@ test('契约：非法注册项被 HR 规则拒绝（HR-04/05/08/09 等）', () =
     'HR-08 应拒绝透传模式缺白名单',
   );
 
-  // HR-09：白名单包含禁用字段
+  // HR-09：安全控制字段进入白名单但未登记语义证据
   const hr09 = cloneRegistry();
   entryOf(hr09, 'codex')['render_policy'] = {
     field_mode: 'host_declared',
-    allowed_extensions: ['version', FORBIDDEN_TRANSMISSION_FIELD],
+    allowed_extensions: ['version', SECURITY_FIELD],
   };
   assert.ok(
-    errorMessages(validateHostRegistry(hr09)).some((message) =>
-      message.includes(FORBIDDEN_TRANSMISSION_FIELD),
+    errorMessages(validateHostRegistry(hr09)).some((message) => message.includes(SECURITY_FIELD)),
+    'HR-09 应拒绝未登记语义证据的安全控制字段',
+  );
+
+  // HR-09：登记了语义证据但字段不在白名单 → 失效登记同样不合规
+  const hr09Stale = cloneRegistry();
+  entryOf(hr09Stale, 'codex')['render_policy'] = {
+    field_mode: 'host_declared',
+    allowed_extensions: ['version'],
+    security_control_evidence: {
+      [SECURITY_FIELD]: {
+        semantics: '示例语义',
+        level: 'verified_official',
+        sources: ['https://example.test/spec'],
+      },
+    },
+  };
+  assert.ok(
+    errorMessages(validateHostRegistry(hr09Stale)).some((message) =>
+      message.includes('未进入白名单'),
     ),
-    'HR-09 应拒绝白名单中的禁用字段',
+    'HR-09 应拒绝未进入白名单的语义证据登记',
+  );
+
+  // HR-13：外部消费方标识与宿主标识重复
+  const hr13 = cloneRegistry();
+  hr13['external_consumers'] = [
+    {
+      id: 'claude',
+      display_name: '重名消费方',
+      evidence: { level: 'verified_official', sources: ['https://example.test/spec'] },
+    },
+  ];
+  assert.ok(
+    errorMessages(validateHostRegistry(hr13)).some((message) => message.includes('与宿主标识重复')),
+    'HR-13 应拒绝与宿主标识重复的外部消费方',
+  );
+
+  // HR-13：外部消费方证据非一手
+  const hr13Evidence = cloneRegistry();
+  hr13Evidence['external_consumers'] = [
+    {
+      id: 'other-product',
+      display_name: '证据不足的消费方',
+      evidence: { level: 'secondhand' },
+    },
+  ];
+  assert.ok(
+    errorMessages(validateHostRegistry(hr13Evidence)).some((message) =>
+      message.includes('一手等级'),
+    ),
+    'HR-13 应拒绝非一手证据的外部消费方',
   );
 
   // HR-01：版本不受支持
@@ -178,7 +229,7 @@ test('契约：非法注册项被 HR 规则拒绝（HR-04/05/08/09 等）', () =
   );
 });
 
-test('契约：透传白名单命中透传、未命中警告不静默、禁用字段全宿主拒绝', () => {
+test('契约：安全控制字段按宿主语义证据准入、白名单命中透传、未命中不静默', () => {
   // 命中：Codex 白名单内的字段
   const hit = resolveExtensions('codex', ['version', 'provenance']);
   assert.deepEqual(hit.transmitted, ['version', 'provenance'], '白名单内字段应透传');
@@ -193,18 +244,33 @@ test('契约：透传白名单命中透传、未命中警告不静默、禁用�
     '被忽略字段应回报白名单警告而非静默丢弃',
   );
 
-  // 禁用字段：任何宿主、任何模式都拒绝
+  // 安全控制字段：Codex 已登记语义证据 → 准入透传
+  const permitted = resolveExtensions('codex', [SECURITY_FIELD]);
+  assert.deepEqual(permitted.transmitted, [SECURITY_FIELD], 'Codex 已登记语义证据，应准入透传');
+  assert.deepEqual(permitted.findings, [], '已准入的字段不应产生问题');
+  assert.ok(
+    (hostById('codex')?.render_policy.allowed_extensions ?? []).includes(SECURITY_FIELD),
+    'Codex 白名单应包含该字段',
+  );
+  assert.ok(
+    hostById('codex')?.render_policy.security_control_evidence?.[SECURITY_FIELD]?.semantics !==
+      undefined,
+    'Codex 应登记该字段的已确认语义',
+  );
+
+  // 安全控制字段：其余宿主未登记语义证据 → 一律拒绝，且白名单不含该字段
   for (const entry of loadHostRegistry().hosts) {
-    const resolution = resolveExtensions(entry.host_id, [FORBIDDEN_TRANSMISSION_FIELD]);
-    assert.deepEqual(resolution.transmitted, [], `${entry.host_id} 不得透传禁用字段`);
+    if (entry.host_id === 'codex') continue;
+    const resolution = resolveExtensions(entry.host_id, [SECURITY_FIELD]);
+    assert.deepEqual(resolution.transmitted, [], `${entry.host_id} 不得透传安全控制字段`);
     assert.ok(
       resolution.findings.some((item) => item.severity === 'error'),
-      `${entry.host_id} 透传禁用字段应报错误级问题`,
+      `${entry.host_id} 透传安全控制字段应报错误级问题`,
     );
-    assert.ok(
-      (entry.render_policy.allowed_extensions ?? []).includes(FORBIDDEN_TRANSMISSION_FIELD) ===
-        false,
-      `${entry.host_id} 的白名单不得登记禁用字段`,
+    assert.equal(
+      (entry.render_policy.allowed_extensions ?? []).includes(SECURITY_FIELD),
+      false,
+      `${entry.host_id} 的白名单不得登记安全控制字段`,
     );
   }
 
@@ -218,6 +284,30 @@ test('契约：透传白名单命中透传、未命中警告不静默、禁用�
     /未登记的宿主标识/,
     '未登记宿主标识应报错',
   );
+});
+
+test('契约：Codex 落位根改为官方 agents 根，dsh 仅作为外部消费方登记', () => {
+  const codex = hostById('codex');
+  const skillRoot = (codex?.roots ?? []).find((item) => item.kind === 'skill');
+  assert.ok(skillRoot !== undefined, 'Codex 应登记技能根');
+  assert.match(String(skillRoot?.path_template), /\.agents\/skills/, '默认落位根应为 agents 根');
+  assert.deepEqual(
+    consumersOfRoot('codex', 'skill'),
+    ['codex', 'cursor', 'dsh'],
+    'agents 根的一次落位服务 codex / cursor / dsh 三个消费方（M5-R8 重叠声明）',
+  );
+  assert.deepEqual(codex?.classification.root_consumed_by, ['cursor', 'dsh']);
+
+  const registry = loadHostRegistry();
+  assert.deepEqual(
+    (registry.external_consumers ?? []).map((item) => item.id),
+    ['dsh'],
+    'dsh 以外部消费方登记',
+  );
+  assert.equal(hostById('dsh'), undefined, 'dsh 不新增宿主条目（不立注册项）');
+  assert.equal(hostIds().includes('dsh'), false, '宿主标识集合不含 dsh');
+  assert.equal(hostById('deepseek')?.support_state, 'not_applicable', 'deepseek 维持不适用');
+  assert.equal(selectableHostIds().includes('deepseek'), false, '不适用宿主不可落位');
 });
 
 test('契约：查询接口按标识与三维分类过滤正确', () => {

@@ -132,16 +132,17 @@
 | `classification.root_consumed_by` | 字符串数组 | 该宿主**输出去向**的消费宿主集合（三维之三，见 6.3） | [R-8] |
 | `roots[]` | 结构数组 | `{ kind: skill \| rules, path_template, scope: global \| project, consumed_by[], platform_notes }`；技能根与规则路径**分条登记** | [R-3] [R-9] |
 | `capability` | 结构 | `{ auto_discovery, progressive_loading, strict_filename, accepted_fields[], max_description_chars, requires_yaml_name_description }` | [R-2] [调研] |
-| `render_policy` | 结构 | `{ field_mode: standard6 \| host_declared, allowed_extensions[], drop[], degrade_form: entry \| rule_file \| none }` | [R-2] [R-4] |
+| `render_policy` | 结构 | `{ field_mode: standard6 \| host_declared, allowed_extensions[], drop[], degrade_form: entry \| rule_file \| none, security_control_evidence }`；`security_control_evidence` 按字段名索引给出安全控制字段的 `{ semantics, level, sources[], note? }` | [R-2] [R-4]；2026-10-16 裁决 |
 | `adapter_ref` | 字符串 | 适配器标识（与注册项一对一） | [R-7] |
 | `open_items[]` | 字符串数组 | 该宿主关联的待确认编号（如 HD-01 / HD-04） | [R-1] |
+| 顶层 `external_consumers[]` | 结构数组 | `{ id, display_name, evidence, note? }`：**非适配对象**但会读取某落位根的外部产品；登记后方可出现在 `consumed_by` / `root_consumed_by` | [R-8]；2026-10-16 裁决 |
 
 ### 3.2 首批注册项
 
 | host_id | 机制形态 | support_state | 证据等级 | 落位根（kind） | 渲染策略 |
 |---|---|---|---|---|---|
 | `claude` | skill 机制（标准化）+ Claude Code 扩展字段 + 插件 | confirmed | [已查证·官方文档] | skill：`.<目标标识>/skills/<Skill 标识>`（`global` / `project` 两作用域） | `standard6`（默认）；扩展字段需显式开启且标注「仅 Claude Code 有效」 |
-| `codex` | skill 机制 + 插件包机制 | confirmed | [已查证·本机实测] | skill：同上 | `standard6`（默认）；实测字段白名单待 HD-06 关闭后放宽 |
+| `codex` | skill 机制 + 插件包机制 | confirmed | [已查证·官方文档 + 本机实测] | skill：`$HOME/.agents/skills`（官方文档；`consumed_by` = codex / cursor / dsh）；`~/.codex/skills` 为**配置覆盖的遗留兼容根**（不默认双写） | `host_declared`：本机实测 20 项 + `disable-model-invocation`（**安全控制字段按语义证据准入**，见 9.6 ②） |
 | `cursor` | skill 机制 + 规则文件机制（`.cursor/rules`）+ 插件；**兼容读取 Claude / Codex 技能根** | confirmed | [已查证·官方文档] | skill：`.<目标标识>/skills/<Skill 标识>`；rules：`.cursor/rules/<Skill 标识>.mdc` | `standard6`（`allowed-tools` 默认裁剪）；规则路径模式另列一条注册项 |
 | `doubao` | skill 机制（工作区 `.skills/` / `.user_skills/`，两级均被扫描） | confirmed | [已查证·本环境实测 + 运行期证据] | skill：`<工作区>/.user_skills/<Skill 标识>`（**已确认的用户落位根**）；**禁止写入 `.skills/`**；`.agents/skills/` 待 HD-07 | `standard6`；平台自有字段不生成 |
 | `agentskills`（通用条目） | 标准符合型产物（不绑定具体宿主） | confirmed | [已查证·官方标准站] | skill：由调用方指定落位根（缺省不落位，仅产出产物） | `standard6` |
@@ -399,6 +400,19 @@ type Finding       = { level: 'error' | 'warning'; code: string; where: string; 
 | ② | DP-04 中「`disable-model-invocation` 全宿主禁止透传」 | 已实施（注册表期拒登记 + 渲染期一律拒绝） | 在证据语义一致的前提下，是否解除禁止、改为按宿主白名单透传并登记语义 |
 | ③ | DeepSeek 注册项 | `not_applicable`（模型提供方） | 是否改判并新增 `dsh` 注册项（或标 `pending_evidence`），以及是否纳入后续适配批次 |
 | ④ | Cursor 透传白名单 | 保守为空 | 待 HD-01 实测关闭；本次仅更新字段表依据 |
+
+### 9.6 裁决执行（2026-10-16，M5 遗留事实点收口批次）
+
+需求侧就 9.5 的四项待裁决给出三项裁定（④ 维持现状），本批次按「先文档后实现」执行：
+
+| # | 裁定 | 落点 |
+|---|---|---|
+| ① | **Codex 默认落位根改 `$HOME/.agents/skills`**（官方文档明示 + 与 Cursor、`dsh` 共享，一次落位多宿主可见）；`~/.codex/skills` **降为配置覆盖的遗留兼容根**（`config set host.codex.root`），**不默认双写** | 规范 3.5 与 HR 表述、注册表 `codex.roots[].path_template`/`consumed_by`/`platform_notes`、`kernel/core/adapters/roots.ts` 默认路径表、README 使用说明 |
+| ② | **`disable-model-invocation` 改按宿主语义证据准入**：HR-09 由「全宿主禁止」改写为「有语义证据的宿主可透传，无证据的宿主禁止」；**Codex 纳入**（三处独立证据语义一致，见调研补记逐处引文），**其余宿主维持不含** | 规范 2.2 第 5 条、3.7 与新增 3.8、HR-09、schema、注册表 `codex.render_policy`（白名单 + `security_control_evidence`）、`kernel/core/hosts` 判定原语、渲染策略传递 |
+| ③ | **不为 `dsh` 新立注册项**：登记为 `~/.agents/skills` 的**外部消费方**（`external_consumers`），零新增适配器、不作稳定性背书（官方明示开发者预览与破坏性变更）；`deepseek` **维持 `not_applicable`** | 规范 2.2 第 6 条、3.8、HR-07 放宽、新增 HR-13、schema、注册表顶层 `external_consumers` 与 `codex.roots[].consumed_by` |
+| ④ | Cursor 透传白名单**维持现状**（保守为空），待 HD-01 实测关闭；不阻塞 | 仅登记，无改动 |
+
+**本批次影响面**：第五份契约规范（含 schema）、注册表数据、渲染策略输入与透传判定、外部根解析默认表、测试（新增与语义变更项）与文档（调研补记 / 本设计 / 计划 / one-summary / CHANGELOG / 需求回写批次）。**指令数仍为 16**（未新增指令与选项），**一期 `--target` 语义未动**（其可推导布局不经注册表 `path_template`）。
 
 ### 9.5 DP-03 裁决的同步影响清单（供计划 T1 使用）
 

@@ -273,6 +273,8 @@
 
 **执行状态（2026-10-16，遗留事实点取证批次 · 只文档）**：Q-01（Codex 官方规范）与 Q-03（DeepSeek Harness）**关闭**，HD-06 关闭、HD-01 部分更新、HD-02 取得部分证据；同时登记**四项待裁决**（Codex 分发落位根、`disable-model-invocation` 透传是否解禁、DeepSeek 分类、Cursor 白名单），本次**不改实现与需求**，明细见 `docs/research/host-mechanisms.md` 6.3 补记与 `docs/design/m5-host-adapter.md` 9.5。
 
+**执行状态（2026-10-16，遗留事实点收口批次 · 规范 + 实现）**：三项裁决落地——① Codex 默认落位根改 `$HOME/.agents/skills`（`~/.codex/skills` 降为配置覆盖的遗留兼容根，不默认双写）；② HR-09 改写为「安全控制字段按宿主语义证据准入」，Codex 白名单纳入 `disable-model-invocation`（附语义证据），其余宿主维持禁止；③ 不新增 `dsh` 注册项，仅以顶层 `external_consumers` 登记为 agents 根的消费方，`deepseek` 维持 `not_applicable`；④ Cursor 白名单维持现状。交付：规范修订（HR-07 放宽 + HR-09 改写 + 新增 HR-13 + 3.8 节）、schema 同步、注册表数据、渲染策略与准入判定的单一实现（`isSecurityControlEvidenceComplete`，注册表期与渲染期共用）、外部根默认表、测试（含新增 4 组与语义变更项回看）。**指令数与选项未变**（16 条），**一期 `--target` 语义未动**。
+
 ---
 
 **计划结束**。执行顺序即任务编号顺序；T0 的结论将回写设计与本计划的豆包相关条目后再进入 T1。

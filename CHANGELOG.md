@@ -2,6 +2,44 @@
 
 ## 未发布
 
+### 工程：M5 遗留事实点收口（三项裁决 · 规范 + 实现）
+
+把 2026-10-16 取证引出的三项裁决落到契约与实现（**先文档后实现**），并要求 ④ 维持现状。**未新增指令与选项**（16 条不变），**一期 `--target` 语义未动**（其可推导布局不经注册表 `path_template`）。
+
+#### 三项裁定的落地
+
+| #   | 裁定                                                                                                                                      | 落地                                                                                                                                                                                                                                                                                                                                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ①   | Codex 默认落位根改 `$HOME/.agents/skills`（官方文档 + 与 Cursor、`dsh` 共享）；`~/.codex/skills` 降为**配置覆盖的遗留兼容根**，不默认双写 | 注册表 `codex.roots[]`（`path_template` = `<用户主目录>/.agents/skills/<Skill 标识>`、`consumed_by` = codex / cursor / dsh、`scope` = global、`platform_notes` 写明官方依据与兼容通道）；`kernel/core/adapters/roots.ts` 默认路径表；README 使用说明                                                                                              |
+| ②   | `disable-model-invocation` 由「全宿主禁止」改为**按宿主语义证据准入**；**Codex 纳入**（三处独立证据语义一致），其余宿主维持禁止           | 规范 2.2 第 5 条 / 3.7 / 新增 3.8 / **HR-09 改写**；schema 与 `$defs/securityControlEvidence`；注册表 `codex.render_policy.allowed_extensions` + `security_control_evidence`（`semantics` / 一手 `level` / 三条 `sources` / 残余不确定性 `note`）；准入判据 `isSecurityControlEvidenceComplete`（**唯一实现**，注册表加载期与渲染期共用两条防线） |
+| ③   | **不为 `dsh` 新立注册项**：登记为 `~/.agents/skills` 的**外部消费方**（零适配器）；`deepseek` 维持 `not_applicable`                       | 规范 2.2 第 6 条 / 3.8 / **HR-07 放宽** / **新增 HR-13**；schema 顶层 `external_consumers`；注册表顶层 `external_consumers: [dsh]`（含官方来源与「预览期不立注册项、GA 后评估」说明）与 `codex.classification.root_consumed_by` = `[cursor, dsh]`                                                                                                 |
+| ④   | Cursor 透传白名单**维持现状**（保守为空）                                                                                                 | 仅登记；待 HD-01 实测（本机无 Cursor）                                                                                                                                                                                                                                                                                                            |
+
+#### 规范与契约
+
+- **第五份契约规范修订记录第 5 条**：HR-09 改写、HR-07 放宽、新增 HR-13、新增 3.8 节（`external_consumers` 与 `security_control_evidence`）；`registry_version` 不递增（注册表随内核同版本交付，本次为可选字段新增与规则放宽，无既有取值语义变更）。
+- **机器可读形态同步**：`schemas/host_registry.schema.json` 新增顶层 `external_consumers` 与 `render_policy.security_control_evidence`（含 `$defs/externalConsumer`、`$defs/securityControlEvidence`），并把原「白名单不得含 `disable-model-invocation`」的断言改为「含该字段时必须给出语义证据」的条件断言；规范↔schema 字段集一致性测试通过。
+
+#### 测试（358 → 360 项；契约 55 → 57）
+
+- **语义变更项回看**（按工程约定逐条核对用例语义）：`host-registry.test.ts` 的 HR-09 反例改为「白名单含安全控制字段但未登记语义证据」，并新增「登记了证据却未进白名单（失效登记）」反例与两条 HR-13 反例；`render.test.ts` 的白名单用例改为 Codex 命中透传 + 其余宿主拒绝，原「禁用字段双层防线」改写为「安全控制字段两层准入（注册表语义证据 + 渲染期复核）」，并加一条对照：同一策略补上语义证据后即准入（说明拒绝的原因是证据缺失而非字段本身）；`adapters.test.ts` 字段策略边界的同宿主断言同步改写（规则文件形态无字段映射，不产出字段级问题）。
+- **新增用例**：`host-registry.test.ts`「Codex 落位根改为官方 agents 根、`dsh` 仅作为外部消费方登记」（消费集合 codex / cursor / dsh、`hostIds()` 不含 `dsh`、`deepseek` 维持不可落位）；`land.test.ts`「Codex 落位计划重定基到官方 agents 根，遗留根仅经配置生效且不双写」（默认根展开、配置覆盖回 `~/.codex/skills`、两种情形各只有一条落位项且不同时出现两个根）、默认路径表的 Codex 行改为 agents 根。
+
+#### 文档同步
+
+- `docs/research/host-mechanisms.md`：新增「补记（2026-10-16，第二批：裁定与逐处引文）」——三项裁定 + **逐处引文表**（Claude / Cursor / dsh 的 `disable-model-invocation` 语义原文、Codex 官方 agents 根原文、dsh 预览状态原文）。
+- `docs/design/m5-host-adapter.md`：3.1 字段表补 `external_consumers` 与 `security_control_evidence`；3.2 首批注册项的 Codex 行改为官方 agents 根 + `host_declared` 白名单；新增 9.6「裁决执行」。
+- `docs/plan/m5-host-adapter.md`：新增本批次执行状态。
+- `docs/one-summary.md`：7.3 交付现状表补「落位根」一行并更新首批宿主行（`deepseek` 维持不适用、`dsh` 为外部消费方）；M5-L-04 **关闭**、M5-L-07 标为 ①②③ 已执行 / ④ 保持开放；测试计数与盘点结论刷新为 360。
+- `README.md`：交付面测试计数刷新；宿主分发一节补默认落位根（含 Codex agents 根与遗留兼容根用法）。
+- `docs/requirements.md`：新增本批次回写与计数校验（需求正文未改；第 9 章当前态的契约清单表述由 HR-01 ~ HR-12 更新为 HR-01 ~ HR-13）。
+
+#### 未做（明确登记）
+
+- Cursor 白名单是否放宽（HD-01）仍待 Cursor 环境实测，不阻塞；
+- `dsh` 是否升级为宿主条目：GA 后评估（当前为开发者预览且官方明示破坏性变更）；
+- HD-02 残余：Codex 官方把同类控制放在 `agents/openai.yaml` 的 `policy.allow_implicit_invocation`，SKILL.md 层该键在 Codex 侧的实际运行期效果未实测。
+
 ### 调研：M5 遗留事实点取证（浏览器一手 · 只文档）
 
 把 M5 遗留项中三条**被网络 / 环境卡住**的事实点一次取齐：Codex 官方技能规范（原命令行侧 403）、DeepSeek Harness 线索（原不可达）、Cursor 官方字段表。取证经浏览器会话直接读取官方页面及其 `.md` / `raw` 纯文本形态，证据等级 **[已查证·浏览器一手]**。**本批次不改任何实现、不改需求、不动注册表与契约**（16 条指令、五份规范 / 五份 schema、358 项测试均未变）。

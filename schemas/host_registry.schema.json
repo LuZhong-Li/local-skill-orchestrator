@@ -22,6 +22,11 @@
       "minItems": 1,
       "items": { "$ref": "#/$defs/hostEntry" },
       "description": "宿主条目列表；host_id 在文档内唯一"
+    },
+    "external_consumers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/externalConsumer" },
+      "description": "非适配对象、但会读取落位根的外部消费方；id 不得与 host_id 重复（规范 3.8、HR-13）"
     }
   },
   "$defs": {
@@ -148,7 +153,7 @@
         "root_consumed_by": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
-          "description": "该宿主输出去向被哪些消费宿主读取；取值须为本注册表内的 host_id（HR-07）"
+          "description": "该宿主输出去向被哪些消费宿主读取；取值为本注册表内的 host_id 或 external_consumers 中的 id（HR-07、HR-13）"
         }
       }
     },
@@ -167,9 +172,59 @@
         "consumed_by": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
-          "description": "会读取该落位根的宿主集合；登记重叠消费关系（M5-R8）"
+          "description": "会读取该落位根的宿主集合（host_id 或 external_consumers 的 id）；登记重叠消费关系（M5-R8、HR-07）"
         },
         "platform_notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "externalConsumer": {
+      "type": "object",
+      "required": ["id", "display_name", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "maxLength": 64,
+          "description": "外部消费方标识；不得与任何 host_id 重复（HR-13）"
+        },
+        "display_name": { "type": "string", "minLength": 1 },
+        "evidence": { "$ref": "#/$defs/evidence" },
+        "note": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "properties": {
+            "evidence": {
+              "properties": {
+                "level": { "enum": ["verified_official", "verified_local", "verified_runtime"] }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "securityControlEvidence": {
+      "type": "object",
+      "required": ["semantics", "level", "sources"],
+      "additionalProperties": false,
+      "properties": {
+        "semantics": {
+          "type": "string",
+          "minLength": 1,
+          "description": "已确认的字段语义（HR-09）"
+        },
+        "level": {
+          "type": "string",
+          "enum": ["verified_official", "verified_local", "verified_runtime"],
+          "description": "须为一手等级（HR-09）"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "note": { "type": "string", "minLength": 1 }
       }
     },
     "capability": {
@@ -204,14 +259,19 @@
         "allowed_extensions": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
-          "description": "透传白名单；不得包含 disable-model-invocation（HR-09）"
+          "description": "透传白名单；安全控制字段（如 disable-model-invocation）须由 security_control_evidence 登记后方可包含（HR-09）"
         },
         "drop": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 },
           "description": "明确裁剪的字段；被裁剪项须进入字段差异报告"
         },
-        "degrade_form": { "type": "string", "enum": ["entry", "rule_file", "none"] }
+        "degrade_form": { "type": "string", "enum": ["entry", "rule_file", "none"] },
+        "security_control_evidence": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/securityControlEvidence" },
+          "description": "安全控制字段的语义证据（按字段名索引）；键须在 allowed_extensions 中（HR-09）"
+        }
       },
       "allOf": [
         {
@@ -232,10 +292,23 @@
           }
         },
         {
-          "not": {
+          "if": {
             "required": ["allowed_extensions"],
             "properties": {
               "allowed_extensions": { "contains": { "const": "disable-model-invocation" } }
+            }
+          },
+          "then": {
+            "required": ["security_control_evidence"],
+            "properties": {
+              "security_control_evidence": {
+                "required": ["disable-model-invocation"],
+                "properties": {
+                  "disable-model-invocation": {
+                    "required": ["semantics", "level", "sources"]
+                  }
+                }
+              }
             }
           }
         }

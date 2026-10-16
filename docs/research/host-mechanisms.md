@@ -386,6 +386,18 @@
 
 5. **取证方法备注**：本次来源全部经浏览器会话读取（命令行侧的 403 不构成事实结论）；`learn.chatgpt.com/<页面>.md` 与 `raw.githubusercontent.com/<仓库>/<分支>/<路径>` 可直取全文，后续调研建议优先使用这两种形态。
 
+**补记（2026-10-16，第二批：裁定与逐处引文）**
+
+需求侧就上述取证给出三项裁定：① Codex 默认落位根改 `~/.agents/skills`（`~/.codex/skills` 降为配置覆盖的遗留兼容根，不默认双写）；② `disable-model-invocation` 解除「全宿主禁止」，改为**按宿主语义证据准入**（Codex 纳入，其余宿主维持禁止）；③ **不为 `dsh` 新立注册项**，仅登记为 `~/.agents/skills` 的消费方（外部消费方），`deepseek` 维持 `not_applicable`。裁定结论已落入第五份契约规范（HR-07 / HR-09 / HR-13 与 `external_consumers`、`security_control_evidence`）。
+
+| 证据点 | 来源 | 引文 |
+|---|---|---|
+| 安全控制字段语义（Claude） | 官方文档（`docs.claude.com/en/docs/claude-code/skills`，实际落点 `code.claude.com/docs/en/skills`；小节 *Control who invokes a skill*） | 「To keep a personal or project skill but stop Claude from invoking it on its own, set `disable-model-invocation: true` in its frontmatter, or `"user-invocable-only"` in `skillOverrides` when you don't want to edit the file.」；「Add `disable-model-invocation: true` to prevent Claude from triggering it automatically.」 |
+| 安全控制字段语义（Cursor） | 官方文档 `https://cursor.com/docs/context/skills`（中文站同文） | 「设置 `disable-model-invocation: true` 可使技能像传统斜杠命令一样，只有在聊天中显式输入 `/skill-name` 时才会被加入上下文。」 |
+| 安全控制字段语义（DeepSeek Harness） | 官方子系统文档 `https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/docs/subsystems/skills.md` | 「The local provider reads the exact kebab-case frontmatter keys `disable-model-invocation` and `user-invocable`, defaults omitted fields to `true`, and projects every parsed skill into this normalized policy.」 |
+| Codex 用户级技能根（官方） | 官方文档 `https://learn.chatgpt.com/docs/build-skills.md` | 「Codex reads skills from repository, user, admin, and system locations. For repositories, Codex scans `.agents/skills` in every directory from your current working directory up to the repository root.」；位置表 `USER` 行为 `$HOME/.agents/skills`（「Any skills checked into the user's personal folder.」） |
+| `dsh` 预览状态（裁定 ③ 的依据） | 官方仓库 README `https://raw.githubusercontent.com/deepseek-ai/deepseek-harness/master/README.md` | 「DeepSeek Harness is in _developer preview_ and iterating rapidly. **THERE WILL BE COMPATIBILITY-BREAKING CHANGES.**」 |
+
 ### 6.4 对 9.3.6 的范围与边界的影响
 
 1. **无需改动**：M5 的目标、统一管理要求、可适配性要求、边界与排除项（不做宿主运行时与加载器、格式映射以官方规范为准、不做双向同步、不覆盖用户既有内容、不做第三方可加载适配器）均与本次事实一致，无需调整；

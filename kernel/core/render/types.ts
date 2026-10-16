@@ -8,7 +8,7 @@
  * 落盘与受控副本由 T5 的落位扩展处理，适配器不自己写盘。
  */
 import type { Finding } from '../../store/contract.ts';
-import type { DegradeForm, FieldMode } from '../hosts/types.ts';
+import type { DegradeForm, FieldMode, SecurityControlEvidence } from '../hosts/types.ts';
 
 /** 规范化的内部技能表示：渲染层的唯一输入形态 */
 export interface RenderSource {
@@ -78,6 +78,8 @@ export interface RenderPolicyInput {
   allowed_extensions?: string[];
   degrade_form?: DegradeForm;
   max_description_chars?: number;
+  /** 安全控制字段的语义证据（注册表透传；HR-09 的准入判定依据） */
+  security_control_evidence?: Record<string, SecurityControlEvidence>;
 }
 
 /** 渲染层使用的问题条目类型（与内核统一的 Finding 一致） */

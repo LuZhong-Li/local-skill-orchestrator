@@ -14,7 +14,7 @@ Skill 元信息管理器：统一管理环境内已安装 Skill 的元数据，�
 | 内核     | TypeScript，零界面依赖，编译为独立可执行文件随应用分发                                                    |
 | 桌面外壳 | Electron + Vue 3：仪表盘、详情、安装、校验报告与确认流程；可打包为安装包与便携单文件                      |
 | 契约     | 五份规范文档与五份 JSON Schema，字段一致性由测试守住                                                      |
-| 验证     | 358 项测试（单元 242、契约 55、端到端 61）、构建期检查、界面冒烟                                          |
+| 验证     | 360 项测试（单元 242、契约 57、端到端 61）、构建期检查、界面冒烟                                          |
 | 持续集成 | GitHub Actions：推送主干 / 合并请求 / 手工触发，Windows 与 Linux × 声明版本，门禁与本地同口径，产物可下载 |
 | 宿主分发 | `--host <宿主>` 把 Skill 分发到宿主真实根；首批支持 Claude / Codex / Cursor / 豆包与两个通用目标          |
 
@@ -40,6 +40,8 @@ node kernel/entry/cli.ts disable <标识> --host claude --yes            # 在�
 ```
 
 宿主标识取值来自宿主注册表（含按路径类分条的取值，如 `cursor-rules`）；写工作区之外属高影响操作，非终端环境必须给出 `--yes`。
+
+默认落位根取自注册表与平台惯例：Claude `~/.claude/skills`、**Codex `~/.agents/skills`**（官方文档给出的用户级技能根，同一根也被 Cursor 与 DeepSeek Harness 读取，一次落位多宿主可见）、Cursor `~/.cursor/skills`、豆包 agent 模式工作区的 `.user_skills/`。旧版 Codex 目录 `~/.codex/skills` 作为**遗留兼容根**保留，需要时可 `config set host.codex.root ~/.codex/skills` 切回；默认**不双写**两个根。
 
 桌面外壳：
 

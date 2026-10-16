@@ -959,7 +959,7 @@ skill-manager 必须维护一份全局索引文件，作为「已管理 Skill �
 | 索引格式规范 | [`docs/specification/index-format.md`](specification/index-format.md) | 索引文件的文件级契约：位置、结构不变量、写入时机、投影规则、一致性校验、重建与迁移 |
 | 指令契约规范 | [`docs/specification/cli-contract.md`](specification/cli-contract.md) | 十六条指令的名称、语法、参数、行为、输出载荷与确认级别 |
 | 结果与退出码规范 | [`docs/specification/result-and-exit-codes.md`](specification/result-and-exit-codes.md) | 结果封装的字段与结构、问题码的编码规则与登记表、退出码的取值与派生规则 |
-| 宿主注册表规范 | [`docs/specification/host-registry.spec.md`](specification/host-registry.spec.md) | 宿主注册表的文件级契约：载体与全局不变量、条目字段与取值域、证据等级、校验规则（HR-01 ~ HR-12）、版本与兼容策略；机器可读形态为 `schemas/host_registry.schema.json` |
+| 宿主注册表规范 | [`docs/specification/host-registry.spec.md`](specification/host-registry.spec.md) | 宿主注册表的文件级契约：载体与全局不变量、条目字段与取值域（含外部消费方与安全控制字段语义证据）、证据等级、校验规则（HR-01 ~ HR-13）、版本与兼容策略；机器可读形态为 `schemas/host_registry.schema.json` |
 | 界面设计文档 | [`docs/ui-design.md`](ui-design.md) | 界面结构、交互流程、视觉规范与原型草图，含界面动作与内核指令的对应关系 |
 | 使用说明 | 待补充 | 面向使用者的操作指引 |
 
@@ -2678,6 +2678,31 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 | 测试总数 | 358 项（单元 242、契约 55、端到端 61），全部通过；与本批前一致（本批只改文档） |
 | 实现改动 | 无：注册表、渲染层、适配器与测试未改动；四项待裁决项裁定前保持现实现 |
 | 需求正文改动 | 无（第 9.3.6 的分类与验收口径未改，仅登记待裁决） |
+| 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
+
+### 回写批次 2026-10-16（M5 遗留事实点收口：三项裁决落地）
+
+来源：需求侧对 9.5 待裁决项的裁定（① Codex 落位根、② 安全控制字段准入、③ `dsh` 登记方式；④ 维持现状）。本批次按「先文档后实现」执行，**需求正文的功能与验收口径未改**；第 9 章当前态的契约清单表述（校验规则条数）随规范修订同步。
+
+| 序号 | 落点 | 本次变更 |
+|---|---|---|
+| 1 | 契约规范（第五份） | **修订记录第 5 条**：① HR-09 改写为「安全控制字段按宿主语义证据准入」（新增 `render_policy.security_control_evidence`：`semantics` + 一手 `level` + 非空 `sources`）；② HR-07 放宽（消费关系可引用外部消费方）并**新增 HR-13**（`external_consumers` 登记完整：`id` 命名、非空一手证据、不得与 `host_id` 或彼此重复）；③ 新增 3.8 节与全局不变量第 5、6 条。`registry_version` 不递增（同版本交付的可选新增与规则放宽） |
+| 2 | 机器可读形态 | `schemas/host_registry.schema.json` 同步：顶层 `external_consumers`、`render_policy.security_control_evidence`、`$defs/externalConsumer`、`$defs/securityControlEvidence`；HR-09 的机器断言由「禁列」改为「含该字段即须给出语义证据」 |
+| 3 | 注册表数据 | Codex：用户级技能根改 `$HOME/.agents/skills`（`consumed_by` = codex / cursor / dsh），证据等级升为官方（附官方文档 URL），`open_items` 由 `[HD-02, HD-06]` 收窄为 `[HD-02]`；`render_policy` 白名单纳入 `disable-model-invocation` 并登记语义证据；顶层新增 `external_consumers: [dsh]`（预览期不立注册项）；`deepseek` 维持 `not_applicable` |
+| 4 | 内核行为 | 默认落位根表：Codex → `$HOME/.agents/skills`（`~/.codex/skills` 仅经 `config set host.codex.root` 启用，不默认双写）；准入判据 `isSecurityControlEvidenceComplete` 为**唯一实现**，注册表加载期（HR-09）与渲染期（透传判定）共用两条防线 |
+| 5 | 测试 | 语义变更项按约定回看并改写（HR-09 反例、渲染白名单用例、适配器字段策略边界）；新增用例覆盖落位根展开与不双写、消费集合与外部消费方、语义证据准入（含「补上证据即准入」的对照）；总数 358 → **360 项**（契约 55 → 57） |
+| 6 | 遗留项状态 | M5-L-02 已于前一取证批次关闭；本次 M5-L-04 **关闭**（`dsh` 仅登记为外部消费方），M5-L-07 的 ①②③ 标为已执行、④（Cursor 白名单）保持开放待 HD-01 实测 |
+
+### 计数校验（M5 收口批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动；未新增选项（一期 `--target` 语义亦未变动） |
+| 功能需求编号 | FR-01 至 FR-12，未变动；里程碑需求条目仍为 35 条 |
+| 契约规范份数 / Schema 份数 | 5 份 / 5 份（未新增规范或 schema）；第五份规范校验规则由 12 条增至 **13 条**（HR-01 ~ HR-13） |
+| 测试总数 | 由 358 项增至 **360 项**（契约 55 → 57，单元 242 与端到端 61 不变），全部通过 |
+| 依赖 | 未新增任何依赖 |
+| 需求正文改动 | 无（仅第 9 章当前态的契约清单表述由 HR-01 ~ HR-12 更新为 HR-01 ~ HR-13） |
 | 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
 
 ---

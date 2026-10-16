@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { adapterFor } from '../../kernel/core/adapters/index.ts';
+import { rebasePlan } from '../../kernel/core/adapters/plan.ts';
 import {
   isHostSkillDisabled,
   landPlan,
@@ -58,7 +59,8 @@ test('契约：外部根解析——默认值平台展开与配置覆盖', () =>
   );
   assert.equal(
     defaultRootFor('codex', 'skill', { home: '/home/u', platform: 'darwin', env: {} }),
-    join('/home/u', '.codex', 'skills'),
+    join('/home/u', '.agents', 'skills'),
+    'Codex 用户级技能根依官方文档为 $HOME/.agents/skills',
   );
   assert.equal(
     defaultRootFor('cursor', 'rules', { home: '/home/u', platform: 'linux', env: {} }),
@@ -130,6 +132,72 @@ test('契约：外部根解析——默认值平台展开与配置覆盖', () =>
   // 未登记宿主：没有根可解析
   assert.equal(resolveHostRoot({ hostId: 'deepseek', workspaceRoot }), undefined);
   assert.equal(resolveHostRoot({ hostId: 'unknown', workspaceRoot }), undefined);
+});
+
+test('契约：Codex 落位计划重定基到官方 agents 根，遗留根仅经配置生效且不双写', () => {
+  const workspaceRoot = tempWorkspace();
+  const source = sample();
+  const plan = adapterFor('codex')!.plan(source);
+
+  // 默认：官方 agents 根（与 Cursor、dsh 共享同一根）
+  const fallback = resolveHostRoot({
+    hostId: 'codex',
+    workspaceRoot,
+    config: {},
+    home: '/home/u',
+    platform: 'linux',
+    env: {},
+  });
+  assert.equal(fallback?.path, join('/home/u', '.agents', 'skills'));
+  assert.equal(fallback?.source, 'default');
+  assert.equal(fallback?.external, true);
+  assert.deepEqual(fallback?.findings, []);
+
+  const rebased = rebasePlan(plan, fallback!.path, fallback!.external);
+  assert.equal(rebased.entries.length, 1, '技能形态只产出一条落位项');
+  assert.equal(
+    rebased.entries[0]!.target_path,
+    join('/home/u', '.agents', 'skills', source.id, 'SKILL.md'),
+  );
+  assert.equal(rebased.entries[0]!.external, true);
+  assert.equal(
+    rebased.entries.some((entry) => entry.root_path.includes('.codex')),
+    false,
+    '默认不得同时写旧版兼容根（不双写）',
+  );
+  assert.deepEqual(
+    rebased.overlaps,
+    [
+      {
+        root_path: join('/home/u', '.agents', 'skills', source.id),
+        consumed_by: ['codex', 'cursor', 'dsh'],
+      },
+    ],
+    'agents 根的重叠消费应如实声明（codex / cursor / dsh）',
+  );
+
+  // 遗留兼容根：旧版本用户用配置覆盖回 ~/.codex/skills，仍然只有一条落位项
+  const legacy = resolveHostRoot({
+    hostId: 'codex',
+    workspaceRoot,
+    config: { [rootConfigKey('codex', 'skill')]: join('/home/u', '.codex', 'skills') },
+    home: '/home/u',
+    platform: 'linux',
+    env: {},
+  });
+  assert.equal(legacy?.source, 'config');
+  const legacyRebased = rebasePlan(plan, legacy!.path, legacy!.external);
+  assert.equal(legacyRebased.entries.length, 1);
+  assert.equal(
+    legacyRebased.entries[0]!.target_path,
+    join('/home/u', '.codex', 'skills', source.id, 'SKILL.md'),
+    '配置覆盖后落位到遗留兼容根',
+  );
+  assert.equal(
+    legacyRebased.entries.some((entry) => entry.root_path.includes('.agents')),
+    false,
+    '覆盖后不得同时写官方根（不双写）',
+  );
 });
 
 test('契约：落位写盘到宿主真实根（技能形态），原子写无残留', () => {

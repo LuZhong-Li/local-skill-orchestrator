@@ -61,7 +61,7 @@
 | 索引格式规范 | `docs/specification/index-format.md` | 三区结构、投影规则、重建流程 |
 | 指令契约 | `docs/specification/cli-contract.md` | 16 条指令、确认强度、缺口登记表 |
 | 结果与退出码规范 | `docs/specification/result-and-exit-codes.md` | 结果封装 8 字段、问题码 60 个、退出码 7 档 |
-| 宿主注册表规范 | `docs/specification/host-registry.spec.md` | 宿主注册表字段与 12 条校验规则（HR-01 ~ HR-12） |
+| 宿主注册表规范 | `docs/specification/host-registry.spec.md` | 宿主注册表字段与 13 条校验规则（HR-01 ~ HR-13）；安全控制字段按宿主语义证据准入、外部消费方登记 |
 | JSON Schema | `schemas/*.json` | 五份，与五份规范文档逐字段对齐并由测试守住 |
 
 ### 2.1 问题码与退出码
@@ -135,7 +135,7 @@
 | 界面冒烟 | 真实窗口与真实内核调用 | `npm run smoke:gui` |
 | 打包验证 | 免安装目录与便携单文件的启动闭环 | `npm run smoke:gui -- --app <产物>` |
 
-当前测试总数 **358 项**（单元 242、契约 55、端到端 61），全部通过。其中 M5 宿主适配层贡献：注册表与适配器契约测试、渲染层断言、落位执行器与外部根解析用例、`--host` 接线的端到端断言与收口审计用例。
+当前测试总数 **360 项**（单元 242、契约 57、端到端 61），全部通过。其中 M5 宿主适配层贡献：注册表与适配器契约测试、渲染层断言、落位执行器与外部根解析用例、`--host` 接线的端到端断言、收口审计用例，以及 2026-10-16 收口批次的准入与落位根用例。
 
 ### 4.3 工程约定
 
@@ -233,9 +233,10 @@
 |---|---|
 | 契约 | 第五份契约规范（宿主注册表规范）+ 对应 schema；全库表述为**五份规范 / 五份 schema** |
 | 内核 | K-13 宿主注册表、K-14 渲染层、K-15 适配器层（含外部根解析与落位执行器）；`--host` 已接入 `install` / `enable` / `disable` / `update` |
-| 首批宿主 | `claude`、`codex`、`cursor`、`doubao`，以及两个通用条目 `agentskills`（标准目标）与 `agents-md`（指令文件载体）；`deepseek` 登记为**不适用**（模型提供方）——**2026-10-16 待复议**：DeepSeek 官方开源 agent harness（`dsh`）含技能子系统，见 M5-L-04 与 M5-L-07 |
+| 首批宿主 | `claude`、`codex`、`cursor`、`doubao`，以及两个通用条目 `agentskills`（标准目标）与 `agents-md`（指令文件载体）；`deepseek` 维持**不适用**（模型提供方，2026-10-16 复议后不变）；`dsh`（DeepSeek Harness）以**外部消费方**登记在 agents 根下，不立宿主条目 |
+| 落位根 | 各宿主默认根由注册表 + 默认路径表给出，可用 `config set host.<id>.root` 覆盖；**Codex 默认 `$HOME/.agents/skills`**（2026-10-16 起，官方文档依据；与 Cursor、`dsh` 共享，一次落位多宿主可见），旧版 `~/.codex/skills` 作为遗留兼容根仅经配置启用，**不默认双写** |
 | 分发语义 | `--host <宿主>` 分发到宿主真实根（默认路径 + 配置覆盖）；与 `--target` **正交**，后者保持一期工作区目标语义不变 |
-| 验证 | 358 项测试全绿；M5 专属用例覆盖注册表、适配器、渲染、落位、`--host` 接线与收口审计；验收映射见 `docs/plan/m5-host-adapter.md` 第 3 章 |
+| 验证 | 360 项测试全绿；M5 专属用例覆盖注册表、适配器、渲染、落位、`--host` 接线、收口审计与 2026-10-16 收口批次；验收映射见 `docs/plan/m5-host-adapter.md` 第 3 章 |
 
 **遗留项（登记，不关闭）**
 
@@ -244,10 +245,10 @@
 | M5-L-01 | Cursor 对标准外字段的处理（设计待确认 HD-01） | **部分更新（2026-10-16）**：官方字段表复核完成（较原记录新增 `disable-model-invocation` 与 `metadata`），但「标准外字段被忽略还是报错」文档未述；仍需 Cursor 环境实测，当前保持保守裁剪（透传白名单为空） |
 | M5-L-02 | Codex 官方字段全集与技能根优先级（HD-06） | **已关闭（2026-10-16，浏览器一手取证）**：官方页重定向到 `learn.chatgpt.com/docs/build-skills`——`SKILL.md` 必需 `name` + `description`，扩展元数据在 `agents/openai.yaml`，加载位置为 `.agents/skills` 链 + `$HOME/.agents/skills` + `/etc/codex/skills` + 随包 SYSTEM，重名不合并，禁用走 `[[skills.config]]`；**残余**：官方 USER 根与注册项所用的 `~/.codex/skills`（本机实测应用读取）不一致 → 待裁决（M5-L-07 ①） |
 | M5-L-03 | AGENTS.md 合并策略未定稿 | 未定稿：`agents-md` 只产出待合并片段、不落盘；策略定稿前不得写入宿主既有文件 |
-| M5-L-04 | DeepSeek Harness 插件线索 | **已取证（2026-10-16，浏览器一手）**：`deepseek-ai/deepseek-harness` 为 DeepSeek 官方开源 agent harness（公开仓库、开发者预览、everything-is-a-plugin），**技能是一等子系统**（本机文件系统 provider + `docs/subsystems/skills.md`；六级发现根含 `<projectRoot>/.agents/skills`、`<dshHome>/skills`、`<agentsHome>/skills`；接受 `<名称>/SKILL.md` 与扁平 `<名称>.md`，不支持嵌套递归发现）。**分类待复议**（M5-L-07 ③） |
+| M5-L-04 | DeepSeek Harness 插件线索 | **已关闭（2026-10-16）**：`dsh` 为 DeepSeek 官方开源 agent harness（公开仓库、开发者预览、明示破坏性变更），技能为一等子系统；**裁定：不立注册项、不产出适配器**，仅以顶层 `external_consumers` 登记为 `~/.agents/skills` 的消费方；GA 后评估是否升级为宿主条目 |
 | M5-L-05 | `--host` 为单值选项 | 解析器已硬化：重复给出按参数类错误拒绝（不静默取最后值）；多宿主分发用多次调用；「单次调用分发到多个宿主」作为未来能力保留待评估 |
 | M5-L-06 | `docs/architecture.md` 行尾符（CRLF） | **已关闭**（独立 EOL 规范化批次）：实测该 CRLF 只在**工作副本**，仓库侧 blob 经审计全为 LF（`.gitattributes` 的 `text=auto eol=lf` 入库即规范化）；工作副本已转 LF，与仓库逐字节一致，无内容变更 |
-| M5-L-07 | 2026-10-16 取证引出的**待裁决项**（裁定前保持现实现） | 待裁定：① Codex 分发落位根（`~/.codex/skills` 与官方 `$HOME/.agents/skills` 的取舍 / 并存）；② `disable-model-invocation` 是否解除「全宿主禁止透传」（三处独立证据语义一致）；③ DeepSeek 是否改判并新增 `dsh` 注册项；④ Cursor 透传白名单是否放宽（待 HD-01 实测）。明细见 `docs/design/m5-host-adapter.md` 9.5 与 `docs/research/host-mechanisms.md` 6.3 补记（2026-10-16） |
+| M5-L-07 | 2026-10-16 取证引出的裁决项 | ①②③ **已裁定并执行**（Codex 根改 `$HOME/.agents/skills` 且遗留根仅经配置；`disable-model-invocation` 按宿主语义证据准入、Codex 纳入；`dsh` 仅登记为外部消费方）；④ **保持开放**（Cursor 白名单维持保守，待 HD-01 实测）。明细见 `docs/design/m5-host-adapter.md` 9.5 / 9.6 与 `docs/research/host-mechanisms.md` 6.3 补记（2026-10-16 第二批：裁定与逐处引文） |
 
 ### 7.4 后续阶段其余里程碑状态（M1 ~ M4）
 
@@ -260,4 +261,4 @@
 
 ---
 
-**盘点结论**：16 条指令、五份契约规范与五份 JSON Schema、Electron 桌面外壳与可分发产物均已交付；二期五个批次（来源扩展、备份恢复、漂移定位、运行时探测、界面恢复入口）同样无未实现项，缺口登记表全部关闭。**后续阶段的 M5（宿主适配层）已收官**：第五份契约规范与内核侧注册表 / 渲染 / 适配器三层落地，`--host` 宿主分发接入四条指令，遗留项见 7.3 节。**M1（CI 接入）亦已收官**：门禁在 Windows 与 Linux 上随推送与合并请求自动执行，四次真实运行给出全部验收证据，七条验收 6 条闭合、缓存条目按需求原文出口以「未达成 + 原因」闭合；其余里程碑进度见 7.4 节。测试总数为 358 项全绿。剩余为 7.2 节的内核体积优化（工程项）、M5 遗留项（待环境或待决策）与 M1 的缓存收益复测触发器。
+**盘点结论**：16 条指令、五份契约规范与五份 JSON Schema、Electron 桌面外壳与可分发产物均已交付；二期五个批次（来源扩展、备份恢复、漂移定位、运行时探测、界面恢复入口）同样无未实现项，缺口登记表全部关闭。**后续阶段的 M5（宿主适配层）已收官**：第五份契约规范与内核侧注册表 / 渲染 / 适配器三层落地，`--host` 宿主分发接入四条指令，2026-10-16 收口批次完成三项裁决（Codex agents 根、安全控制字段按语义证据准入、`dsh` 仅登记为外部消费方），遗留项见 7.3 节。**M1（CI 接入）亦已收官**：门禁在 Windows 与 Linux 上随推送与合并请求自动执行，四次真实运行给出全部验收证据，七条验收 6 条闭合、缓存条目按需求原文出口以「未达成 + 原因」闭合；其余里程碑进度见 7.4 节。测试总数为 360 项全绿。剩余为 7.2 节的内核体积优化（工程项）、M5 遗留项（M5-L-01 Cursor 实测、M5-L-03 AGENTS.md 合并策略、M5-L-05 多宿主单次分发、M5-L-07 ④）与 M1 的缓存收益复测触发器。

@@ -65,8 +65,9 @@
 2. 一个宿主的技能根与规则路径**分条登记**，不得合并为一条；
 3. 任一落位根的消费宿主集合必须显式登记（未登记的消费关系视为登记缺陷）；
 4. 支持状态为「机制已确认」的条目必须携带一手证据等级；
-5. 透传白名单**不得**包含 `disable-model-invocation`（语义不明，禁止跨宿主透传）；
-6. 注册表不含任何凭据、令牌或个人标识。
+5. **安全控制字段按宿主语义证据准入**：`disable-model-invocation` 等安全控制字段，只有在 `render_policy.security_control_evidence` 中逐字段登记了**已确认语义**与**一手证据**的宿主，才允许进入该宿主的透传白名单；未登记者一律禁止（HR-09）；
+6. **外部消费方须显式登记**：非本注册表宿主（如 `dsh`）只有在顶层 `external_consumers` 中登记（含一手证据来源）后，才可出现在 `consumed_by` / `root_consumed_by` 中（HR-07、HR-13）；
+7. 注册表不含任何凭据、令牌或个人标识。
 
 ### 2.3 写入权限
 
@@ -86,6 +87,7 @@
 | `registry_version` | 字符串 | 必填 | 注册表格式版本标识 | 当前取值 `1`；不兼容变更递增，见 7.2 节 |
 | `generated_at` | 字符串 | 可选 | 注册表生成时间 | 协调世界时秒级，格式见 2.4 节同名约束（`YYYY-MM-DDTHH:MM:SSZ`） |
 | `hosts` | 映射数组 | 必填 | 宿主条目列表 | 至少一项；`host_id` 不得重复；结构见 3.2 节 |
+| `external_consumers` | 映射数组 | 可选 | 非宿主外部消费方（会读取落位根但不作为适配对象的产品） | 每项 `id` 不得与任何 `host_id` 重复；结构见 3.8 节 |
 
 ### 3.2 条目字段
 
@@ -117,7 +119,7 @@
 |---|---|---|---|---|
 | `skill_mechanism` | 布尔 | 必填 | 是否支持 skill 机制 | 与 `rules_only` 不得同时为假；**`support_state = not_applicable` 的宿主豁免**，见 HR-05 |
 | `rules_only` | 布尔 | 必填 | 是否仅支持规则文件 | 同上 |
-| `root_consumed_by` | 字符串数组 | 可选 | 该宿主**输出去向**被哪些宿主消费 | 取值须为本注册表内的 `host_id`，见 HR-07 |
+| `root_consumed_by` | 字符串数组 | 可选 | 该宿主**输出去向**被哪些宿主消费 | 取值须为本注册表内的 `host_id`，或顶层 `external_consumers` 中登记的 `id`，见 HR-07 与 HR-13 |
 
 ### 3.5 `roots` 结构
 
@@ -126,7 +128,7 @@
 | `kind` | 字符串枚举 | 必填 | 落位根类别 | 仅允许 `skill`（技能根）、`rules`（规则路径）、`external`（工作区外技能根）；**`not_applicable` 宿主的 `roots` 为空数组时不适用** |
 | `path_template` | 字符串 | 必填 | 落位路径模板 | 非空；**模板粒度由 `kind` 决定**：`skill` 与 `external` 是技能**目录**模板（形如 `.<目标标识>/skills/<Skill 标识>`），`rules` 是规则**文件**模板（形如 `.cursor/rules/<Skill 标识>.mdc`）；技能根类须与可推导布局一致或说明工作区外模板；禁止包含凭据 |
 | `scope` | 字符串枚举 | 可选 | 作用域 | 仅允许 `global`、`project` |
-| `consumed_by` | 字符串数组 | 可选 | 会读取该落位根的宿主集合 | 取值须为本注册表内的 `host_id`；登记重叠消费关系 |
+| `consumed_by` | 字符串数组 | 可选 | 会读取该落位根的宿主集合 | 取值须为本注册表内的 `host_id`，或顶层 `external_consumers` 中登记的 `id`；登记重叠消费关系（HR-07、HR-13） |
 | `platform_notes` | 字符串 | 可选 | 平台差异说明 | 非空字符串；差异须与跨平台一致性口径一致 |
 
 ### 3.6 `capability` 结构
@@ -145,9 +147,31 @@
 | 字段名 | 数据类型 | 必填/可选 | 描述 | 校验规则 |
 |---|---|---|---|---|
 | `field_mode` | 字符串枚举 | 必填 | 字段渲染模式 | 仅允许 `standard6`（标准 6 字段）、`host_declared`（标准字段 + 白名单扩展） |
-| `allowed_extensions` | 字符串数组 | 可选 | 透传白名单 | `host_declared` 时非空、`standard6` 时为空或缺省；不得含 `disable-model-invocation`，见 HR-08 与 HR-09 |
+| `allowed_extensions` | 字符串数组 | 可选 | 透传白名单 | `host_declared` 时非空、`standard6` 时为空或缺省；**安全控制字段（如 `disable-model-invocation`）只有在 `security_control_evidence` 中登记后方可包含**，见 HR-08 与 HR-09 |
 | `drop` | 字符串数组 | 可选 | 明确裁剪的字段 | 每项为非空字符串；被裁剪项须进入运行的字段差异报告 |
 | `degrade_form` | 字符串枚举 | 可选 | 降级形态 | 仅允许 `entry`（指令文件条目）、`rule_file`（规则文件）、`none` |
+| `security_control_evidence` | 映射 | 可选 | 安全控制字段的语义证据（按字段名索引） | 每个键必须同时出现在 `allowed_extensions` 中；值结构见 3.8 节；准入判定见 HR-09 |
+
+### 3.8 `external_consumers` 与 `security_control_evidence` 结构
+
+`external_consumers[]`（顶层）——**不作为 M5 适配对象、但会读取某落位根**的外部产品：
+
+| 字段名 | 数据类型 | 必填/可选 | 描述 | 校验规则 |
+|---|---|---|---|---|
+| `id` | 字符串 | 必填 | 外部消费方标识 | 命名同 `host_id`（全小写字母、数字与短横线）；不得与任何 `host_id` 重复；文档内唯一 |
+| `display_name` | 字符串 | 必填 | 展示名称 | 非空字符串 |
+| `evidence` | 映射 | 必填 | 证据等级与来源 | 结构同 3.3 节；等级须为一手等级（HR-13） |
+| `note` | 字符串 | 可选 | 登记说明（如预览状态、后续评估条件） | 非空字符串 |
+
+`render_policy.security_control_evidence`（按字段名索引的映射，值为对象）：
+
+| 字段名 | 数据类型 | 必填/可选 | 描述 | 校验规则 |
+|---|---|---|---|---|
+| （键） | 字符串 | 必填 | 安全控制字段名 | 必须是 2.2 节第 5 条列举的安全控制字段，且必须出现在同一宿主的 `allowed_extensions` 中 |
+| `semantics` | 字符串 | 必填 | **已确认的字段语义** | 非空；须为可判定的行为描述（如「`true` 时排除模型自动调用，仅显式调用可用」） |
+| `level` | 字符串枚举 | 必填 | 证据等级 | 须为一手等级（`verified_official` / `verified_local` / `verified_runtime`） |
+| `sources` | 字符串数组 | 必填 | 来源清单 | 至少一项；官方等级给 URL，实测等级给路径或命令；不得包含凭据 |
+| `note` | 字符串 | 可选 | 补充说明（跨宿主一致性与残余不确定性） | 非空字符串 |
 
 ---
 
@@ -184,12 +208,13 @@
 | HR-04 | 状态与证据绑定 | `support_state=confirmed` 时 `evidence.level` 必须属于一手等级（`verified_official` / `verified_local` / `verified_runtime`） |
 | HR-05 | 三维分类自洽 | `skill_mechanism` 与 `rules_only` 不得同时为假；**`support_state = not_applicable` 的宿主豁免本规则**（表示两类机制皆无） |
 | HR-06 | 落位根完整 | 每个宿主至少一条落位根；`kind` 不重复；`kind` 与 `classification` 自洽（声明支持 skill 机制时须有 `skill` 或 `external` 类落位根——后者表示技能根位于工作区之外）；**`support_state = not_applicable` 的宿主允许 `roots` 为空** |
-| HR-07 | 消费关系闭合 | `roots[].consumed_by` 与 `classification.root_consumed_by` 的取值必须是本注册表内的 `host_id`；实际已知的消费关系必须登记 |
+| HR-07 | 消费关系闭合 | `roots[].consumed_by` 与 `classification.root_consumed_by` 的取值必须是本注册表内的 `host_id`，或顶层 `external_consumers` 中登记的 `id`；实际已知的消费关系必须登记 |
 | HR-08 | 模式与白名单一致 | `field_mode=host_declared` 时 `allowed_extensions` 非空；`standard6` 时为空或缺省 |
-| HR-09 | 透传禁列 | `allowed_extensions` 不得包含 `disable-model-invocation` |
+| HR-09 | 安全控制字段准入 | `allowed_extensions` 中的安全控制字段（`disable-model-invocation`）必须由同一宿主的 `security_control_evidence` 逐字段登记 **`semantics`（非空）+ 一手 `level` + 非空 `sources`**；未登记即禁止透传。反之，`security_control_evidence` 中出现未列入 `allowed_extensions` 的字段同样不合规（防止失效登记） |
 | HR-10 | 可落位性 | 仅 `adapter_state` 为 `implemented` 或 `degrade_only` 的宿主可参与落位；`planned` 宿主可登记但取值时按未登记取值处理 |
 | HR-11 | 证据来源形式 | 官方等级须给出 URL；实测与运行期等级须给出路径或命令；任何来源不得含凭据 |
 | HR-12 | 版本兼容 | 内核读取到高于自身支持的 `registry_version` 时按「不支持」处理，给出明确问题码并拒绝加载 |
+| HR-13 | 外部消费方登记完整 | `external_consumers[]` 每项必须有 `id`（命名同 HR-02）、`display_name` 与非空一手 `evidence`；`id` 不得与任何 `host_id` 或彼此重复；未登记的标识不得出现在任何消费关系字段（HR-07） |
 
 ---
 
@@ -290,7 +315,8 @@ hosts:
 | 落位根与两级粒度 | M5-R3、M5-R9 | DP-01 |
 | 首批名单与支持状态 | M5-R4 | Q-05、HD-01、HD-06 |
 | 消费宿主集合与重叠消费 | M5-R8 | DP-02 |
-| 透传白名单与禁列 | M5-R2 的降级与透传规则 | DP-04、HD-02 |
+| 透传白名单与安全控制字段准入 | M5-R2 的降级与透传规则 | DP-04、HD-02 |
+| 外部消费方登记（`external_consumers`） | M5-R8 的落位根重叠 | 2026-10-16 裁决（`dsh` 不立注册项） |
 
 ---
 
@@ -302,3 +328,4 @@ hosts:
 | 2 | 2026-10-15 | 兼容澄清（T2 实现反馈）：① `support_state = not_applicable` 的宿主豁免 HR-05 与 HR-06，`roots` 与 `adapter_ref` 改为条件必填——「不适用 / 模型提供方」类宿主（如 DeepSeek）在规范中此前无法表达（两类机制皆无且无落位根）；② HR-06 的「技能根」判定同时接受 `skill` 与 `external` 两类落位根——工作区外的技能根（如豆包的用户技能根）此前会被误判为缺技能根。规则编号与其余取值域未变，机器可读形态同步 |
 | 3 | 2026-10-15 | 兼容澄清（T2 实现反馈）：载体形态补充「类型化数据模块」一档。本期实现随内核以 esbuild 打成单个可执行文件，采用 `kernel/core/hosts/registry-data.ts`（类型化数据模块）而不引入构建期资源加载；字段契约、校验规则与不变量不因载体形态而变，`host_registry.yaml` 作为等价文档形态保留 |
 | 4 | 2026-10-15 | 兼容澄清（T4 实现反馈）：明确 `path_template` 的模板粒度由 `kind` 决定——`skill` / `external` 为技能目录模板，`rules` 为规则文件模板，供落位计划展开时使用。原表述只写「落位路径模板」，未区分目录与文件，落位计划无法据以判定是否需要拼接产物文件名 |
+| 5 | 2026-10-16 | **裁决修订（M5 遗留事实点收口批次）**：① **HR-09 改写**——由「全宿主禁止 `disable-model-invocation`」改为「安全控制字段按宿主语义证据准入」，配套新增 `render_policy.security_control_evidence` 结构（`semantics` + 一手 `level` + `sources`）与 3.8 节；② **HR-07 放宽并新增 HR-13**——消费关系取值允许引用顶层新登记的 `external_consumers[]`（外部消费方须带一手证据，作为**非适配对象**登记），据此把 `dsh`（DeepSeek Harness，开发者预览）登记为 `~/.agents/skills` 的消费方；③ Codex 用户级技能根依据官方文档改为 `$HOME/.agents/skills`（原 `~/.codex/skills` 降为**配置覆盖的遗留兼容根**，不默认双写）。`registry_version` 不递增：注册表随内核同版本交付，本次为可选字段新增与规则放宽，无既有取值语义变更 |

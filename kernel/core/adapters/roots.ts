@@ -32,7 +32,9 @@ export function defaultRootFor(
   const home = context.home;
   if (rootKind === 'skill' || rootKind === 'external') {
     if (hostId === 'claude') return join(home, '.claude', 'skills');
-    if (hostId === 'codex') return join(home, '.codex', 'skills');
+    // Codex 用户级技能根：官方文档给出 $HOME/.agents/skills（该根同时被 Cursor 与 dsh 读取）；
+    // 旧版 ~/.codex/skills 降为遗留兼容根，需要时用 config set host.codex.root 覆盖
+    if (hostId === 'codex') return join(home, '.agents', 'skills');
     if (hostId === 'cursor') return join(home, '.cursor', 'skills');
     if (hostId === 'doubao') {
       // 豆包技能根位于客户端 agent 模式工作区；仅 Windows 有实测证据
