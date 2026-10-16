@@ -41,7 +41,7 @@
 - **发布与幂等**：`gh` 参数按官方手册核对（`create`：`--title/--notes-file/--verify-tag/--latest`；`edit`：`--title/--notes-file/--latest`；`upload`：`--clobber`）；已存在则 edit + 覆盖资产，不打 prerelease 标记；仅 release job 具 `contents: write`。
 - **口径修正**：Release notes 写在交付目录之外（写进去会被归位检查判为非交付物）；汇总产物改用 `actions/download-artifact@v8`（v6 面向 Node 20）。
 - **干跑自测已全绿**（临时 tag `v0.1.0-t3dryrun5` → run 38893295554，**Success 5m12s**：四个打包 leg + release job 全绿）：资产清单（5 个实名）与 `SHA256SUMS` 以运行页注解公开输出，`--dry-run` 只打印 gh 命令、**未创建任何 Release**（复核：`/releases` 为空、`/releases/tags/<tag>` 404）。此前一次干跑被 mac-x64 的 dmg 构建抖动（`hdiutil: couldn't eject "disk2" - Resource busy`，登记 **EX-10**）打断，重跑即恢复，判定为非确定性失败。临时分支与全部临时 tag 已删除。
-- **未闭环**：真实 `v0.1.0` 发布待 **EX-02** 授权（EX-01 的 CHANGELOG 定版已在本条上方完成）。
+- **真实发布完成**（`v0.1.0`，2026-10-16）：tag `v0.1.0` → run 38908935080 **Success**；Release 为 **latest、非 prerelease、非 draft**，含 5 个交付资产与 `SHA256SUMS.txt`；**下载后复核**（Release 页公开下载 arm64 dmg 152 MB 与 x86_64 AppImage 164 MB，用 Release 上的校验清单本地复算）**逐字节一致**。发布过程命中并修掉两处真实缺陷：① 上传资产给裸文件名 → gh 报 `no matches found`（改为「汇总目录 + 文件名」路径）；② 新建的 Release 处于 **draft**，`--latest` 被 GitHub 以 422「Latest release cannot be draft or prerelease」拒绝 → 发布流程收敛为 `create → publish(draft=false,prerelease=false) → edit(title/notes/latest) → upload(--clobber)` 四步（幂等，复跑同 tag 亦收敛）。
 
 ### 修复：EX-07（mac-arm64 打包失败）——内核 SEA 补齐 macOS 签名步骤 + 失败自证
 

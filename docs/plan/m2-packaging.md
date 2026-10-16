@@ -132,7 +132,7 @@
 
 ### T3 发布（实现第四批）
 
-**执行状态**：**机制已完成并自测；真实发布待 EX-02 授权（2026-10-16）**。
+**执行状态**：**已完成（2026-10-16）**——机制自测与**真实 `v0.1.0` 发布**均已闭环（tag → run 38908935080 Success；Release 为 latest、非 prerelease、非 draft；下载后哈希复核一致）。
 
 | 项 | 结果 |
 |---|---|
@@ -268,6 +268,7 @@
 | EX-09 | 内核产物在三平台同名 `skill-manager.exe`（扩展名与平台习惯不符） | 仅命名规范；无功能影响 | 核查结论：codesign 按 Mach-O 内容判定、与扩展名无关；GUI 按 `resources/kernel/skill-manager.exe` 固定解析。本批**不改名**（改名属额外变更，牵动 GUI/CI/文档），登记待评估 |
 | EX-10 | **macOS dmg 构建抖动**：`dmgbuild`/`hdiutil` 偶发 `couldn't eject "disk2" - Resource busy`（T3 干跑自测 run 38891909354 命中，此前多次运行未出现） | 单 leg 变红；重跑可恢复，非确定性失败影响发布节奏 | 处置顺序：先重跑证据（确认是抖动而非回归）；若复现频繁，按「在 packing 步骤加重试」处理并登记（不改交付物口径） |
 | EX-11 | Release notes 与交付目录的关系（干跑自测实测） | 若把 notes 写进交付目录，归位检查会判其为非交付物 | 已修：notes 写在交付目录之外（`RELEASE_NOTES.md`），并有契约断言钉住「不得落在 release/ 内」 |
+| EX-12 | **新建的 Release 处于 draft**（真实发布首跑实测）：此时 `gh release edit --latest` 被 GitHub 以 422「Latest release cannot be draft or prerelease」拒绝 | 首跑留下一个 0 资产的 Release 与红色发布 job | 已修（收敛流程）：发布动作固定为 `create → publish(--draft=false --prerelease=false) → edit(--title/--notes-file/--latest) → upload(--clobber)`，复跑同 tag 复用该 Release 并补齐全部资产；**根因未完全定位**（疑与 gh 2.102.0 的 create 行为有关），如需追根用已登录会话复核 |
 | EX-08 | `workflow_dispatch` 触发路径未实测（当前会话无已登录浏览器，无法点 Run workflow） | 「手工触发」这条入口缺真实运行证据 | 有已登录会话时补一次 dispatch 首跑（含 platforms / arch 输入）；触发定义与步骤级守卫已由契约测试覆盖 |
 
 ---
