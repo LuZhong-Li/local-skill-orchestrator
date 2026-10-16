@@ -1,14 +1,19 @@
 /**
- * 发布资产归位、校验清单与 GitHub Release 发布（可注入、可 dry-run）。
+ * 发布资产归位、校验清单与 GitHub Release 发布（可注入、可 dry-run、幂等）。
  *
  * 依据 M2 设计 6.2 / 6.3 与 T3 裁决 2、4、5、6：
  *   - 交付资产固定为 5 个（Windows nsis + portable、Linux AppImage、macOS dmg ×2）＋ SHA256SUMS.txt；
- *   - 只接受 `refs/tags/v*` 触发的运行，且需要 `contents: write`（由工作流声明，脚本不自提权）；
- *   - 幂等：Release 已存在则 edit + `upload --clobber` 覆盖同名资产，不产生第二个 Release；
- *   - 不打 prerelease 标记，标记为最新正式 Release（`--latest`）。
+ *   - 只接受 `refs/tags/v*` 触发的运行，写权限由工作流的 release job 声明（脚本不自提权）；
+ *   - 幂等且**收敛**：Release 不存在则创建，存在则复用；无论哪条路径，都显式发布（`--draft=false
+ *     --prerelease=false`）后再改标题 / notes 并标记 `--latest`，最后以 `upload --clobber` 覆盖同名资产；
+ *   - 不打 prerelease 标记，标记为最新正式 Release。
  *
- * gh 参数已按官方手册核对（EX-04 关闭）：`create` 支持 `--title/--notes-file/--verify-tag/--latest`，
- * `edit` 支持 `--title/--notes-file/--latest`，`upload` 支持 `--clobber`。
+ * 两条实测得来的硬约束（首跑与干跑各命中一次，均已加回归断言）：
+ *   一、gh 在仓库根目录运行，上传资产必须给「汇总目录 + 文件名」的路径，裸文件名会 `no matches found`；
+ *   二、新建的 Release 可能处于 draft，此时 `--latest` 会被 GitHub 拒绝（HTTP 422），必须先发布。
+ *
+ * gh 参数已按官方手册核对（EX-04 关闭）：`create` 支持 `--title/--notes-file/--verify-tag`，
+ * `edit` 支持 `--title/--notes-file/--latest/--draft/--prerelease`，`upload` 支持 `--clobber`。
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -63,42 +68,39 @@ export function buildChecksumManifest({ dir, files, readFile = readFileSync }) {
 }
 
 /**
- * gh 参数拼装：create / edit / upload 三类（纯函数，便于核对与单测）。
+ * gh 参数拼装（纯函数，便于核对与单测）。返回按序执行的命令列表：
+ *   1. create（仅当 Release 不存在）
+ *   2. publish（收敛发布态：draft / prerelease 一律置否）
+ *   3. edit（标题 / notes / latest）
+ *   4. upload（`--clobber` 覆盖同名资产）
  *
- * `assets` 与 `checksumFile` 必须是**相对于当前工作目录可用**的路径：gh 在仓库根目录运行，
- * 而交付物在汇总目录（如 `release/`）里，因此传裸文件名会得到
- * `no matches found for 'SHA256SUMS.txt'`（首跑实测命中此坑）。
+ * `assets` 与 `checksumFile` 必须是**相对当前工作目录可用**的路径（见文件头说明）。
  */
 export function ghArgs({ exists, tag, title, notesFile, assets, checksumFile }) {
-  const upload = ['release', 'upload', tag, '--clobber', checksumFile, ...assets];
-  if (exists) {
-    return [
-      {
-        step: 'edit',
-        command: 'gh',
-        args: ['release', 'edit', tag, '--title', title, '--notes-file', notesFile, '--latest'],
-      },
-      { step: 'upload', command: 'gh', args: upload },
-    ];
-  }
-  return [
-    {
+  const steps = [];
+  if (!exists) {
+    steps.push({
       step: 'create',
       command: 'gh',
-      args: [
-        'release',
-        'create',
-        tag,
-        '--title',
-        title,
-        '--notes-file',
-        notesFile,
-        '--verify-tag',
-        '--latest',
-      ],
-    },
-    { step: 'upload', command: 'gh', args: upload },
-  ];
+      args: ['release', 'create', tag, '--title', title, '--notes-file', notesFile, '--verify-tag'],
+    });
+  }
+  steps.push({
+    step: 'publish',
+    command: 'gh',
+    args: ['release', 'edit', tag, '--draft=false', '--prerelease=false'],
+  });
+  steps.push({
+    step: 'edit',
+    command: 'gh',
+    args: ['release', 'edit', tag, '--title', title, '--notes-file', notesFile, '--latest'],
+  });
+  steps.push({
+    step: 'upload',
+    command: 'gh',
+    args: ['release', 'upload', tag, '--clobber', checksumFile, ...assets],
+  });
+  return steps;
 }
 
 /** Release 是否已存在（只读判断，dry-run 也会执行） */
@@ -120,8 +122,9 @@ export function publishRelease({
 }) {
   const commands = ghArgs({ exists, tag, title, notesFile, assets, checksumFile });
   if (dryRun) {
-    for (const command of commands)
+    for (const command of commands) {
       console.log(`[dry-run] ${command.command} ${command.args.join(' ')}`);
+    }
     return { dryRun: true, commands };
   }
   for (const command of commands) {
@@ -172,17 +175,17 @@ if (isEntrypoint) {
     const checksumPath = join(args.dir, CHECKSUM_FILE);
     writeFileSync(checksumPath, `${manifest}\n`, 'utf8');
     console.log(`校验清单已生成：${checksumPath}`);
-    // 把资产清单与校验清单写进运行页注解：未登录会话也能核对（T3 的公开证据）
+    // 资产清单与校验清单进运行页注解：未登录会话也能核对（T3 的公开证据）
     console.log(`::notice title=发布资产清单::${assets.join('、')}`);
     console.log(`::notice title=SHA256SUMS::${manifest.replace(/\n/g, ' | ')}`);
 
     const exists = releaseExists({ tag: args.tag });
-    console.log(`Release 已存在：${exists ? '是（edit + 覆盖资产）' : '否（create）'}`);
+    console.log(`Release 已存在：${exists ? '是（复用 + 覆盖资产）' : '否（创建）'}`);
     publishRelease({
       tag: args.tag,
       title: args.title ?? args.tag,
       notesFile: args.notes,
-      // 交给 gh 的资产路径按「汇总目录 + 文件名」给出（notes 路径由调用方给绝对/相对路径）
+      // gh 在仓库根目录运行：资产与清单都按「汇总目录 + 文件名」给出
       assets: assets.map((name) => join(args.dir, name)),
       checksumFile: checksumPath,
       exists,
