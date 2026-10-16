@@ -295,6 +295,11 @@ test('契约：pack.yml 的 release job 仅在 tag 触发、具备最小写权�
   const steps = release.steps ?? [];
   const download = steps.find((step) => String(step.uses).includes('download-artifact'));
   assert.ok(download !== undefined, '发布 job 应汇总 leg 产物');
+  assert.match(
+    String(download.uses),
+    /download-artifact@v[89]$/,
+    '汇总产物使用面向 Node 24 的主版本（v7 起；v6 仍面向 Node 20 会产生废弃告警）',
+  );
   const runs = steps.map((step) => String(step.run ?? '')).join('\n');
   assert.match(runs, /release-guard\.mjs/, '发布前执行版本守卫');
   assert.match(runs, /release-publish\.mjs/, '发布经发布脚本执行');

@@ -221,7 +221,8 @@ jobs:
 
       # 汇总四个 leg 的交付产物（诊断包以 diagnostics- 开头，不会被本模式选中）
       - name: 汇总四 leg 产物
-        uses: actions/download-artifact@v6
+        # v7 起才面向 Node 24（v6 仍面向 Node 20，会产生废弃告警）；与 DP-D 的「主版本 = 运行时」口径一致
+        uses: actions/download-artifact@v8
         with:
           pattern: pack-*
           merge-multiple: true
