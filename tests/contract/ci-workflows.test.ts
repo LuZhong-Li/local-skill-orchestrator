@@ -209,10 +209,16 @@ test('契约：pack.yml 四 leg 矩阵、fail-fast: false、tag 不取消旧运�
   const macEvidence = steps.find((step) => String(step.name).includes('真机验证（macOS）'));
   assert.ok(macEvidence !== undefined, 'mac leg 应有未签名 / icns 真机证据步骤');
   assert.match(String(macEvidence.run), /assert-unsigned\.mjs/);
+  assert.match(
+    String(macEvidence.run),
+    /::notice/,
+    '真机结论须以注解输出（未登录会话也能读到运行结论）',
+  );
   const linuxEvidence = steps.find((step) => String(step.name).includes('真机验证（Linux）'));
   assert.ok(linuxEvidence !== undefined, 'linux leg 应有 maintainer 实测步骤');
   assert.match(String(linuxEvidence.run), /check-maintainer\.mjs/);
   assert.match(String(linuxEvidence.run), /--appimage-extract/);
+  assert.match(String(linuxEvidence.run), /::notice/);
 });
 
 test('契约：三个工作流的官方动作主版本同口径', () => {

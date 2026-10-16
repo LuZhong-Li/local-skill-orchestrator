@@ -107,10 +107,16 @@ jobs:
           inputs.platforms == matrix.platform) && matrix.platform == 'mac'
         shell: bash
         run: |
-          ls -l gui/packaging/icon.icns
+          icns_bytes="$(wc -c < gui/packaging/icon.icns | tr -d ' ')"
+          if [ "$icns_bytes" -le 0 ]; then
+            echo "::error::icon.icns 为空：iconutil 未产出有效文件"
+            exit 1
+          fi
+          echo "::notice title=EX-03 iconutil 真机验证::${{ matrix.leg }} 上 icon.icns 由 iconutil 产出（${icns_bytes} 字节）"
           app="$(ls -d build/desktop/mac*/*.app | head -n 1)"
           echo "app=$app"
           node scripts/assert-unsigned.mjs "$app"
+          echo "::notice title=codesign 未签名断言::${app} 判定为未签名（断言通过）"
 
       # 真机证据：AppImage 是否消费 linux.maintainer（T1 判定逻辑，单侧实测；结论回写配置）
       - name: 真机验证（Linux）：maintainer 消费实测
@@ -122,7 +128,9 @@ jobs:
           appimage="$(ls build/desktop/*.AppImage | head -n 1)"
           chmod +x "$appimage"
           "$appimage" --appimage-extract > /dev/null
-          node scripts/check-maintainer.mjs --with squashfs-root
+          verdict="$(node scripts/check-maintainer.mjs --with squashfs-root | tail -n 1)"
+          echo "$verdict"
+          echo "::notice title=linux.maintainer 消费实测::$verdict"
 
       - name: 上传产物
         # 未选中的 leg 不上传（其打包步骤已被跳过）
