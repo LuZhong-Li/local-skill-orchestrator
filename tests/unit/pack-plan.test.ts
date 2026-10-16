@@ -14,8 +14,8 @@ test('打包计划：mac arm64（宿主 macOS）——图标链含 icns、只打
 
   assert.deepEqual(
     plan.steps.filter((step) => step.kind === 'npm').map((step) => step.script),
-    ['build:icon', 'build:icon:icns', 'build'],
-    'mac 宿主上应先生成跨平台图标、再拼 icns、再构建界面',
+    ['build:icon', 'build:icon:icns', 'build:kernel', 'build'],
+    'mac 宿主上应先生成跨平台图标、再拼 icns、再构建内核与界面',
   );
   const builder = plan.steps.at(-1);
   assert.deepEqual(builder.args, [...CONFIG_ARGS, '--mac', '--arm64'], '只打 mac 且架构显式');
@@ -59,7 +59,7 @@ test('打包计划：linux x64——无 icns、无未签名口径与断言', () 
 
   assert.deepEqual(
     plan.steps.filter((step) => step.kind === 'npm').map((step) => step.script),
-    ['build:icon', 'build'],
+    ['build:icon', 'build:kernel', 'build'],
   );
   const builder = plan.steps.at(-1);
   assert.deepEqual(builder.args, [...CONFIG_ARGS, '--linux', '--x64']);

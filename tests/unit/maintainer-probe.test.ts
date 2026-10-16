@@ -1,10 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findNeedleInTree, maintainerConsumptionVerdict } from '../../scripts/maintainer-probe.mjs';
+import {
+  findNeedleInTree,
+  maintainerConsumptionVerdict,
+  maintainerSingleSideVerdict,
+} from '../../scripts/maintainer-probe.mjs';
 
+const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const NEEDLE = 'skill-manager <3338004299@qq.com>';
 
 /** 造一个 AppImage 解包目录的近似结构（desktop 条目 + 一个同名字符串文件） */
@@ -72,4 +78,25 @@ test('maintainer 实测：两版都命中 → ambiguous（字符串来自别处�
     'ambiguous',
     '两版都命中说明命中来源与该字段无关',
   );
+});
+
+test('maintainer 实测：单侧判定（T2 Linux leg 口径）只凭命中数结出 consumed / not-consumed', () => {
+  assert.equal(
+    maintainerSingleSideVerdict({ withHits: [{ path: 'a', lines: ['x'] }] }),
+    'consumed',
+  );
+  assert.equal(maintainerSingleSideVerdict({ withHits: [] }), 'not-consumed');
+});
+
+test('maintainer 实测：命令行入口只给 --with 时可运行并结出单侧结论', () => {
+  const dir = fixture({ withNeedle: true }, 'cli');
+  const result = spawnSync(
+    process.execPath,
+    [join(root, 'scripts', 'check-maintainer.mjs'), '--with', dir],
+    { cwd: root, encoding: 'utf8' },
+  );
+
+  assert.equal(result.status, 0, `CLI 应以 0 退出：${String(result.stderr ?? '')}`);
+  assert.match(String(result.stdout), /maintainer 命中（含该字段的产物）：1 处/);
+  assert.match(String(result.stdout), /结论：consumed（单侧实测/);
 });

@@ -7,12 +7,8 @@ name: CI
 #   - 同一分支的连续提交取消旧运行，结论只以最新提交为准。
 # 夜间完整流水线按设计 11 章 DP-A 的处置**默认不启用**（CI-Q-01）：需要长耗时检查时再单独加入。
 #
-# 动作版本与 runner 标签（设计 11 章 DP-D / DP-E）：
-#   - 三个官方动作一律使用面向 Node 24 运行时的主版本（checkout@v5、setup-node@v5、upload-artifact@v6），
-#     避免落到「面向 Node 20 被强制在 Node 24 上运行」的废弃告警；
-#   - 两个 job 的检出步骤同步升级，版本保持一致；
-#   - Linux runner 固定为 ubuntu-24.04：`ubuntu-latest` 将于 2026-10-19 迁移到 Ubuntu 26，
-#     固定标签让操作系统升级成为显式决策而不是静默变化；Windows 无同类迁移公告，暂用 windows-latest。
+# 校验步骤集合定义在 .github/workflows/verify.yml（M2-R5：唯一实现）：
+# 本工作流只保留触发与并发口径，步骤序列与抽取前逐条一致（同一份 verify.yml 也被 pack.yml 消费）。
 on:
   push:
     branches:
@@ -33,97 +29,7 @@ permissions:
   contents: read
 
 jobs:
-  # 读取版本声明：矩阵的 Node 取值以 .nvmrc 为唯一来源（设计 4 章的「同源」要求）
-  prepare:
-    name: 读取版本声明
-    runs-on: ubuntu-24.04
-    outputs:
-      node_versions: ${{ steps.nvmrc.outputs.versions }}
-    steps:
-      - name: 检出
-        uses: actions/checkout@v5
-      - name: 从 .nvmrc 生成矩阵取值
-        id: nvmrc
-        shell: bash
-        run: |
-          version="$(tr -d ' \t\r\n' < .nvmrc)"
-          if [[ ! "$version" =~ ^[0-9]+$ ]]; then
-            echo "::error::.nvmrc 内容不是单个主版本号：$version"
-            exit 1
-          fi
-          echo "versions=[\"$version\"]" >> "$GITHUB_OUTPUT"
-          echo "矩阵 Node 版本取自 .nvmrc：$version"
-
   verify:
-    name: 验证（${{ matrix.os }} / Node ${{ matrix.node }}）
-    needs: prepare
-    runs-on: ${{ matrix.os }}
-    # 硬上限 60 分钟（设计 8 章）；目标为 30 分钟以内
-    timeout-minutes: 60
-    strategy:
-      # 一个组合失败不掩盖其他组合的结果；任一组合失败即整次运行失败
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - windows-latest
-        node: ${{ fromJSON(needs.prepare.outputs.node_versions) }}
-    steps:
-      - name: 检出
-        uses: actions/checkout@v5
-
-      - name: 安装 Node ${{ matrix.node }}
-        uses: actions/setup-node@v5
-        with:
-          node-version: ${{ matrix.node }}
-          # 依赖缓存：键由平台、Node 版本与依赖锁文件的哈希共同决定（设计 6 章）
-          cache: npm
-
-      - name: 版本声明一致性守卫（矩阵取值与 .nvmrc）
-        run: node scripts/check-node-version.mjs --expect ${{ matrix.node }}
-
-      - name: 一、安装依赖（按锁文件）
-        run: npm ci
-
-      - name: 二、契约校验与分层校验
-        run: npm run check
-
-      - name: 三、类型检查
-        run: npm run typecheck
-
-      - name: 四、代码规范
-        run: npm run lint
-
-      - name: 五、格式检查（只读）
-        run: npm run format:check
-
-      - name: 六、测试（单元 / 契约 / 端到端，含用例数核对）
-        run: npm test
-
-      - name: 七、构建（内核独立可执行文件 + 桌面外壳构建）
-        run: npm run build
-
-      - name: 八、缩减冒烟（内核侧，不启动 Electron）
-        run: npm run smoke:kernel
-
-      - name: 上传构建产物
-        uses: actions/upload-artifact@v6
-        with:
-          name: skill-manager-${{ runner.os }}-${{ runner.arch }}-run${{ github.run_id }}
-          if-no-files-found: error
-          retention-days: 14
-          path: |
-            build/kernel/skill-manager.exe
-            gui/out/**
-
-      # 失败时保留已产出的部分产物，便于诊断（日志由运行记录本身保留）
-      - name: 失败时的诊断产物
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: diagnostics-${{ runner.os }}-run${{ github.run_id }}
-          if-no-files-found: ignore
-          retention-days: 14
-          path: |
-            build/**
-            gui/out/**
+    # 可复用工作流承载 prepare + verify 两个 job（步骤与矩阵见 verify.yml）
+    name: 校验
+    uses: ./.github/workflows/verify.yml

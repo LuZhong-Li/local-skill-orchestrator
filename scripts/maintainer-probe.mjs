@@ -74,3 +74,13 @@ export function maintainerConsumptionVerdict({ withHits, withoutHits }) {
   if (withoutHits.length > 0) return 'ambiguous';
   return 'consumed';
 }
+
+/**
+ * 单侧判定（只拿到「含该字段」的那一版产物时使用，T2 矩阵的 Linux leg 属此情形）：
+ * 命中即认定该字段被写入产物，未命中即认定未写入。单侧结论比双侧弱——
+ * 命中理论上可能来自别处的同名文本，因此命令行会把这一点写在结论旁边，
+ * 需要排除干扰时改用 `--without` 做双侧比对。
+ */
+export function maintainerSingleSideVerdict({ withHits }) {
+  return withHits.length > 0 ? 'consumed' : 'not-consumed';
+}

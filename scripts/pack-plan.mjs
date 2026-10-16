@@ -75,6 +75,9 @@ export function buildPackPlan({ platform, arch, hostPlatform = process.platform 
     }
   }
 
+  // 内核以独立可执行文件随包分发（AD-09）：缺内核时打包仍会成功，但运行期找不到通道，
+  // 因此内核构建列为打包前置步骤，与界面构建并列（Windows 沿用 pack:win 入口，同样需要它）
+  steps.push({ kind: 'npm', script: 'build:kernel', note: '内核可执行文件（随包分发）' });
   steps.push({ kind: 'npm', script: 'build', workspace: '@skill-manager/gui', note: '界面构建' });
   steps.push({
     kind: 'npx',

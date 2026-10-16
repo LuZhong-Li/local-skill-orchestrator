@@ -1,0 +1,134 @@
+name: Pack
+
+# 打包矩阵（设计 3.1 / 3.3；需求 M2-R1 ~ M2-R5）：
+#   - tag v*：发布前的全平台打包（Release 发布在 T3 接入同一工作流；本批只产出 artifact）；
+#   - workflow_dispatch：按需预演，可只跑指定平台、可覆盖 mac 架构（留空即跑四 leg 全量）。
+# 每次提交的快速门禁仍由 ci.yml 承担：push / PR 不触发本工作流，运行时长与 M1 现状一致。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: '只跑指定平台（留空 = 全部；可选 windows / linux / mac）'
+        required: false
+        default: ''
+      arch:
+        description: 'mac 架构覆盖（留空 = 按 leg；可选 arm64 / x64）'
+        required: false
+        default: ''
+
+# 同一 ref 的旧运行取消；tag 运行不取消（发布语义不得被后续运行打断）
+concurrency:
+  group: pack-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # 打包前门禁：消费与 ci.yml 同一份校验步骤定义（M2-R5），失败即不进入打包
+  verify:
+    name: 打包前校验
+    uses: ./.github/workflows/verify.yml
+
+  pack:
+    name: 打包（${{ matrix.leg }}）
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    # 硬上限 60 分钟（设计 8 章）
+    timeout-minutes: 60
+    # 可选输入过滤：留空跑全部 leg；tag 推送（非 dispatch）不受输入影响，永远全量
+    if: github.event_name != 'workflow_dispatch' || inputs.platforms == '' || inputs.platforms == matrix.platform
+    strategy:
+      # 一个平台失败不掩盖其他平台结论（设计 3.4；fixture 探测见 CHANGELOG）
+      fail-fast: false
+      matrix:
+        include:
+          - leg: windows
+            os: windows-latest
+            platform: windows
+            artifact_glob: build/desktop/*.exe
+          - leg: linux
+            os: ubuntu-24.04
+            platform: linux
+            arch: x64
+            artifact_glob: build/desktop/*.AppImage
+          - leg: mac-arm64
+            os: macos-15
+            platform: mac
+            arch: arm64
+            artifact_glob: build/desktop/*.dmg
+          - leg: mac-x64
+            os: macos-15-intel
+            platform: mac
+            arch: x64
+            artifact_glob: build/desktop/*.dmg
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+
+      - name: 安装 Node（取自 .nvmrc）
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 安装依赖（按锁文件）
+        run: npm ci
+
+      # Windows 沿用二期入口（配置与产物口径不变）：图标 → 内核 → 安装包 + 便携单文件
+      - name: 打包（Windows：nsis 安装包 + 便携单文件）
+        if: matrix.platform == 'windows'
+        run: |
+          npm run build:icon
+          npm run build:kernel
+          npm run pack:win -w @skill-manager/gui
+
+      # macOS / Linux：走打包入口（内部按平台串联 图标 →（mac）icns → 内核 → 界面 → electron-builder）
+      - name: 打包（macOS / Linux，未签名）
+        if: matrix.platform != 'windows'
+        env:
+          PACK_ARCH: ${{ matrix.arch }}
+          ARCH_OVERRIDE: ${{ github.event_name == 'workflow_dispatch' && inputs.arch || '' }}
+        shell: bash
+        run: node scripts/pack.mjs --platform ${{ matrix.platform }} --arch "${ARCH_OVERRIDE:-$PACK_ARCH}"
+
+      # 真机证据：icns 由 iconutil 产出（EX-03）＋ 独立的未签名断言复核（pack.mjs 内已断言一次）
+      - name: 真机验证（macOS）：icns 产物与未签名断言
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          ls -l gui/packaging/icon.icns
+          app="$(ls -d build/desktop/mac*/*.app | head -n 1)"
+          echo "app=$app"
+          node scripts/assert-unsigned.mjs "$app"
+
+      # 真机证据：AppImage 是否消费 linux.maintainer（T1 判定逻辑，单侧实测；结论回写配置）
+      - name: 真机验证（Linux）：maintainer 消费实测
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          appimage="$(ls build/desktop/*.AppImage | head -n 1)"
+          chmod +x "$appimage"
+          "$appimage" --appimage-extract > /dev/null
+          node scripts/check-maintainer.mjs --with squashfs-root
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v6
+        with:
+          name: pack-${{ matrix.leg }}-run${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 14
+          path: ${{ matrix.artifact_glob }}
+
+      # 失败时附诊断产物（与 ci.yml 同口径）
+      - name: 失败时的诊断产物
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: pack-diagnostics-${{ matrix.leg }}-run${{ github.run_id }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: build/desktop/**
