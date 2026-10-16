@@ -22,9 +22,27 @@ function readReports() {
 }
 
 const reports = readReports();
+
+/** 诊断文件：测量中断时由 runner 写入（EX-07 的教训——失败必须在运行页上自证） */
+function readFailures() {
+  try {
+    return readdirSync(dir)
+      .filter((name) => name.startsWith('failure-') && name.endsWith('.txt'))
+      .map((name) => ({ name, text: readFileSync(join(dir, name), 'utf8').trim() }));
+  } catch {
+    return [];
+  }
+}
+
+const failureFiles = readFailures();
+for (const file of failureFiles) {
+  const firstLines = file.text.split('\n').slice(0, 6).join(' | ');
+  process.stdout.write(`::error::测量中断（${file.name}）· ${firstLines}\n`);
+}
+
 if (reports.length === 0) {
   process.stdout.write(`::notice::没有找到测量结果（${dir}/report-*.json）\n`);
-  process.exit(0);
+  process.exit(failureFiles.length > 0 ? 1 : 0);
 }
 
 let unhealthy = 0;
@@ -66,3 +84,4 @@ for (const { name, report } of reports) {
 }
 
 if (unhealthy > 0) process.exit(1);
+if (failureFiles.length > 0) process.exit(1);
