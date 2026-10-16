@@ -1,0 +1,75 @@
+{
+  "schema": "bench-ci-smoke/1",
+  "version": "0.1.0",
+  "run_id": 38938465443,
+  "run_url": "https://github.com/LuZhong-Li/skill-manager/actions/runs/38938465443",
+  "commit": "c4d44ff2209f79023da5f15ac6b66b199cbb8e6c",
+  "recorded_at": "2026-10-17",
+  "collection": "从运行页注解抄录（job 日志需登录；注解对未登录会话公开可读）",
+  "note": "CI 为共享 runner，实测波动 17%~30%（设计 §1.5），数值仅记录、**不作门禁**；采样失败或退出码越出预期码表会让该工作流变红。runs=1",
+  "platforms": [
+    {
+      "platform": "linux",
+      "runner": "ubuntu-24.04",
+      "arch": "x64",
+      "samples": {
+        "source": {
+          "startup": { "wall_median_ms": 233, "peak_rss_max_mb": 107.1, "coverage": 0.05, "exit_codes": [0] },
+          "scan-cold": { "wall_median_ms": 376, "peak_rss_max_mb": 124, "coverage": 0.33, "exit_codes": [3] },
+          "scan-hot": { "wall_median_ms": 425, "peak_rss_max_mb": 134.7, "coverage": 0.42, "exit_codes": [3] },
+          "validate": { "wall_median_ms": 348, "peak_rss_max_mb": 122.8, "coverage": 0.41, "exit_codes": [1] },
+          "export": { "wall_median_ms": 388, "peak_rss_max_mb": 130.2, "coverage": 0.31, "exit_codes": [0] }
+        },
+        "sea": {
+          "startup": { "wall_median_ms": 58, "peak_rss_max_mb": 54.6, "coverage": 0.03, "exit_codes": [0] },
+          "scan-cold": { "wall_median_ms": 214, "peak_rss_max_mb": 80.7, "coverage": 0.21, "exit_codes": [3] },
+          "scan-hot": { "wall_median_ms": 352, "peak_rss_max_mb": 94.7, "coverage": 0.09, "exit_codes": [3] },
+          "validate": { "wall_median_ms": 216, "peak_rss_max_mb": 90.6, "coverage": 0.1, "exit_codes": [1] },
+          "export": { "wall_median_ms": 179, "peak_rss_max_mb": 86.3, "coverage": 0.14, "exit_codes": [0] }
+        }
+      },
+      "highlights": ["Linux 直读 /proc 的 VmHWM 真机路径验证通过（T1 仅注入单测覆盖）"]
+    },
+    {
+      "platform": "windows",
+      "runner": "windows-latest",
+      "arch": "x64",
+      "samples": {
+        "source": {
+          "startup": { "wall_median_ms": 386, "peak_rss_max_mb": 72.6, "coverage": 0.08, "exit_codes": [0] },
+          "scan-cold": { "wall_median_ms": 748, "peak_rss_max_mb": 79.2, "coverage": 0.45, "exit_codes": [3] },
+          "scan-hot": { "wall_median_ms": 851, "peak_rss_max_mb": 92.1, "coverage": 0.52, "exit_codes": [3] },
+          "validate": { "wall_median_ms": 760, "peak_rss_max_mb": 88, "coverage": 0.44, "exit_codes": [1] },
+          "export": { "wall_median_ms": 607, "peak_rss_max_mb": 85.3, "coverage": 0.39, "exit_codes": [0] }
+        },
+        "sea": {
+          "startup": { "wall_median_ms": 135, "peak_rss_max_mb": 41.7, "coverage": 0, "exit_codes": [0] },
+          "scan-cold": { "wall_median_ms": 621, "peak_rss_max_mb": 61.8, "coverage": 0.29, "exit_codes": [3] },
+          "scan-hot": { "wall_median_ms": 580, "peak_rss_max_mb": 74.2, "coverage": 0.27, "exit_codes": [3] },
+          "validate": { "wall_median_ms": 490, "peak_rss_max_mb": 70.7, "coverage": 0.18, "exit_codes": [1] },
+          "export": { "wall_median_ms": 368, "peak_rss_max_mb": 69.8, "coverage": 0.16, "exit_codes": [0] }
+        }
+      },
+      "highlights": ["PowerShell PeakWorkingSet64 真机路径验证通过"]
+    },
+    {
+      "platform": "macos",
+      "runner": "macos-15",
+      "arch": "arm64",
+      "samples": {
+        "source": {
+          "startup": { "wall_median_ms": 239, "peak_rss_max_mb": 105.7, "coverage": 0.03, "exit_codes": [0] },
+          "scan-cold": { "wall_median_ms": 438, "peak_rss_max_mb": 110.7, "coverage": 0.39, "exit_codes": [3] },
+          "scan-hot": { "wall_median_ms": 696, "peak_rss_max_mb": 126.2, "coverage": 0.44, "exit_codes": [3] },
+          "validate": { "wall_median_ms": 573, "peak_rss_max_mb": 121.2, "coverage": 0.38, "exit_codes": [1] },
+          "export": { "wall_median_ms": 632, "peak_rss_max_mb": 126.6, "coverage": 0.34, "exit_codes": [0] }
+        },
+        "sea": null
+      },
+      "highlights": [
+        "macOS ps 重采样真机路径验证通过（T1 仅注入单测覆盖）",
+        "SEA 线缺测：EX-13（该轮产物在 macOS 上被系统终止；根因已定位并修复，待修复后补齐，见 baseline 的 gaps）"
+      ]
+    }
+  ]
+}

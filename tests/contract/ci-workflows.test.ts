@@ -345,12 +345,15 @@ test('契约：bench.yml 触发为推送验证路径 + 手工触发，且明确�
   assert.match(text, /只记录数据，不做性能门禁/, '定位写明：CI 数值不作门禁');
   assert.equal(text.includes('--runs 1'), true, 'CI 烟测只跑 runs=1');
   assert.equal(
-    text.includes("--form ${{ runner.os == 'macOS' && 'source' || 'both' }}"),
+    text.includes('--form both'),
     true,
-    '两条线都跑到（源码线 + 内核 SEA）；macOS 因 EX-13 暂只跑源码线',
+    '两条线都跑到（源码线 + 内核 SEA）；EX-13 修复后三平台一致',
   );
-  assert.equal(text.includes('EX-13'), true, 'macOS 的 SEA 延后必须写明登记的缺陷编号');
-  assert.match(text, /SEA 内核退出码/, '保留 macOS SIGKILL 取证步骤（修复批次解禁的依据）');
+  assert.equal(
+    text.includes('EX-13'),
+    true,
+    'macOS 曾暂缓 SEA 的历史与解禁依据必须在注释里留痕（缺陷可追溯）',
+  );
 });
 
 test('契约：bench.yml 三平台矩阵与测量链路健康检查（采样失败即红）', () => {

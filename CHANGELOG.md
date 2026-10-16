@@ -2,6 +2,15 @@
 
 ## 未发布
 
+### M3-T3 基线与报告（并定位/修复发布缺陷 EX-13）
+
+- **基线入库**：`docs/benchmark/baseline-0.1.0.json`（schema `bench-baseline/1`）+ `docs/benchmark/report-0.1.0.md`；基线由 `scripts/bench/baseline.mjs` 从原始报告与 CI 烟测记录合成，**逐次样本随文档入库**（`build/` 不入库，只留中位数会让基线不可复核）；缺失项以 `gaps` 显式登记（macOS SEA 线，EX-13）。
+- **阈值判定（N=1000）**：四项全部达标——`scan` 1.154 s（源码）/ 1.118 s（SEA）、`validate` 1.143 / 1.082 s、`export` 0.564 / 0.504 s、峰值 RSS **326.4** / 179.9 MB（阈值 30 / 30 / 15 s、512 MB）。**时间余量 26× 以上，内存余量 1.6× 是唯一需要持续盯的指标**；未触发任何优化项。
+- **拐点判定（两轮独立复测）**：四个 scan 场景的单技能平均耗时 1000→5000 为 1.97×~2.45×（两轮一致）→ 按裁决口径归入 **`mild-superlinear`（轻微超线性观察项，不优化）**；`validate` / `export` 为 `none`（`export` 随规模下降），**内存无拐点**（每技能平均内存随规模下降）。判定由 `baseline.mjs` 计算（三条分支），报告与基线由契约测试同源比对。
+- **覆盖率随档位上升**：源码线 `scan-cold` 0.44 → 0.71 → 0.78、SEA 线 0.29 → 0.50 → 0.62，支撑「规模工作占主导」；SEA 线阶段归集整体偏低（打包后库帧名改写）→ 阶段构成只在同线内比较。
+- **EX-13 定位并修复（发布级缺陷）**：CI 对照实验（macos-15 arm64 / macos-15-intel x64）给出决定性证据——构建期 SEA 内核执行 `--version` **退出码 139（SIGSEGV）**，而**签名校验通过**（`codesign --verify --deep --strict` 有效）、可执行位正常、裸 `node` 副本可运行，故不是签名/授权问题。根因是 **Node 官方文档要求的 macOS 注入参数缺失**：macOS 必须把 blob 注入 `NODE_SEA` 段的 `NODE_SEA_BLOB` 节（`postject --macho-segment-name NODE_SEA`），构建脚本漏了该参数。修复：新增 `scripts/sea-postject.mjs`（postject 参数唯一实现，仅 darwin 加段名）+ `build-kernel.mjs` 改用它 + 单测；**修复后 A 组在 arm64 与 x64 均 `exit=0`、输出 0.1.0**。B 组（electron-builder 打包后 .app 内内核）与 C 组（v0.1.0 发布 dmg 内内核）**均已实测：C 组 exit=139** —— 即 **`v0.1.0` 的 macOS arm64 dmg 内嵌内核不可执行**（M2 只验过签名可读与架构、从未在 macOS 上执行内核）；是否发 `v0.1.1` 补丁由维护者裁决。
+- **附带登记**：官方文档明示 SEA 在 macOS 只测 arm64、x64「目前不支持并在测试中跳过」——本流水线仍产出 x64 dmg 且其内核同样受 EX-13 影响（修复后 x64 实测可执行）；macOS 的取证工作流（`probe-ex13.yml` + 两个探针脚本）保留为后续复验入口。
+
 ### M3-T2 双线三档跑测（本机全矩阵 + CI 三平台烟测）
 
 - **SEA 线取发布资产**（不是本机构建）：从 `v0.1.0` Release 的 `skill-manager-0.1.0-portable.exe` 解包出 `resources/kernel/skill-manager.exe`（`7z x`：SFX → `app-64.7z` → 内核），资产 SHA256 与同 Release 的 `SHA256SUMS.txt` **一致**；内核 SHA256 `62fa8785…`、87,928,320 B。发布资产由 CI 的 Node 22 打包、本机构建是 Node 24（内嵌运行时不同），故基线以发布内核为准，来源写进报告的 `kernel_provenance`。
