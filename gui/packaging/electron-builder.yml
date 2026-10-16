@@ -72,8 +72,10 @@ linux:
   category: Utility
   synopsis: Skill 元信息管理器（命令行内核 + 桌面外壳）
   description: 统一管理环境内已安装 Skill 的元数据：登记、索引、安装、卸载、启用、禁用、更新、校验、依赖检查与备份导入导出。
-  # 打包者标识取仓库既有提交身份，不新造个人信息；是否被 AppImage 形态消费由
-  # scripts/check-maintainer.mjs 实测判定（真机执行登记为 T2 Linux 首跑项）
+  # 打包者标识取仓库既有提交身份，不新造个人信息。
+  # T2 真机实测（run 38871300587 的 Linux leg，注解公开可见）：AppImage 形态**不消费**本字段
+  # ——解包后的产物树中未出现该字符串（结论 not-consumed）。字段保留仅为配置完整性
+  # （deb / rpm 等形态才消费它），如需复测用 scripts/check-maintainer.mjs。
   maintainer: skill-manager <3338004299@qq.com>
   target:
     - AppImage

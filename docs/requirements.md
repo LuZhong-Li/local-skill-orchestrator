@@ -2754,6 +2754,32 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 | 需求正文改动 | 无（本批只追加本回写批次与计数校验） |
 | 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
 
+### 回写批次 2026-10-16（M2-T2 打包矩阵）
+
+来源：M2 计划 T2 的实现批次（设计 3.1 / 3.3 / 7.1 / 8；计划 T2）。**需求正文未改动**；本条登记实现落点与实测结果。
+
+| 序号 | 落点 | 本次变更 |
+|---|---|---|
+| 1 | 校验步骤唯一实现 | 新增 `.github/workflows/verify.yml`（`workflow_call`，承载 `prepare` + `verify` 两个 job，步骤名称与命令逐条不变）；`ci.yml` 改为消费该工作流，触发与并发口径不变 |
+| 2 | 打包矩阵 | 新增 `.github/workflows/pack.yml`：tag `v*` 与 `workflow_dispatch`（可选 `platforms` / `arch` 输入，步骤级过滤）；`verify` 为打包前门禁；四 leg 为 `windows-latest` / `ubuntu-24.04` / `macos-15`(arm64) / `macos-15-intel`(x64)；`fail-fast: false`、60 分钟上限、tag 运行不取消旧运行；产物命名含 leg 与 run id |
+| 3 | 真机结论通道 | 三项真机结论以运行页 `::notice` 注解公开（`iconutil` icns 产出、`codesign` 未签名断言、`maintainer` 消费实测）；打包步骤失败时把关键原因折进 `::error` 注解（未登录会话可读） |
+| 4 | Linux 打包依赖 | leg 内安装 `libfuse2t64`（runner 镜像未预装 FUSE 2，AppImage 工具链需要）；属 CI 环境依赖，不新增项目依赖 |
+| 5 | 配置修复 | `linux.executableName: skill-manager`（electron-builder 从包名推导出 `@skill-managergui`，AppImage 报非法字符而构建失败）；`linux.maintainer` 依真机实测结论注明「AppImage 不消费，保留为配置完整性」 |
+| 6 | 实测结果 | ci.yml 抽取后 run 38869061706 Success；tag 首跑 run 38869913530 与修复后 run 38871300587 中 Windows / Linux / mac-x64 三 leg 产物齐备（238 MB / 156 MB AppImage / 148 MB dmg），**mac-arm64 leg 未通过**（EX-07 待取证）；fail-fast 探测 run 38869954307 证明单 leg 失败时其余 leg 仍出结论与产物；探测分支与四个临时 tag 已删除 |
+| 7 | 测试 | 新增 9 项（单元 2：`maintainer` 单侧判定与 CLI；契约 7：工作流结构与口径）+ 2 项回归断言（job 级 `if` 不得引用 `matrix`、`platforms` 过滤须在步骤级）；总数 389 → **400 项** |
+
+### 计数校验（M2-T2 批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动；未新增选项 |
+| 功能需求编号 | FR-01 至 FR-12，未变动；里程碑需求条目仍为 35 条 |
+| 契约规范份数 / Schema 份数 | 5 份 / 5 份，未变动（本批未触及契约） |
+| 测试总数 | 由 389 项增至 **400 项**（单元 260 → 262、契约 68 → 77；端到端 61 不变），全部通过 |
+| 新增工作流 | 3 个（`ci.yml` 改造 + `verify.yml`、`pack.yml` 新增）；无新增项目依赖（Linux leg 的 `libfuse2t64` 属 runner 环境依赖） |
+| 需求正文改动 | 无（本批只追加本回写批次与计数校验） |
+| 已定稿内容 | 第 1 至 8 章与附录 A 至 D 未改动；`docs/reviews/` 下既有快照未改动 |
+
 ---
 
 **文档结束**。本文档仅描述需求，不包含实现。一期功能清单在进入实现阶段后冻结，后续变更需先更新本文档再实施。

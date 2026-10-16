@@ -2,6 +2,47 @@
 
 ## 未发布
 
+### 工程：M2-T2 打包矩阵（verify.yml 抽取、pack.yml 四 leg、真机验证与 fail-fast 探测）
+
+M2 的第三个实现批次：把校验步骤收敛为唯一实现，并让打包按 tag 触发四平台矩阵。**未新增指令与选项**（16 条不变）、未新增项目依赖（Linux leg 在 runner 上安装 `libfuse2t64` 属 CI 环境依赖，非项目依赖）。
+
+#### 变更
+
+- **`verify.yml`（可复用，`workflow_call`）**：现有 `ci.yml` 的 `prepare` + `verify` 两个 job 原样抽出（步骤名称与顺序逐条不变）；`ci.yml` 改为 `uses: ./.github/workflows/verify.yml`，其触发与并发口径不变，只保留触发层。
+- **`pack.yml`（新增）**：触发 tag `v*` 与 `workflow_dispatch`（可选 `platforms` / `arch` 输入）；`verify` 作为打包前门禁（消费同一份 `verify.yml`）；四 leg 矩阵 `windows-latest` / `ubuntu-24.04` / `macos-15`（arm64）/ `macos-15-intel`（x64），`fail-fast: false`、任务级 60 分钟上限；concurrency 仅对手工/分支运行取消旧运行（tag 运行不打断）；每 leg 打包 → 上传产物（命名含平台 leg 与 run id）→ 失败时另附诊断产物。
+- **真机结论以注解输出**：mac leg 的 `iconutil` 产物与 `codesign` 未签名断言、linux leg 的 `maintainer` 消费实测，均以 `::notice` 写到运行页注解——**未登录会话也能读到运行结论**（本批的诊断通道，也是后续无人值守排查的基础）。
+- **失败可诊断**：三个打包步骤把失败原因（关键词命中行，或末 3 行回落）折进 `::error` 注解，避免「红 leg 但看不到原因」。
+- **Linux 打包依赖**：runner 镜像未预装 FUSE 2，AppImage 工具链需要它——leg 内显式 `apt-get install libfuse2t64`（设计 7.1 的处置顺序）。
+- **配置修复**：新增 `linux.executableName: skill-manager`——electron-builder 会从包名 `@skill-manager/gui` 推导可执行名（`@skill-managergui`），AppImage 目标据此报「含非法字符」而构建失败。
+- **`linux.maintainer` 注解回写**：T2 真机实测结论为 **not-consumed**（AppImage 不消费该字段），按裁决 ⑨ / T1 口径保留字段并注明用途（deb / rpm 等形态才消费）。
+
+#### 实测结果
+
+| 运行                                        | 结论                                                                                                                                                         |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| run 38869061706（ci.yml 抽取后）            | **Success 1m 57s**；job 呈现为「校验 / 读取版本声明」「校验 / 验证（…）」，步骤序列由契约测试逐条钉住                                                        |
+| run 38869913530（tag 首跑）                 | Failure：Windows ✓ 238 MB、mac-x64 ✓ 148 MB；Linux ✗、mac-arm64 ✗                                                                                            |
+| run 38871300587（修复后重跑）               | Failure：Windows ✓ 238 MB、**Linux ✓ 156 MB AppImage**、mac-x64 ✓ 148 MB、mac-arm64 ✗（517 MB 诊断产物）——三项真机注解全部产出                               |
+| run 38869954307（fail-fast 探测，临时分支） | linux leg 按探测步骤红，**同一运行里 Windows 与 mac-x64 仍产出并上传产物**（`fail-fast: false` 实证）；探测分支与四个临时 tag 已删除，正式工作流不含探测代码 |
+
+#### 本批发现并修复的缺陷（如实登记）
+
+1. **job 级 `if` 引用 `matrix`** → GitHub 判 `Invalid workflow file`（run 38868806071）。改为步骤级过滤；并新增契约断言禁止任何 job 级 `if` 出现 `matrix.`。
+2. **契约测试使用 `any`** 触发 `@typescript-eslint/no-explicit-any`，**本地门禁因「只看输出末行」漏看、由 CI 抓到**。测试改具名接口解析 YAML；方法学教训：门禁以退出码判定，不以末行判定。
+3. **AppImage `executableName` 非法字符**（见上）。
+4. 本地编辑工作流文件时用 shell 写导致工作副本 CRLF，触发本地 `format:check` 失败（仓库 blob 仍为 LF，CI 不受影响）；已用格式化工具恢复工作副本为 LF，并复用既有 EOL 结论。
+
+#### 测试（389 → 400 项；单元 +2 / 契约 +9）
+
+- 单元：`maintainer` 单侧判定与 CLI（只给 `--with` 时结出 consumed / not-consumed）。
+- 契约（`tests/contract/ci-workflows.test.ts`，7 项）：校验命令只在 `verify.yml` 一处（逐行精确比对，避免 `npm run build` 误命中 `npm run build:kernel`）；`verify.yml` 只被调用触发且步骤名称/命令/顺序与抽取前逐条一致、矩阵与超时不变；`.nvmrc` 同源口径不变；`ci.yml` 触发与并发不变；`pack.yml` 只跑打包不发布（无 `gh release`、只读权限）；四 leg 矩阵与 `fail-fast: false`、tag 不取消旧运行、mac/linux 真机证据步骤与注解；三个工作流动作主版本同口径。另有 2 项回归断言：job 级 `if` 不得引用 `matrix`、`platforms` 过滤必须落在步骤级（含上传步骤）。
+
+#### 未做 / 遗留
+
+- **EX-07**：mac-arm64 leg 失败原因待取证（同配置 mac-x64 全绿，已排除配置与依赖层面原因；被包装命令本次无输出，疑 runner 侧中断或 OOM），四 leg 首跑「全绿」这条验收因此未闭合；
+- **EX-08**：`workflow_dispatch` 首跑与输入行为待有已登录会话时补测；
+- T3 发布（EX-01 CHANGELOG 定版、版本守卫、`gh` 参数核对、SHA256SUMS、EX-02 真实 tag 授权）与 T4 冒烟验收收口。
+
 ### 工程：M2-T1 构建配置（mac/linux 段、未签名断言、打包入口与 README）
 
 M2 的第二个实现批次：让打包链路具备 macOS 与 Linux 目标，并把「未签名交付」从默认结果变成被检查的事实。**未新增指令与选项**（16 条不变），**未新增依赖**（全部用既有工具链与自实现脚本）。

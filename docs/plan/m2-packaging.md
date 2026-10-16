@@ -87,6 +87,26 @@
 
 ### T2 矩阵 workflow（实现第三批）
 
+**执行状态**：**部分完成（2026-10-16）**——四 leg 矩阵、可复用校验工作流与 fail-fast 口径已落地并实测；**mac-arm64 leg 仍红**（原因待日志取证，登记 EX-07），其余三 leg 产物齐备。
+
+| 项 | 实测结果 |
+|---|---|
+| `verify.yml` 抽取 | ci.yml 改为消费可复用工作流：run 38869061706 **Success 1m 57s**，job 显示为「校验 / 读取版本声明」与「校验 / 验证（…）」；步骤名称与顺序由契约测试逐条钉住（抽取前后一致） |
+| 四 leg 首跑（tag `v0.0.1-t2firstrun`） | run 38869913530：Windows ✓ 238 MB、Linux ✗、mac-x64 ✓ 148 MB、mac-arm64 ✗ |
+| 修复后重跑（tag `v0.0.1-t2run3`） | run 38871300587：Windows ✓ 238 MB、**Linux ✓ 156 MB AppImage**、mac-x64 ✓ 148 MB、mac-arm64 ✗（517 MB 诊断产物已上传） |
+| 三项真机结论 | 均以运行页**注解**公开输出（未登录也可读）：**EX-03 iconutil** 真机产出 `icon.icns`（79768 字节，mac-x64）；**codesign 未签名断言**真机通过（`build/desktop/mac/skill-manager.app` 判定未签名）；**`linux.maintainer`** 单侧实测 **not-consumed**（产物树中未出现该字符串，已回写配置注释） |
+| fail-fast 探测 | 探测分支 `probe/pack-failfast`（tag `v0.0.1-t2probe`）run 38869954307：linux leg 按探测步骤**红**，同一次运行中 Windows 与 mac-x64 **仍产出并上传产物**（`fail-fast: false` 的实证）；探测分支与四个临时 tag 已删除，正式 pack.yml 不含探测代码 |
+
+**实测发现的三处缺陷（均已修复并登记）**：
+
+1. **job 级 `if` 不能引用 `matrix`**：GitHub 判为 `Invalid workflow file`（run 38868806071）。改为步骤级过滤，并加契约断言「任何 job 级 `if` 不得出现 `matrix.`」防同类回归。
+2. **新契约测试触发 `@typescript-eslint/no-explicit-any`**：本地门禁因「只打印末行」漏看，由 CI 抓到。测试改用具名接口解析工作流 YAML；教训：门禁必须以**退出码**判定，不以输出末行判定。
+3. **AppImage 构建失败：`executableName` 含非法字符**：electron-builder 从包名（`@skill-manager/gui`）推导出 `@skill-managergui`；显式给出 `linux.executableName: skill-manager` 后 Linux leg 转绿。
+
+**其它落地项**：Linux leg 增加 FUSE 2 依赖安装（runner 镜像未预装，设计 7.1 / R-2、R-6）；三个打包步骤加「失败原因 → 注解」包装，使失败原因在未登录会话下也能从运行页读到（mac-arm64 那次进程无输出，只落到「见 job 日志」，登记为 EX-07 诊断待办）；`workflow_dispatch` 触发路径因当前会话无已登录浏览器而未实测，登记 EX-08（其输入与守卫位置由契约测试覆盖）。
+
+**遗留（EX-07 / EX-08）**：mac-arm64 leg 的失败原因需读 job 日志或被包装命令的真实输出才能定性（同配置在 mac-x64 全绿，已排除配置与依赖层面的原因）；`workflow_dispatch` 的首跑与输入行为待有已登录会话时补测。
+
 **目标**：把校验步骤抽成唯一实现，并让打包矩阵按 tag / 手动触发运行，`ci.yml` 行为逐条不变。
 
 **依赖**：T1（打包入口就位，矩阵才有可调用的命令）。
@@ -228,6 +248,8 @@
 | EX-04 | `gh release create` 的参数细节（设计 R-9 待确认） | T3 发布步骤写法 | T3 前以官方手册核对并登记 |
 | EX-05 | macOS runner 排队与镜像标签可用性 | T2 / T3 时长 | 固定标签 + 按需触发 + 同 ref 取消旧运行；标签变更按开放项 ⑥ 显式决策 |
 | EX-06 | AppImage FUSE 与 Electron 沙箱的 CI 环境差异 | T2 / T4 的 Linux 断言 | 以 `--appimage-extract-and-run` 与沙箱参数处理，并在 T4 登记为 CI 差异 |
+| EX-07 | **mac-arm64 leg 打包失败**（T2 实测）：Windows / Linux / mac-x64 三 leg 全绿，仅 macos-15（arm64）失败，且被包装命令无任何输出（疑似 runner 侧中断或 OOM），517 MB 诊断产物已上传 | T2 的四 leg 首跑未全绿；M2 验收第 1 条缺 mac-arm64 产物 | 需读 job 日志（或被包装命令的真实输出）定性；诊断通道已备（失败原因注解），下一步在包装里补 exit code 与末行回落后重跑 |
+| EX-08 | `workflow_dispatch` 触发路径未实测（当前会话无已登录浏览器，无法点 Run workflow） | 「手工触发」这条入口缺真实运行证据 | 有已登录会话时补一次 dispatch 首跑（含 platforms / arch 输入）；触发定义与步骤级守卫已由契约测试覆盖 |
 
 ---
 
