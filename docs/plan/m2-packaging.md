@@ -142,7 +142,7 @@
 | 权限与触发 | release job `needs: pack`、`if: startsWith(github.ref, 'refs/tags/v')`、job 级 `permissions: contents: write`（工作流级仍只读） |
 | Release notes | 由版本守卫把 CHANGELOG 的 `## 0.1.0` 段写成 `RELEASE_NOTES.md`（**放在交付目录之外**——放进去会被归位检查判为非交付物，干跑自测已实测此点并修正） |
 | 动作版本 | 汇总产物改用 `actions/download-artifact@v8`（v6 面向 Node 20，会产生废弃告警，与 DP-D 口径冲突） |
-| 干跑链路 | 探测分支 + 临时 tag 干跑（守卫降级、`--version` 固定 0.1.0、`--dry-run` 只打印 gh 命令、不创建 Release）：链路跑到「发布预演」前的真实差异已被抓出并修复；**尚未取得一次全绿干跑运行**——最近一次由 **EX-10**（mac-x64 的 dmg 构建 `hdiutil: couldn't eject "disk2" - Resource busy`，属 electron-builder 的已知抖动，与 T3 无关）打断 |
+| 干跑链路 | 探测分支 + 临时 tag 干跑（守卫降级、`--version` 固定 0.1.0、`--dry-run` 只打印 gh 命令、不创建 Release）：**已取得全绿干跑**（run 38893295554，Success 5m12s，四个打包 leg + release job 全绿），运行页注解公开「发布资产清单（5 个实名）」与「SHA256SUMS（5 行）」；复核无 Release 创建（`/releases` 为空、`/releases/tags/<tag>` 404）。该链路先抓出两处真实差异（Linux 实名 `x86_64`、notes 不得落在交付目录）并修复；此前一次干跑被 **EX-10** 的 dmg 抖动打断，重跑即恢复 |
 
 **EX-04 关闭依据**：官方手册页 `gh_release_create` / `gh_release_edit` / `gh_release_upload` 的 flag 列表（2026-10-16 抓取），脚本参数与之逐项对齐。
 

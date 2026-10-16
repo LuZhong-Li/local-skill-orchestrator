@@ -40,7 +40,8 @@
 - **资产归位与校验清单**（`scripts/release-publish.mjs`）：交付目录必须恰好含 5 个产物，生成 `SHA256SUMS.txt`。自测即抓出真实差异：Linux 产物实名 `skill-manager-0.1.0-x86_64.AppImage`（`${arch}` 在 Linux 取 `x86_64`），已修正清单与 README / CHANGELOG / 设计表述。
 - **发布与幂等**：`gh` 参数按官方手册核对（`create`：`--title/--notes-file/--verify-tag/--latest`；`edit`：`--title/--notes-file/--latest`；`upload`：`--clobber`）；已存在则 edit + 覆盖资产，不打 prerelease 标记；仅 release job 具 `contents: write`。
 - **口径修正**：Release notes 写在交付目录之外（写进去会被归位检查判为非交付物）；汇总产物改用 `actions/download-artifact@v8`（v6 面向 Node 20）。
-- **未闭环**：尚无一次全绿干跑运行——最近一次被 mac-x64 的 dmg 构建抖动（`hdiutil: couldn't eject "disk2" - Resource busy`，登记 EX-10）打断；真实 `v0.1.0` 发布待 EX-02 授权。
+- **干跑自测已全绿**（临时 tag `v0.1.0-t3dryrun5` → run 38893295554，**Success 5m12s**：四个打包 leg + release job 全绿）：资产清单（5 个实名）与 `SHA256SUMS` 以运行页注解公开输出，`--dry-run` 只打印 gh 命令、**未创建任何 Release**（复核：`/releases` 为空、`/releases/tags/<tag>` 404）。此前一次干跑被 mac-x64 的 dmg 构建抖动（`hdiutil: couldn't eject "disk2" - Resource busy`，登记 **EX-10**）打断，重跑即恢复，判定为非确定性失败。临时分支与全部临时 tag 已删除。
+- **未闭环**：真实 `v0.1.0` 发布待 **EX-02** 授权（EX-01 的 CHANGELOG 定版已在本条上方完成）。
 
 ### 修复：EX-07（mac-arm64 打包失败）——内核 SEA 补齐 macOS 签名步骤 + 失败自证
 
