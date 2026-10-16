@@ -2,6 +2,16 @@
 
 ## 未发布
 
+### M3-T2 双线三档跑测（本机全矩阵 + CI 三平台烟测）
+
+- **SEA 线取发布资产**（不是本机构建）：从 `v0.1.0` Release 的 `skill-manager-0.1.0-portable.exe` 解包出 `resources/kernel/skill-manager.exe`（`7z x`：SFX → `app-64.7z` → 内核），资产 SHA256 与同 Release 的 `SHA256SUMS.txt` **一致**；内核 SHA256 `62fa8785…`、87,928,320 B。发布资产由 CI 的 Node 22 打包、本机构建是 Node 24（内嵌运行时不同），故基线以发布内核为准，来源写进报告的 `kernel_provenance`。
+- **BX-01 关闭（SEA 线剖面）**：单文件可执行**不接受** Node 命令行参数（`--cpu-prof` 被 CLI 判 `E-INPUT-002`、退出码 2、无剖面），但 **`NODE_OPTIONS` 生效**——实测产出含内核帧的剖面，SEA 线 31 个剖面全部落地。**副产品**：SEA 是打包产物、库内部帧名被改写，`parse_yaml` 归集系统性偏低（同档 N=1000 `scan-cold`：源码线 257 ms vs SEA 线 25 ms）→ 跨线只比总墙钟与峰值内存。
+- **本机全矩阵**（Windows 11 / Node v24.14.1 / runs=3；N=5000 显式 `--runs 3` 以给拐点判定提供中位数）：源码线 `scan-cold` 100/1000/5000 = 329 / 1154 / 11370 ms，SEA 线 253 / 1118 / 12747 ms；`startup` 源码 193 ms vs SEA **85 ms**。**N=1000 阈值初步对照全部达标**（`scan` 1.15 / `validate` 1.14 / `export` 0.56 s、峰值 RSS 326.4 MB，阈值 30 / 30 / 15 s 与 512 MB）。拐点预判：`scan-cold` 单技能 1000→5000 源码线 1.97×、SEA 线 2.28×（阈值 2×）→ **临界，交 T3 复测判定**。
+- **归集覆盖率随档位上升**：源码线 `scan-cold` 0.44 → 0.71 → 0.78、SEA 线 0.29 → 0.50 → 0.62（验证「规模工作占主导」）。
+- **CI 三平台 N=100 烟测**（`.github/workflows/bench.yml` + `scripts/bench/annotate.mjs`，run 38938465443 三 leg 全绿）：Linux / Windows / macOS 各跑双线（macOS 暂只源码线，原因见下）；**两条 T1 遗留的真机路径就此验证**——Linux 直读 `/proc` 的 `VmHWM`（`scan-cold` 376 ms / 124 MB）、macOS `ps` 重采样（438 ms / 110.7 MB）；结论以运行页注解公开、原始 JSON 随 artifact 留存，**性能数值不作门禁**（采样失败才红）。
+- **发现发布缺陷 EX-13**：**macOS arm64 上本流水线产出的 SEA 内核一执行就被系统 SIGKILL**（进程 close 无退出码 → 记为 -1，shell 侧实测 137）；同 runner 源码线正常、Linux/Windows 的 SEA 正常、显式赋可执行位仍复现。Node 官方 SEA 文档对 macOS 只要求 `codesign --sign -`，故候选方向是 arm64 代码签名/授权完整性，需对照实验定位。**影响面**：`v0.1.0` 的 macOS arm64 dmg 内携带的内核可能是同一问题（M2 只验证过签名可读与架构，从未在 macOS 执行过内核）——这是本次烟测最重要的产出。M3 不修（属发布链路），登记待另立批次；macOS 的 bench 腿暂只跑源码线并保留取证步骤。
+- **失败自证通道**：runner 接住子进程 `error` 事件、剖面解析异常与整线中断（写 `failure-<form>.txt`），注解脚本把诊断原文打成 `::error::`——macOS 首跑失败不可匿名定位（日志需登录、注解只有「exit code 1」）的教训就此闭环，本轮即靠它定位到「SEA `init` 被信号终止」。
+
 ### M3-T1 测量器（独立进程、采样会话、阶段归集、固定 JSON）
 
 - **三平台采样器**（`scripts/bench/rss.mjs`）：Linux 由父进程直接读 `/proc/<pid>/status` 的 `VmHWM` 与 `/proc/<pid>/stat` 的 utime+stime（零外部命令）；macOS 用一个长驻 `sh` 循环读 `ps -o rss=,time=`；Windows 用一个长驻 PowerShell 读 `PeakWorkingSet64` 与 `TotalProcessorTime`。三条硬规则：只在**存活期**采样；**READY = 首次取到合法值（> 0）**；直到退出都没取到合法值即判**测量失败**并记原因——**绝不用 0 兜底**（调研踩到的两个坑即由此消除）。
