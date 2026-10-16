@@ -131,7 +131,7 @@ GitHub 官方 runner 表（2026-10-16 读取）：公共仓库的标准 runner �
 ### 3.2 冷热两态与命令固定
 
 - 冷：`mkdtemp` 新工作区 → `init` → `scan`（计时）→ `list --json`（不计时，仅确认规模）；
-- 热：同一工作区再跑 `scan`、`validate`、`export --to bench-export.yaml`（各自计时）；
+- 热：同一工作区再跑 `scan`、`validate`、`export <导出文件路径>`（各自计时；`export` 的目标为**位置参数**，见 `docs/specification/cli-contract.md` 4.14，`--workspace` 属通用选项）；
 - 命令一律 spawn **独立进程**（工程约定④），stdout / stderr 落文件备查；**任何非 0 退出码记为失败样本**，不静默重试。
 
 ### 3.3 输出 JSON（固定格式，供基线与回归）
