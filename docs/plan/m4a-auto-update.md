@@ -15,7 +15,7 @@
 | # | 裁决 | 落地位置 |
 |---|---|---|
 | 1 | **范围 = Skill 更新检查**；应用自更新单独立项 **M4a-2**，本期只留证据矩阵与登记 | 本文档第 5 节（阻塞/登记）；设计第 0 / 4 节 |
-| 2 | **F1 远端 refetch 在 M4a 内补齐（T0 前置，先文档后实现）**；契约 4.11 修订「远端拉取属二期」→ 已支持；本地来源的语法/行为/输出不变 | T0 |
+| 2 | **F1 在 T0 收敛为契约纠偏**（实测证明 refetch 本已实现，不造无意义实现改动）；契约 4.11 删除「远端拉取属二期」，本地来源的语法/行为/输出不变 | T0 |
 | 3 | 检查承载在 **GUI 主进程**（消费端扩展，指令数 16 不变）；错误口径与内核一致（`E-SRC-*`、60 s 超时、128 MiB 上限） | T1 / T2 |
 | 4 | 可更新判定**只支持标签型来源**；分支/提交/归档 → `not-checkable`（能力边界，非错误）；「已安装引用」派生字段留后续契约批次 | T1 |
 | 5 | 频率：手动为主；定期**默认关闭**、开启后**最短 6 小时**、仅应用运行期间、**只提示不执行**；即时检查默认关闭 | T2 |
@@ -72,7 +72,7 @@
 
 ### T1 检查能力（纯函数 + 注入数据源）
 
-**执行状态**：待开始。
+**执行状态**：**已完成（2026-10-17）**。
 
 **目标**：把「四态判定」做成与 UI 解耦、可单测的纯逻辑，并保证检查只读。
 
@@ -80,15 +80,17 @@
 
 **交付物**：
 
-1. `gui/main/update-check/` 模块：
+1. `gui/main/update-check/` 模块（已交付 `constants.ts` / `semver.ts` / `ls-remote.ts` / `classify.ts` / `check.ts` / `index.ts`）：
    - `parseLsRemote(text)`：解析 `git ls-remote` 输出（ref → commit）；
    - `selectLatestFormalTag(tags)`：只保留 semver **正式版**，取最高；
    - `classify(item)`：四态判定（裁决 7 的规则；基线 `ref` 标签优先、回退元文件 `version`）；
-   - `checkUpdates({ items, probe, now })`：注入式 `probe`（git ls-remote / HEAD），单条失败不阻断；
-   - 结果形状：`{ command: 'update-check', ok, findings, data: { checked_at, items } }`（含 provenance 与 `backup_notice`）；
+   - `checkUpdates({ ids, inspect, probe, now })`：逐项调用 `inspect <id> --json`，注入式 `probe` 只做 `git ls-remote`，顺序执行且单条失败不阻断；
+   - 结果形状：`{ command: 'update-check', ok, findings, changes, exit_code, data: { checked_at, items } }`（含 provenance 与 `backup_notice`）；
 2. 数据源：`inspect <id> --json`（内核只读）取来源完整取值；本地/未知来源直接归 `not-checkable`（带原因）；
 3. 常量与文案：60 s / 128 MiB / `E-SRC-*` 映射；**契约测试**读取内核源码断言数值一致（F-5）；
 4. 测试：标签解析、semver 比较（含 prerelease 排除、非 semver 标签、相同/更高/更低）、四态矩阵、单条失败不阻断、`probe` 超时与 401/403→`E-SRC-010`、**只读断言**（检查前后索引与工作区文件字节不变）。
+
+**执行结果**：新增 15 项（单元 11、契约 3、端到端 1），常规套件 488 → **503 项全绿**；覆盖 peeled 引用、v 前缀、构建元数据、五类不可检查来源、认证/超时/离线/命令缺失、协议白名单、内嵌凭据拒绝、基线标签消失、顺序聚合与逐字节只读断言。`inspect` 数据源经真实内核子进程验证；网络探测全部注入，T1 不依赖真实网络。
 
 **验收标准（可验证）**：
 
