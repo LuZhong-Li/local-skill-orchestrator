@@ -272,7 +272,7 @@
 
 ### T3 收口：端到端、失败隔离、验收映射、三平台与发版准备
 
-**执行状态**：**已完成（2026-10-18）**。新增 `tests/e2e/plugin-matrix.test.ts`（6 项真实 CLI 子进程覆盖非法 manifest/安全字段/代码文件/API 不兼容、canonical 冲突、宿主拒绝、来源失败、运行期损坏与多坏插件隔离）；常规套件 **558 项**（单元 365、契约 107、端到端 86；557 通过 + 1 项符号链接平台条件跳过）；`smoke:gui` **28/28** 通过；隔离快照与 Skill 索引字节不变断言通过。推送 `52cce4c` 后 CI run **39053919194**（Windows/Linux）与 Bench run **39053919195**（Windows/Linux/macOS）均 Success。
+**执行状态**：**已完成（2026-10-18）**。新增 `tests/e2e/plugin-matrix.test.ts`（6 项真实 CLI 子进程覆盖非法 manifest/安全字段/代码文件/API 不兼容、canonical 冲突、宿主拒绝、来源失败、运行期损坏与多坏插件隔离）；常规套件 **558 项**（单元 365、契约 107、端到端 86；557 通过 + 1 项符号链接平台条件跳过）；`smoke:gui` **28/28** 通过；隔离快照与 Skill 索引字节不变断言通过。推送 `52cce4c` 后 CI run **39053919194**（Windows/Linux）与 Bench run **39053919195**（Windows/Linux/macOS）均 Success。**v0.3.0 已发布**：Pack run **39055521608 Success**（四 leg + release + 资产级冒烟），生产 asar GUI 28/28、发布物内核插件闭环、mac C 组 0.3.0/0/0，latest 与 5 资产 + SHA 复核完成。
 
 **目标**：用真实内核与 CLI 证明插件从安装到宿主落位、停用、卸载的完整链路；完成 9.3.5 验收映射、文档同步与发版准备，不实际发版。
 

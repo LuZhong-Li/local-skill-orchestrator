@@ -3187,6 +3187,7 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 | 4 | 文档 | README 增加插件用户章节与最小 manifest 示例；one-summary/CHANGELOG/计划/需求同步 |
 | 5 | 发版准备 | 建议 `v0.3.0`；本批不修改版本号、不创建 tag/Release；版本段要点与守卫预检见 CHANGELOG 与最终报告 |
 | 6 | 三平台 | 推送 `52cce4c`：CI run `39053919194`（Windows/Linux）与 Bench run `39053919195`（Windows/Linux/macOS）均 Success |
+| 7 | 发布复核 | **v0.3.0 已发布**（Pack run `39055521608` Success）：生产 asar GUI 28/28、发布物内核插件闭环、mac C 组 0.3.0/0/0、latest/6 资产/SHA 复核通过 |
 
 ### 计数校验（M4b-T3 批次）
 

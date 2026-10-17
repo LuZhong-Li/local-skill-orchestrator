@@ -27,6 +27,14 @@ M4b 声明式插件生态。未签名交付口径不变。
 
 ## 0.3.0 开发记录
 
+### 发布与发布后复核（v0.3.0）
+
+- **发布**：tag `v0.3.0`（`7a1aed6`）→ Pack run **39055521608 Success**（四 leg 打包 + 发布 job + 资产级冒烟）。Release 为 **latest、非 draft、非 prerelease**，6 项资产齐备：[v0.3.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.3.0)。
+- **生产形态 GUI（本批关键）**：回下载 `skill-manager-0.3.0-portable.exe` 并以生产 `app.asar` 路径启动，`smoke:gui` **28/28 通过**——插件安装默认 disabled、enable 后 `x-` 宿主出现、规则落位、`landings` 详情、disable 后宿主消失、uninstall 列出路径/文件数/孤儿副本、内置宿主分区不变。
+- **发布物内核 `--kind plugin`**：从同一便携资产解包 `resources/kernel/skill-manager.exe`（`--version=0.3.0`），完成最小闭环：插件安装 → enable → Skill 分发到 `x-released-tools-zed` → inspect → uninstall；落位副本保留，`plugin_index.yaml` 的 `landings` 为 `orphaned`。
+- **macOS C 组**：CI run **39056883084** 两架构成功——arm64/x64 dmg 内内核 `--version` exit=0（`0.3.0`）、`init → scan` exit=0/0、签名校验 exit=0。
+- **校验与清理**：回下载 portable 与 x64.exe，按 `SHA256SUMS.txt` 复算均一致；CI run **39055518482**（Windows/Linux）与 Bench run **39055518502**（Windows/Linux/macOS）Success；v0.1.0 已知问题提示已幂等改写为指向 v0.3.0，旧版保留；远端仅 `main` + `v0.1.0/v0.1.1/v0.1.2/v0.2.0/v0.3.0`，临时 probe 分支已删除。
+
 ### M4b T0：第六份规范、插件 schema 与加载合并纯函数
 
 - **第六份规范**：新增 `docs/specification/plugin-format.md`，定义声明式 host-profile 插件 manifest、独立 `plugin_index.yaml`、canonical `x-<plugin_id>-<host_key>` 命名空间、默认 disabled 生命周期、安全约束与四个新问题码（`E-ID-004` / `E-ID-005` / `E-VER-002` / `E-CONFLICT-004`；不新增类别或退出码）。
