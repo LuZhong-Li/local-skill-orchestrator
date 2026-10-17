@@ -34,7 +34,7 @@
 - **失败矩阵**：新增 `tests/e2e/plugin-matrix.test.ts`（6 项真实 CLI 子进程）：非法 manifest/安全字段/代码文件/API 不兼容、canonical 冲突与重复/非法 id、disabled/global 未配置/未登记宿主、来源协议与远端失败、运行期 manifest 损坏、多个坏插件候选下的 Skill 主路径与卸载孤儿账本。
 - **隔离复核**：真实 CLI 前后 `loadHostRegistry()` 深比较、`allAdapters()` 键集合、`x-` 与内置不相交、`skill_index.yaml` 逐字节不变；T0 的六条机械断言与三条审计继续覆盖。
 - **验收与文档**：9.3.5 R1~R5、高层目标 6/7 映射回填计划；README 增加插件章节与最小 manifest 示例；明确无代码执行、默认 disabled、内置不可覆盖、global 根显式配置。
-- **测试**：常规套件 552 → **558 项**（单元 365、契约 107、端到端 86；557 通过 + 1 项符号链接平台条件跳过）；`smoke:gui` **28/28 通过**。
+- **测试**：常规套件 552 → **558 项**（单元 365、契约 107、端到端 86；557 通过 + 1 项符号链接平台条件跳过）；`smoke:gui` **28/28 通过**；CI run **39053919194**（Windows/Linux）与 Bench run **39053919195**（Windows/Linux/macOS）均 Success。
 - **v0.3.0 发布准备（待授权，未发版）**：建议 minor `v0.3.0`；CHANGELOG 版本段要点为声明式插件 manifest/新宿主 profile/三渲染形态/七指令 `--kind plugin`/独立 `plugin_index` 与 `landings`/GUI 插件管理；明确不做代码形态/沙箱、全局插件、插件更新检查、应用自更新 M4a-2。
 
 ### v0.3.0 发版要点（待授权，未定版）
