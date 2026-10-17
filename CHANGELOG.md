@@ -24,6 +24,15 @@ M4a Skill 更新检查与远端目标标签更新。未签名交付口径不变�
 
 ## 0.2.0 开发记录
 
+### 发布与发布后复核（v0.2.0）
+
+- **发布**：tag `v0.2.0`（指向 `98edd1f`）→ pack run `39035763901` **Success**（四 leg 打包 + 版本守卫 + 校验清单 + 发布 + 资产级冒烟 + 历史版本提示）。Release 为 **latest、非 draft、非 prerelease**，6 项资产齐备：[v0.2.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.2.0)。
+- **Windows 生产形态 GUI（本批关键）**：回下载 `skill-manager-0.2.0-portable.exe` 并直接启动（页面来自 `resources/app.asar/out/renderer`，非开发目录），`smoke:gui` **18/18 通过**——更新检查入口、四态视图、即时角标、预览确认、目标更新、`source.ref` 持久化、更新前备份、再检查最新、设置落盘全部通过。
+- **发布物内核 `update --ref`**：从同一便携资产解出内核（`--version = 0.2.0`），回环 git 场景 `v1.0.0 → v1.1.0` 实测：dry-run 目标预览 `1.1.0` 且不写盘；确认更新后内容为 `# v2`、`source.ref: v1.1.0`、版本 `1.1.0`、索引指纹变化、生成 1 份更新前备份。
+- **macOS C 组**：probe run `39037968484` 两架构独立复核——arm64 与 x64 均为 `version=0.2.0`、`version_exit=0`、`init_scan=0/0`；非正式代码签名口径不变。
+- **校验与清理**：回下载 5 个交付物与 `SHA256SUMS.txt`，SHA256 **5/5 一致**；v0.1.0 已知问题提示已幂等改写为指向 v0.2.0（v0.1.1 / v0.1.2 保持不动）；远端仅 `main` + `v0.1.0` / `v0.1.1` / `v0.1.2` / `v0.2.0`。
+- **CI / Bench**：`98edd1f` 的 CI run `39035748585` 与 Bench run `39035748633` 均 Success；发布前常规套件 525 项全绿、慢测试 1 项通过。
+
 ### M4a T3：全链路收口与 `update --ref` 目标标签闭环
 
 - **目标标签闭环**：新增远端专用 `update <id> --ref <tag>`；更新前先生成可恢复备份，按目标标签获取后持久化中心库元文件 `source.ref`，再检查为 `up-to-date`。本地来源、`--check --ref`、非法 ref 返回参数类错误；目标不存在返回来源类错误且不写索引/原件；无 `--ref` 时语义不变。
