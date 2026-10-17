@@ -60,7 +60,7 @@ export interface AcquiredSource {
 /** 来源标识白名单：允许分支名、标签与十六进制提交，禁止以短横线开头以免被当作命令选项 */
 const REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
-/** 判断一个位置是否为远程地址；本批次不接受远程来源 */
+/** 判断一个位置是否为远程地址（远端来源自 M4a 起与本地来源共用同一套获取路径） */
 export function looksRemote(location: string): boolean {
   return /^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(location) || /^[^/\\]+@[^/\\]+:/.test(location);
 }
@@ -680,7 +680,7 @@ export function normalizeSource(
   const result: { type: SourceType; location?: string; ref?: string } = {
     type: type as SourceType,
   };
-  // 本地位置优先，其次来源地址：远程地址会在 acquireSource 里被拒绝并给出明确提示
+  // 本地位置优先，其次来源地址：远端地址由 acquireSource 按 looksRemote() 走克隆/下载分支
   const location = typeof block['location'] === 'string' ? block['location'] : block['url'];
   if (typeof location === 'string' && location !== '') result.location = location;
   if (typeof block['ref'] === 'string' && block['ref'] !== '') result.ref = block['ref'];
