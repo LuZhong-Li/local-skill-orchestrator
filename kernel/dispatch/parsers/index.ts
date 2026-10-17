@@ -43,6 +43,8 @@ export const VALUE_OPTIONS = new Set([
   'mode',
   'on-conflict',
   'timestamp',
+  // 对象类型入口：仅 scan/list/inspect/install/uninstall/enable/disable 消费
+  'kind',
   // 远端 update 的目标标签：只由 update 处理器消费
   'ref',
   // 宿主分发入口：取值来自宿主注册表（含按路径类分条的取值，如 cursor / cursor-rules）

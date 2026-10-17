@@ -2,7 +2,8 @@
  * S-01 工作区布局。
  *
  * 布局定义见需求文档 4.3 节与架构文档 4.3 节：
- * 工作区根目录下放全局索引，另有 skills/、backups/、locks/、logs/ 四个目录。
+ * 工作区根目录下放 Skill 索引与独立插件索引，另有 skills/、plugins/、
+ * backups/、locks/、logs/ 五个目录。
  * 本模块只负责路径推导与目录创建，不涉及索引内容。
  */
 import { mkdirSync } from 'node:fs';
@@ -17,6 +18,8 @@ export const SKILLS_DIR_NAME = 'skills';
 export const BACKUPS_DIR_NAME = 'backups';
 export const LOCKS_DIR_NAME = 'locks';
 export const LOGS_DIR_NAME = 'logs';
+export const PLUGINS_DIR_NAME = 'plugins';
+export const PLUGIN_INDEX_FILE_NAME = 'plugin_index.yaml';
 
 /** 环境变量用于覆盖工作区根目录，便于测试与多工作区场景 */
 export const WORKSPACE_ENV = 'SKILL_MANAGER_HOME';
@@ -25,9 +28,11 @@ export interface WorkspaceLayout {
   root: string;
   indexFile: string;
   skillsDir: string;
+  pluginsDir: string;
   backupsDir: string;
   locksDir: string;
   logsDir: string;
+  pluginIndexFile: string;
 }
 
 /** 解析工作区根目录：优先取环境变量，其次取用户主目录下的约定目录 */
@@ -44,9 +49,11 @@ export function layoutOf(root: string): WorkspaceLayout {
     root,
     indexFile: join(root, INDEX_FILE_NAME),
     skillsDir: join(root, SKILLS_DIR_NAME),
+    pluginsDir: join(root, PLUGINS_DIR_NAME),
     backupsDir: join(root, BACKUPS_DIR_NAME),
     locksDir: join(root, LOCKS_DIR_NAME),
     logsDir: join(root, LOGS_DIR_NAME),
+    pluginIndexFile: join(root, PLUGIN_INDEX_FILE_NAME),
   };
 }
 
@@ -54,7 +61,13 @@ export function layoutOf(root: string): WorkspaceLayout {
 export function ensureWorkspaceDirs(layout: WorkspaceLayout): void {
   try {
     mkdirSync(layout.root, { recursive: true });
-    for (const dir of [layout.skillsDir, layout.backupsDir, layout.locksDir, layout.logsDir]) {
+    for (const dir of [
+      layout.skillsDir,
+      layout.pluginsDir,
+      layout.backupsDir,
+      layout.locksDir,
+      layout.logsDir,
+    ]) {
       mkdirSync(dir, { recursive: true });
     }
   } catch (error) {

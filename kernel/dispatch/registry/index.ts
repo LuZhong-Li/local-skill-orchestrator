@@ -29,6 +29,7 @@ import { analyzeDependencies, splitDeclaration } from '../../core/dependency/ind
 import { probeRuntimes } from '../../core/dependency/runtime.ts';
 import { exportIndex, importIndex } from '../../core/backup/index.ts';
 import { listAllBackups, listBackups } from '../../store/backup-fs/index.ts';
+import { createInitialPluginIndex, savePluginIndex } from '../../store/plugin-registry/index.ts';
 import { ID_PATTERN, META_FILE_NAME } from '../../core/metadata/constants.ts';
 import { declaredRuntimeOf, declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
@@ -513,13 +514,21 @@ const initHandler: CommandHandler = async ({ args, now }) => {
   try {
     const existed = existsSync(layout.indexFile);
     ensureWorkspaceDirs(layout);
+    let pluginIndexCreated = false;
+    if (!existsSync(layout.pluginIndexFile)) {
+      savePluginIndex(layout.pluginIndexFile, createInitialPluginIndex(now, TOOL_VERSION));
+      pluginIndexCreated = true;
+      changes.push({ action: 'add', kind: 'plugin_index', path: layout.pluginIndexFile });
+    }
     if (existed) {
       // 幂等：工作区已存在时不覆盖既有索引与配置
-      return buildResult('init', [], [], {
+      return buildResult('init', [], changes, {
         data: {
           root: layout.root,
           index: layout.indexFile,
+          plugin_index: layout.pluginIndexFile,
           created: false,
+          plugin_index_created: pluginIndexCreated,
           tool_version: TOOL_VERSION,
         },
       });
@@ -533,7 +542,9 @@ const initHandler: CommandHandler = async ({ args, now }) => {
       data: {
         root: layout.root,
         index: layout.indexFile,
+        plugin_index: layout.pluginIndexFile,
         created: true,
+        plugin_index_created: pluginIndexCreated,
         tool_version: TOOL_VERSION,
       },
     });

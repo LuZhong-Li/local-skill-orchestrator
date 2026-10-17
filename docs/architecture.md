@@ -12,6 +12,7 @@
 | 指令契约 | [`docs/specification/cli-contract.md`](specification/cli-contract.md) |
 | 结果与退出码规范 | [`docs/specification/result-and-exit-codes.md`](specification/result-and-exit-codes.md) |
 | 宿主注册表规范 | [`docs/specification/host-registry.spec.md`](specification/host-registry.spec.md) |
+| 插件格式规范 | [`docs/specification/plugin-format.md`](specification/plugin-format.md) |
 | 界面设计 | [`docs/ui-design.md`](ui-design.md) |
 | 下游调研 | [`docs/research/skill-plugin-manager-research.md`](research/skill-plugin-manager-research.md) |
 | 需求评审 | [`docs/reviews/2026-10-12-requirements-review.md`](reviews/2026-10-12-requirements-review.md) |
@@ -506,7 +507,8 @@ skill-manager/
 │   │   ├── index-format.md
 │   │   ├── cli-contract.md
 │   │   ├── result-and-exit-codes.md
-│   │   └── host-registry.spec.md
+│   │   ├── host-registry.spec.md
+│   │   └── plugin-format.md
 │   ├── research/                    同类项目调研
 │   └── reviews/                     评审记录与一致性核对报告
 │
@@ -514,7 +516,9 @@ skill-manager/
 │   ├── skill-frontmatter.schema.json
 │   ├── skill-meta.schema.json
 │   ├── skill-index.schema.json
-│   └── backup.schema.json
+│   ├── backup.schema.json
+│   ├── plugin_manifest.schema.json
+│   └── plugin_index.schema.json
 │
 ├── kernel/                          元数据内核
 │   ├── package.json                 内核包：零界面依赖，可独立构建为可执行文件
@@ -585,7 +589,7 @@ skill-manager/
 | 目录 | 用途 | 对应架构层 |
 |---|---|---|
 | `docs/` | 需求、架构、规范、调研与评审文档 | 无（文档） |
-| `docs/specification/` | 元数据规范、索引格式、指令契约、结果与错误码规范、宿主注册表规范的正式定义 | 无（规范） |
+| `docs/specification/` | 元数据规范、索引格式、指令契约、结果与错误码规范、宿主注册表规范、插件格式规范的正式定义 | 无（规范） |
 | `schemas/` | JSON Schema，作为校验能力的规则来源与编辑器提示来源 | 无（契约） |
 | `kernel/dispatch/` | 指令注册、参数处理、确认策略、结果装配与输出渲染 | L2 |
 | `kernel/core/` | 全部领域服务，业务规则的唯一归属地 | L3 |
@@ -1391,6 +1395,28 @@ flowchart TB
 | 功能需求编号 | FR-01 至 FR-12，未变动 |
 | 契约规范份数 | 由四份增至**五份**（新增宿主注册表规范）；既有四份的内容与版本未改动 |
 | 架构层次与模块 | 未变动；宿主注册表属内核侧契约资产，不新增架构层 |
+| 待处理项 | 0 |
+
+### 补充记录 2026-10-17（第六份契约规范：插件格式）
+
+来源：后续阶段 M4b 声明式插件生态的 T0 批次。本次为**追加记录**，不改写既有条目；插件与 Skill 使用独立数据模型，不改变一期与 M5 的架构层次。
+
+| 序号 | 位置 | 改动前 | 改动后 | 依据 |
+|---|---|---|---|---|
+| 1 | 文档头部信息表 | 列五份规范 | 新增「插件格式规范」，指向 `docs/specification/plugin-format.md` | M4b T0 |
+| 2 | 4.1 节仓库树 `docs/specification/` 项 | 列五份规范文件 | 补入 `plugin-format.md` | M4b T0 |
+| 3 | 4.1 节仓库树 `schemas/` 项 | 未列插件 schema | 补入 `plugin_manifest.schema.json` 与 `plugin_index.schema.json` | M4b T0 |
+| 4 | 4.2 节目录用途说明 | 列出五类规范的正式定义 | 补入插件格式规范 | M4b T0 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 | 由五份增至**六份**（新增插件格式规范） |
+| JSON Schema 份数 | 由五份增至**七份**（新增 manifest 与插件索引 schema） |
+| 对象模型 | 插件独立于 Skill；新增 `plugins/` 与 `plugin_index.yaml`，不改变 Skill 索引结构 |
+| 架构层次与模块 | 未变动；插件能力位于内核领域层与独立存储模块 |
 | 待处理项 | 0 |
 
 ---

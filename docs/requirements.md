@@ -3103,6 +3103,30 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 | 需求正文改动 | 仅 M4a-R5 与对应约束/验收说明收敛为「本地来源冻结 + 远端 `--ref` 扩展」；无新增需求条目 |
 | 已定稿内容 | 第 1 至 8 章其余内容未改动；`docs/reviews/` 下既有快照未改动 |
 
+### 回写批次 2026-10-18（M4b-T0：第六份规范、schema 与加载合并纯函数）
+
+来源：M4b 计划 T0（`docs/plan/m4b-plugin-ecosystem.md`）。本批先落地声明式插件的规范、机器可读 schema、独立插件索引与加载合并纯函数；不接入指令（T1）与 GUI（T2）。
+
+| 序号 | 落点 | 本次变更 |
+|---|---|---|
+| 1 | 第六份契约规范 | 新增 `docs/specification/plugin-format.md`：声明式 host-profile manifest、独立 `plugin_index.yaml`、`x-<plugin_id>-<host_key>` 命名空间、生命周期、安全约束与问题码 |
+| 2 | 契约修订 | `cli-contract.md` 为七个既有指令登记 `--kind skill / plugin`；`result-and-exit-codes.md` 登记 `E-ID-004` / `E-ID-005` / `E-VER-002` / `E-CONFLICT-004`；`index-format.md` 声明插件索引边界；`host-registry.spec.md` 声明内置注册表与第三方合并视图边界 |
+| 3 | 实现 | 新增插件 manifest 校验、插件索引原子读写、插件目录发现/哈希/代码文件拒绝、插件记录构造与宿主合并纯函数；`init` 建立 `plugins/` 与空 `plugin_index.yaml` |
+| 4 | 安全与隔离 | 六条机械保证与三条审计落地：内置注册表深比较、`FORM_BY_HOST` 键集合、canonical 冲突整插件拒绝、schema 非法拒绝、disabled 不加载、安全字段拒绝、无 import/require/eval、`x-` 与内置不相交、`host.*` 拒绝插件 id |
+| 5 | 文档与计数 | README / one-summary / architecture 的当前态规范与 schema 数量更新；reviews 快照未改动 |
+
+### 计数校验（M4b-T0 批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动；仅登记 `--kind` 取值选项，不新增指令 |
+| 功能需求编号 | FR-01 至 FR-12，未变动；里程碑需求条目仍为 35 条 |
+| 契约规范份数 / Schema 份数 | 由 5 份 / 5 份增至 **6 份 / 7 份**（新增插件格式规范与两份插件 schema） |
+| 测试总数 | 常规套件由 525 项增至 **541 项**（单元 +13 → 361、契约 +3 → 107、端到端 73 不变）；540 项通过、1 项符号链接平台条件跳过；慢测试 1 项通过 |
+| 问题码数量 | 由 60 个增至 **64 个**（新增 4 个插件对象编号，不新增类别/退出码） |
+| 用户可见变化 | 暂无 CLI/GUI 插件入口；`init` 新增空插件索引与 `plugins/` 目录，既有 Skill 行为不变 |
+| 已定稿内容 | 第 1 至 8 章与既有里程碑正文未改动；`docs/reviews/` 快照未改动 |
+
 ---
 
 **文档结束**。本文档仅描述需求，不包含实现。一期功能清单在进入实现阶段后冻结，后续变更需先更新本文档再实施。

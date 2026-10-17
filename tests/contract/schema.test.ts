@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-// 五份 schema 声明的是 2020-12 草案，需用对应的 Ajv 入口
+// 契约 schema 声明的是 2020-12 草案，需用对应的 Ajv 入口
 import Ajv from 'ajv/dist/2020.js';
 import { parse as parseYaml } from 'yaml';
 import { run } from '../../kernel/entry/cli.ts';

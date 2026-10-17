@@ -31,6 +31,8 @@
 
 字段定义请查阅元数据规范第 4 章，本文档不重复。
 
+**与插件索引的边界**：本规范只定义 `skill_index.yaml`。插件登记使用独立的 `plugin_index.yaml`，字段、版本、锁与写入生命周期由第六份规范 [`plugin-format.md`](plugin-format.md) 定义；`skill_index.yaml` 不增加 `extensions[]`，插件记录不得写入本索引。
+
 ### 1.3 术语定义
 
 | 术语 | 定义 |

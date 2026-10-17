@@ -1,5 +1,16 @@
 # 变更记录
 
+## 未发布
+
+### M4b T0：第六份规范、插件 schema 与加载合并纯函数
+
+- **第六份规范**：新增 `docs/specification/plugin-format.md`，定义声明式 host-profile 插件 manifest、独立 `plugin_index.yaml`、canonical `x-<plugin_id>-<host_key>` 命名空间、默认 disabled 生命周期、安全约束与四个新问题码（`E-ID-004` / `E-ID-005` / `E-VER-002` / `E-CONFLICT-004`；不新增类别或退出码）。
+- **schema**：新增 `schemas/plugin_manifest.schema.json` 与 `schemas/plugin_index.schema.json`，与规范字段表逐项一致；manifest 拒绝代码入口与 `security_control_evidence` 等安全控制字段。
+- **存储与发现**：新增 `kernel/store/plugin-registry/` 与 `kernel/core/plugins/`：插件索引原子读写、manifest 哈希、目录发现、代码文件/符号链接拒绝、插件记录默认 disabled。
+- **合并隔离**：`buildHostCatalog()` 为纯函数；六条机械保证与三条审计落地（内置 registry 深比较、`FORM_BY_HOST` 键集合、canonical 冲突整插件拒绝、schema 非法拒绝、disabled 不加载、安全字段拒绝、无 import/require/eval、`x-` 与内置不相交、`host.*` 拒绝插件 id）。
+- **契约与初始化**：七个既有指令登记 `--kind <skill|plugin>`；`init` 建立 `plugins/` 与空 `plugin_index.yaml`；Skill 索引结构不变，插件使用独立事实源。
+- **测试**：常规套件 525 → **541 项**（单元 361、契约 107、端到端 73；540 通过 + 1 项符号链接平台条件跳过），慢测试 1 项通过；`check` / `typecheck` / `lint` / `format:check` 全绿。
+
 ## 0.2.0
 
 M4a Skill 更新检查与远端目标标签更新。未签名交付口径不变。

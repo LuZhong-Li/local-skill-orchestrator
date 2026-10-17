@@ -114,6 +114,8 @@
 
 ### T0 规范、schema、插件索引与加载合并纯函数
 
+**执行状态**：**已完成（2026-10-18）**。交付：`docs/specification/plugin-format.md`、`schemas/plugin_manifest.schema.json`、`schemas/plugin_index.schema.json`、`kernel/core/plugins/`（manifest/discovery/catalog/record/types）、`kernel/store/plugin-registry/`；`init` 建立 `plugins/` 与空 `plugin_index.yaml`。常规套件 525 → **541 项**（单元 361、契约 107、端到端 73；540 通过 + 1 项符号链接平台条件跳过），慢测试 1 项通过；九项保证/审计逐条有用例。
+
 **目标**：先把声明式插件的数据契约、独立登记事实源与“内置不可被覆盖”的合并边界固定下来；本批不接线 CLI 业务分支。
 
 **依赖**：设计定稿（八项裁决）。

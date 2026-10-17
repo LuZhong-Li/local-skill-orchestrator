@@ -75,6 +75,8 @@
 
 **宿主分发的入口**：`--host <宿主>` 是宿主适配层的显式入口，仅 `install`、`enable`、`disable`、`update` 四条指令接受。取值来自宿主注册表（宿主标识，含按路径类分条的取值，如 `cursor` 与 `cursor-rules`），取值域由注册表决定，未登记的取值判为参数类问题并列出可用取值。
 
+**对象类型入口**：`--kind <skill|plugin>` 是对象类型的显式入口，仅 `scan`、`list`、`inspect`、`install`、`uninstall`、`enable`、`disable` 七条指令接受。省略时为 `skill`，既有 Skill 调用方式不变；插件操作必须显式给出 `--kind plugin`，不得根据来源内容、`plugin.json` 是否存在或标识前缀自动猜测。同一命令重复给出 `--kind` 按参数类错误 `E-INPUT-002` 拒绝。其他指令不接受 `--kind`。插件分支的字段、状态与失败口径见第六份规范 `plugin-format.md`。
+
 `--host` 与 `--target` **正交**：`--target` 决定工作区内的目标位置（沿用可推导布局 `.<目标标识>/skills/<Skill 标识>`，语义与一期一致、不作变更），`--host` 决定分发到哪个宿主的**真实根**（位于工作区之外，如 `~/.claude/skills`）。两者可并用，各自生效、互不影响。宿主真实根按「默认路径 + 配置覆盖」解析，配置键见 4.3 节。
 
 写工作区之外的路径属高影响操作：沿用确认机制（非终端环境必须给出 `--yes`，否则拒绝执行并返回参数类错误），并支持 `--dry-run` 预览将写入的工作区外路径。
@@ -211,7 +213,7 @@
 
 **用途**：发现当前环境中的 Skill 并刷新索引记录；当索引缺失或损坏时，本指令同时承担索引重建职责。
 
-**语法**：`skill-manager scan [--root <路径>...] [--dry-run]`
+**语法**：`skill-manager scan [--kind <skill|plugin>] [--root <路径>...] [--dry-run]`
 
 **前置条件**：工作区已初始化；待扫描的根目录可达。索引文件缺失或损坏不影响本指令执行，本指令不要求索引可被读取。
 
@@ -246,7 +248,7 @@
 
 **用途**：列出全部已管理 Skill。
 
-**语法**：`skill-manager list [--state <enabled|disabled>] [--source <类型>] [--target <目标标识>]`
+**语法**：`skill-manager list [--kind <skill|plugin>] [--state <enabled|disabled>] [--source <类型>] [--target <目标标识>]`
 
 **前置条件**：无。索引不存在时返回引导性结果而非错误。
 
@@ -264,7 +266,7 @@
 
 **用途**：查看单个 Skill 的完整元信息与状态。
 
-**语法**：`skill-manager inspect <Skill 标识>`
+**语法**：`skill-manager inspect <标识> [--kind <skill|plugin>]`
 
 **前置条件**：该标识在索引中存在。
 
@@ -282,7 +284,7 @@
 
 **用途**：从受支持来源安装 Skill，并登记到索引。
 
-**语法**：`skill-manager install <来源> [--target <目标标识>] [--host <宿主>] [--scope <global|project>] [--mode <copy|link>] [--library-only] [--dry-run] [--yes]`
+**语法**：`skill-manager install <来源> [--kind <skill|plugin>] [--target <目标标识>] [--host <宿主>] [--scope <global|project>] [--mode <copy|link>] [--library-only] [--dry-run] [--yes]`
 
 **受支持的来源**：本地目录、**本地 Git 仓库路径**、**本地归档文件**（zip、tar、tar.gz）。
 
@@ -363,7 +365,7 @@
 
 **用途**：移除一个已管理的 Skill，并精确回收其带来的文件。
 
-**语法**：`skill-manager uninstall <Skill 标识> [--keep-library] [--hard] [--dry-run] [--yes]`
+**语法**：`skill-manager uninstall <标识> [--kind <skill|plugin>] [--keep-library] [--hard] [--dry-run] [--yes]`
 
 **前置条件**：该标识在索引中存在。
 
@@ -419,7 +421,7 @@
 
 **用途**：使一个已登记的 Skill 在目标位置生效。
 
-**语法**：`skill-manager enable <Skill 标识> [--target <目标标识>] [--host <宿主>] [--scope <global 或 project>] [--dry-run] [--yes]`
+**语法**：`skill-manager enable <标识> [--kind <skill|plugin>] [--target <目标标识>] [--host <宿主>] [--scope <global 或 project>] [--dry-run] [--yes]`
 
 **宿主入口的语义**：给出 `--host <宿主>` 时，本指令只作用于该宿主真实根内该 Skill 的副本——把副本内带禁用后缀的技能元数据文件改回原名，使宿主重新识别；**不修改索引状态**（索引状态描述工作区内目标），也不新建副本（新建副本是安装的职责）。该操作属工作区外写入，沿用确认机制。
 
@@ -448,7 +450,7 @@
 
 **用途**：使一个已登记的 Skill 在目标位置不再生效，同时保留其全部文件与元信息。
 
-**语法**：`skill-manager disable <Skill 标识> [--target <目标标识>] [--host <宿主>] [--scope <global 或 project>] [--dry-run] [--yes]`
+**语法**：`skill-manager disable <标识> [--kind <skill|plugin>] [--target <目标标识>] [--host <宿主>] [--scope <global 或 project>] [--dry-run] [--yes]`
 
 **宿主入口的语义**：给出 `--host <宿主>` 时，本指令只把该宿主真实根内该 Skill 副本的技能元数据文件改名为带禁用后缀的名称，目录与其余文件一律不动；**不修改索引状态**，也不删除任何内容。该操作属工作区外写入，沿用确认机制。
 
@@ -837,6 +839,7 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 | 36 | 2026-10-17 | 第 4.4 节 `scan` 的退出码语义改为「按第 5.2 节的派生规则返回对应派生档位」（例如依赖环属 `DEP` 类 → `6`），并明确派生规则是唯一权威、不再另设「固定返回 1」的口径 |
 | 37 | 2026-10-17 | 第 4.11 节 `update` 的远端来源表述纠偏：删除「远端拉取属二期 / 返回 `E-SRC-001`」的占位说明，改为「远端来源与本地来源共用同一重新获取路径」（克隆/下载口径、超时与体积上限、失败不写索引）；**本地来源的语法、参数、行为与输出契约保持不变的声明显式保留**；该改动只把文本与既有实现对齐，不改变调用方式 |
 | 38 | 2026-10-17 | 第 4.11 节新增远端专用 `--ref <tag>`：按用户确认的目标标签获取，成功后持久化中心库元文件的 `source.ref`；本地来源、`--check --ref` 与非法 ref 按参数类错误拒绝，目标不存在按来源类错误返回且不写状态。无 `--ref` 时既有语义不变。依据：M4a 检查能识别目标版本，但原来的 update 只能按旧 ref 刷新，无法完成「确认后更新到目标版本」 |
+| 39 | 2026-10-18 | 第 2.2 节新增对象类型入口 `--kind skill / plugin`：仅 `scan` / `list` / `inspect` / `install` / `uninstall` / `enable` / `disable` 七条既有指令接受；省略为 `skill`，插件操作必须显式 `--kind plugin`，重复给出按 `E-INPUT-002` 拒绝，其他指令不接受。指令总数仍为 16；插件字段与状态见第六份规范 `plugin-format.md` |
 
 ---
 

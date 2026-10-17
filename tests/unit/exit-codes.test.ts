@@ -35,3 +35,10 @@ test('退出码：其余类别按派生顺序归位（INPUT→2、SRC→4、IO�
 test('退出码：技能级 YAML 与依赖环并存时，DEP 档优先（6）', () => {
   assert.equal(exitCodeFor([error('E-YAML-001', 'meta'), error('E-DEP-003', 'meta', 'a')]), 6);
 });
+
+test('退出码：插件问题码复用现有档位（ID/冲突→1、API 版本→3）', () => {
+  assert.equal(exitCodeFor([error('E-ID-004', 'plugin-manifest')]), 1);
+  assert.equal(exitCodeFor([error('E-ID-005', 'plugin-registry')]), 1);
+  assert.equal(exitCodeFor([error('E-CONFLICT-004', 'plugin-catalog')]), 1);
+  assert.equal(exitCodeFor([error('E-VER-002', 'plugin-manifest')]), 3);
+});

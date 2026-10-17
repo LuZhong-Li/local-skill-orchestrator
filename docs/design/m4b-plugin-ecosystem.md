@@ -346,7 +346,7 @@ M4b 不能通过注册新指令扩展；只能扩展数据模型、既有命令�
       "roots": [
         {
           "kind": "rules",
-          "path_template": ".zed/rules/<Skill 标识>.md",
+          "path_template": ".zed/rules/<skill_id>.md",
           "scope": "project"
         }
       ],
@@ -396,8 +396,8 @@ M4b 不能通过注册新指令扩展；只能扩展数据模型、既有命令�
 
 可表达：
 
-- 新宿主的技能目录（`.foo/skills/<Skill 标识>` 形式）；
-- 规则文件路径（`rules/<Skill 标识>.md` 等固定单文件形态）；
+- 新宿主的技能目录（`.foo/skills/<skill_id>` 形式）；
+- 规则文件路径（`rules/<skill_id>.md` 等固定单文件形态）；
 - 标准六字段或有限扩展白名单；
 - 降级为指令片段（只登记、不落盘）；
 - 宿主能力声明与展示名称。

@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-manager.local/schemas/plugin_manifest.schema.json",
+  "title": "plugin.json",
+  "description": "声明式 host-profile 插件 manifest；逐字段对齐 docs/specification/plugin-format.md 第 3 章。",
+  "type": "object",
+  "required": [
+    "manifest_version",
+    "plugin_id",
+    "name",
+    "version",
+    "compatibility",
+    "capabilities",
+    "hosts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "manifest_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "plugin_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)\\.(?:0|[1-9][0-9]*)(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2048
+    },
+    "author": {
+      "type": "string",
+      "maxLength": 256
+    },
+    "license": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "compatibility": {
+      "$ref": "#/$defs/compatibility"
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "const": "host_profile"
+      }
+    },
+    "hosts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/hostProfile"
+      }
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    }
+  },
+  "$defs": {
+    "compatibility": {
+      "type": "object",
+      "required": ["skill_manager", "plugin_api"],
+      "additionalProperties": false,
+      "properties": {
+        "skill_manager": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "plugin_api": {
+          "type": "string",
+          "const": "1"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["local", "git", "archive"]
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        }
+      }
+    },
+    "hostProfile": {
+      "type": "object",
+      "required": ["host_key", "display_name", "form", "roots", "render_policy"],
+      "additionalProperties": false,
+      "properties": {
+        "host_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "form": {
+          "type": "string",
+          "enum": ["skill", "rules", "entry"]
+        },
+        "roots": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/hostRoot"
+          }
+        },
+        "capability": {
+          "$ref": "#/$defs/capability"
+        },
+        "render_policy": {
+          "$ref": "#/$defs/renderPolicy"
+        }
+      }
+    },
+    "hostRoot": {
+      "type": "object",
+      "required": ["kind", "path_template", "scope"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["skill", "rules"]
+        },
+        "path_template": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[^\\\\\\u0000]+$"
+        },
+        "scope": {
+          "type": "string",
+          "enum": ["project", "global"]
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["any", "darwin", "linux", "win32"]
+        }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "auto_discovery": {
+          "type": "boolean"
+        },
+        "strict_filename": {
+          "type": "boolean"
+        }
+      }
+    },
+    "renderPolicy": {
+      "type": "object",
+      "required": ["field_mode"],
+      "additionalProperties": false,
+      "properties": {
+        "field_mode": {
+          "type": "string",
+          "const": "standard6"
+        },
+        "degrade_form": {
+          "type": "string",
+          "enum": ["none", "rule_file"]
+        }
+      }
+    }
+  },
+  "x-forbidden-fields": [
+    "security_control_evidence",
+    "disable-model-invocation",
+    "allowed-tools",
+    "permissions",
+    "requires",
+    "main",
+    "exports",
+    "scripts"
+  ],
+  "x-note": "跨字段约束（form/kind 匹配、path_template 占位符、插件 id 与目录名一致、禁止代码文件）由内核 manifest 校验器执行。"
+}
