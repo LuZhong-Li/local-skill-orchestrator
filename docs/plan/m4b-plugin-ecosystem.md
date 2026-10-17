@@ -272,6 +272,8 @@
 
 ### T3 收口：端到端、失败隔离、验收映射、三平台与发版准备
 
+**执行状态**：**本地收口完成（2026-10-18）**。新增 `tests/e2e/plugin-matrix.test.ts`（6 项真实 CLI 子进程覆盖非法 manifest/安全字段/代码文件/API 不兼容、canonical 冲突、宿主拒绝、来源失败、运行期损坏与多坏插件隔离）；常规套件 **558 项**（单元 365、契约 107、端到端 86；557 通过 + 1 项符号链接平台条件跳过）；`smoke:gui` **28/28** 通过；隔离快照与 Skill 索引字节不变断言通过。远端 CI/Bench 三平台需在推送后运行确认。
+
 **目标**：用真实内核与 CLI 证明插件从安装到宿主落位、停用、卸载的完整链路；完成 9.3.5 验收映射、文档同步与发版准备，不实际发版。
 
 **依赖**：T0 ~ T2。
@@ -347,6 +349,20 @@
 | 安全字段禁止 | T0 / T1 / T3 | schema + 原始 manifest 双重拒绝；安全字段反例 |
 | 不新增指令 | 全部 | 契约测试：16 条指令；`--kind` 仅七个既有指令 |
 | 无代码插件/全局插件/更新检查 | 全部 | 第 5 节排除项；源码检索与 GUI 断言 |
+
+### 3.1 T3 回填证据（2026-10-18）
+
+| 需求/约束 | 运行或测试证据 |
+|---|---|
+| 扩展清单、注册、列出 | `tests/e2e/plugin-cli.test.ts`：安装默认 disabled、list/inspect 分区、scan 候选；`tests/e2e/plugin-matrix.test.ts`：非法项不登记、canonical 冲突、重复 id |
+| 能力扩展方式（新宿主 profile + 三形态） | `tests/unit/plugin-t0.test.ts` 合并断言；`tests/e2e/plugin-cli.test.ts` 的 rules 落位与 global `rules_root`；T1 `skill` 形态由同一 `renderWithPolicy` 路径覆盖 |
+| 兼容性（apiVersion） | `plugin-matrix` 的不兼容 API 用例（`E-VER-002`）；`tests/contract/plugin-schema.test.ts` |
+| 失败隔离 | `plugin-matrix` 的「多个坏插件候选存在时，Skill 主路径仍可用」；`plugin-cli` 的安装/启用/停用/卸载生命周期 |
+| 指令数 16 | `npm run check` 契约校验；`tests/contract/registry.test.ts` |
+| 9.5 边界 | README「插件（扩展）」明示无代码执行、默认 disabled、无沙箱/代码托管 |
+| 六条机械断言 + 三条审计 | `tests/unit/plugin-t0.test.ts` 六条断言；`plugin-matrix` 的 registry/`allAdapters` 快照与 `x-` 不相交断言 |
+| Skill 索引不变 | `plugin-matrix` 卸载前后 `skill_index.yaml` 逐字节比较；T1 插件操作只写插件索引 |
+| GUI 全链路 | `scripts/gui-smoke.mjs` 插件流程 **28/28**：安装→enable→x- 分发→landings→disable→uninstall |
 
 ---
 

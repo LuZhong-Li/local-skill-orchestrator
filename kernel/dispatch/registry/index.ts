@@ -896,7 +896,7 @@ async function pluginInstallCommand(context: CommandContext): Promise<Result<unk
         });
       }
       return buildResult('install', [
-        finding(CODES.CONFLICT_NAMING, {
+        finding(CODES.ID_PLUGIN_DUPLICATED, {
           source: 'plugin-install',
           target: manifest.plugin_id,
           message: `插件 ${manifest.plugin_id} 已登记且版本内容不同`,

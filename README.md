@@ -14,7 +14,7 @@ Skill 元信息管理器：统一管理环境内已安装 Skill 的元数据，�
 | 内核     | TypeScript，零界面依赖，编译为独立可执行文件随应用分发                                                       |
 | 桌面外壳 | Electron + Vue 3：仪表盘、详情、安装、校验报告、Skill 更新检查与确认流程；可打包为安装包与便携单文件         |
 | 契约     | 六份规范文档与七份 JSON Schema，字段一致性由测试守住                                                         |
-| 验证     | 552 项测试（单元 365、契约 107、端到端 80；551 通过 + 1 项平台跳过）、构建期检查、慢测试与 28 项界面真机冒烟 |
+| 验证     | 558 项测试（单元 365、契约 107、端到端 86；557 通过 + 1 项平台跳过）、构建期检查、慢测试与 28 项界面真机冒烟 |
 | 持续集成 | GitHub Actions：推送主干 / 合并请求 / 手工触发，Windows 与 Linux × 声明版本，门禁与本地同口径，产物可下载    |
 | 宿主分发 | `--host <宿主>` 把 Skill 分发到宿主真实根；首批支持 Claude / Codex / Cursor / 豆包与两个通用目标             |
 
@@ -70,6 +70,59 @@ npm run pack:linux -w @skill-manager/gui # 打包 Linux AppImage
 node kernel/entry/cli.ts update <标识> --ref v1.1.0 --dry-run
 node kernel/entry/cli.ts update <标识> --ref v1.1.0 --yes
 ```
+
+## 插件（扩展）
+
+插件是**能力扩展载体**，不是 Skill。本期只接受声明式 host-profile manifest，不加载或执行任何第三方代码；插件默认 `disabled`，安装不等于启用。
+
+插件包放在工作区级 `<workspace>/plugins/<plugin_id>/plugin.json`，第三方宿主使用 canonical `x-<plugin_id>-<host_key>` 命名空间。内置宿主与第三方宿主在 GUI 中分区显示，内置 7 宿主不可被插件覆盖。插件可复用 `skill` / `rules` / `entry` 三种形态；global 作用域必须显式配置 `plugin.<plugin_id>.<host_key>.root` 或 `.rules_root`，不会默认写入用户主目录。
+
+```bash
+# 安装并登记，默认 disabled
+node kernel/entry/cli.ts install ./my-plugin --kind plugin --yes
+node kernel/entry/cli.ts enable my-plugin --kind plugin
+node kernel/entry/cli.ts list --kind plugin
+
+# 查看详情；详情包含 canonical 宿主与 landings 副本账本
+node kernel/entry/cli.ts inspect my-plugin --kind plugin
+
+# 停用与卸载；停用不删除既有宿主副本，卸载会保留孤儿账本提示
+node kernel/entry/cli.ts disable my-plugin --kind plugin
+node kernel/entry/cli.ts uninstall my-plugin --kind plugin --yes
+```
+
+最小 manifest 示例：
+
+```json
+{
+  "manifest_version": "1",
+  "plugin_id": "my-plugin",
+  "name": "My Plugin",
+  "version": "1.0.0",
+  "compatibility": {
+    "skill_manager": ">=0.2.0 <1.0.0",
+    "plugin_api": "1"
+  },
+  "capabilities": ["host_profile"],
+  "hosts": [
+    {
+      "host_key": "myhost",
+      "display_name": "My Host",
+      "form": "rules",
+      "roots": [
+        {
+          "kind": "rules",
+          "path_template": ".myhost/rules/<skill_id>.md",
+          "scope": "project"
+        }
+      ],
+      "render_policy": { "field_mode": "standard6" }
+    }
+  ]
+}
+```
+
+插件视图提供安装、启用、停用、卸载、候选与 `landings` 账本；**不包含插件更新检查**。应用自更新（M4a-2）、代码插件、全局插件与插件市场均不在本期范围。
 
 ## 仓库结构
 
