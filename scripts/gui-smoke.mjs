@@ -153,6 +153,7 @@ function connect(webSocketDebuggerUrl) {
 async function main() {
   const PORT = await freePort();
   const workspace = prepareWorkspace();
+  const userData = mkdtempSync(join(tmpdir(), 'sm-gui-user-data-'));
   const electron =
     packagedApp ??
     join(
@@ -165,7 +166,11 @@ async function main() {
     [...(packagedApp === undefined ? ['.'] : []), `--remote-debugging-port=${PORT}`],
     {
       cwd: GUI,
-      env: { ...process.env, SKILL_MANAGER_WORKSPACE: workspace },
+      env: {
+        ...process.env,
+        SKILL_MANAGER_WORKSPACE: workspace,
+        SKILL_MANAGER_USER_DATA_DIR: userData,
+      },
       stdio: ['ignore', 'pipe', 'pipe'],
     },
   );
@@ -271,6 +276,61 @@ async function main() {
       (await evaluate("document.querySelector('.statusbar')?.innerText.includes('scan')")) === true,
     );
 
+    // T2：手动检查入口与四态视图。烟测夹具是本地来源，因此真实内核会给出 not-checkable，
+    // 不需要网络即可验证「检查入口 → 只读来源判定 → 结果弹窗」这条链路。
+    await evaluate(
+      "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('检查更新'))?.click()",
+    );
+    await waitFor("document.querySelector('.dialog') !== null", 60);
+    const updateDialog = String(
+      await evaluate(
+        "(() => { const dialog = document.querySelector('.dialog'); return dialog ? dialog.innerText.replace(/\\s+/g, ' ') : ''; })()",
+      ),
+    );
+    check(
+      '检查更新入口打开四态结果视图',
+      ['可更新', '已是最新', '不可检查', '检查失败'].every((label) => updateDialog.includes(label)),
+      updateDialog.slice(0, 220),
+    );
+    check(
+      '本地来源给出可读不可检查原因并引导 update --check',
+      updateDialog.includes('本地来源') && updateDialog.includes('update --check'),
+      updateDialog.slice(0, 220),
+    );
+    await evaluate('document.querySelector(\'.dialog header button[aria-label="关闭"]\')?.click()');
+    await waitFor("document.querySelector('.dialog') === null");
+
+    // T2：更新设置开关默认关闭；切换开关才写 userData/settings.json。
+    await evaluate(
+      "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '设置')?.click()",
+    );
+    await waitFor("document.body.innerText.includes('更新检查')");
+    const defaults = await evaluate(
+      'JSON.stringify({ periodic: document.querySelector(\'input[data-setting="periodic"]\')?.checked, instant: document.querySelector(\'input[data-setting="instant"]\')?.checked })',
+    );
+    check(
+      '定期与即时检查默认关闭',
+      defaults === '{"periodic":false,"instant":false}',
+      String(defaults),
+    );
+
+    await evaluate('document.querySelector(\'input[data-setting="periodic"]\')?.click()');
+    let settingsText = '';
+    for (let index = 0; index < 40; index += 1) {
+      try {
+        settingsText = readFileSync(join(userData, 'settings.json'), 'utf8');
+        if (JSON.parse(settingsText).periodic_check_enabled === true) break;
+      } catch {
+        // 文件尚未写入，继续等
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    check(
+      '切换定期开关写入 userData/settings.json',
+      JSON.parse(settingsText).periodic_check_enabled === true,
+      settingsText,
+    );
+
     // 备份管理页：列表只能来自内核的 restore --list（界面不得直读备份目录）
     await evaluate(
       "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '备份管理')?.click()",
@@ -342,6 +402,7 @@ async function main() {
     killTree(child);
     await new Promise((resolve) => setTimeout(resolve, 500));
     rmSync(workspace, { recursive: true, force: true });
+    rmSync(userData, { recursive: true, force: true });
   }
 
   for (const item of checks) {

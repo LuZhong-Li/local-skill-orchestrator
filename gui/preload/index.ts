@@ -15,6 +15,27 @@ const api = {
   execute: (argv: string[]): Promise<unknown> => ipcRenderer.invoke('kernel:execute', argv),
   /** 读取当前工作区与运行模式，供界面展示 */
   describe: (): Promise<unknown> => ipcRenderer.invoke('kernel:describe'),
+  updates: {
+    /** 手动触发一次只读检查 */
+    check: (): Promise<unknown> => ipcRenderer.invoke('updates:check'),
+    /** 读取更新检查开关 */
+    getSettings: (): Promise<unknown> => ipcRenderer.invoke('updates:settings:get'),
+    /** 仅由用户切换开关时调用 */
+    setSettings: (patch: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('updates:settings:set', patch),
+    /** 用户已确认后的单项 update 执行通道（主进程仍调用既有 KernelBridge.execute） */
+    update: (id: string): Promise<unknown> => ipcRenderer.invoke('updates:update', id),
+    /** 最近一次检查结果，供窗口重建后恢复角标 */
+    latest: (): Promise<unknown> => ipcRenderer.invoke('updates:latest'),
+    /** 定期/即时检查只发提示事件，不带任何执行能力 */
+    onReport: (callback: (report: unknown) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, report: unknown): void => {
+        callback(report);
+      };
+      ipcRenderer.on('updates:report', listener);
+      return () => ipcRenderer.removeListener('updates:report', listener);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('skillManager', api);

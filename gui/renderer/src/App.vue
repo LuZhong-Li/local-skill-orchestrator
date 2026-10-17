@@ -5,14 +5,23 @@
  * 界面只做三件事：把用户操作翻译成一次内核调用、把内核结果如实呈现、把写操作交给
  * 「预览 → 确认 → 执行」的统一流程。这里不推导业务状态，也不读写工作区文件。
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import SkillCard from './components/SkillCard.vue';
 import DetailDialog from './components/DetailDialog.vue';
 import InstallDialog from './components/InstallDialog.vue';
 import ValidationDialog from './components/ValidationDialog.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import UpdateCheckDialog from './components/UpdateCheckDialog.vue';
 import { useKernel } from './composables/useKernel.ts';
-import { cardStateOf, type BackupRow, type KernelResult, type SkillSummary } from './types.ts';
+import { runSequentialUpdates, type UpdateRunResult } from './update-runner.ts';
+import {
+  cardStateOf,
+  type BackupRow,
+  type KernelResult,
+  type SkillSummary,
+  type UpdateCheckReport,
+  type UpdateSettings,
+} from './types.ts';
 
 type View = 'dashboard' | 'validation' | 'backup' | 'settings';
 
@@ -32,6 +41,18 @@ const configValue = ref('');
 const backups = ref<BackupRow[]>([]);
 const backupFilter = ref('');
 const backupLoaded = ref(false);
+const updateReport = ref<UpdateCheckReport | null>(null);
+const showUpdates = ref(false);
+const updateBusy = ref(false);
+const updatingId = ref<string | null>(null);
+const updateResults = ref<Record<string, UpdateRunResult>>({});
+const updateBadge = ref(false);
+const updateError = ref('');
+const updateSettings = ref<UpdateSettings>({
+  periodic_check_enabled: false,
+  instant_check_enabled: false,
+});
+let unsubscribeUpdates: (() => void) | null = null;
 
 const visibleRecords = computed(() =>
   filterState.value === ''
@@ -93,10 +114,142 @@ async function saveConfig(): Promise<void> {
   await loadConfig();
 }
 
+function hasAvailable(report: UpdateCheckReport): boolean {
+  return report.data.items.some((item) => item.state === 'update-available');
+}
+
+function acceptUpdateReport(report: UpdateCheckReport, open: boolean): void {
+  updateReport.value = report;
+  updateError.value = '';
+  if (open) {
+    showUpdates.value = true;
+    updateBadge.value = false;
+  } else {
+    updateBadge.value = !showUpdates.value && hasAvailable(report);
+  }
+}
+
+async function loadUpdateState(): Promise<void> {
+  try {
+    const [settings, latest] = await Promise.all([
+      globalThis.window.skillManager.updates.getSettings(),
+      globalThis.window.skillManager.updates.latest(),
+    ]);
+    updateSettings.value = settings as UpdateSettings;
+    if (latest !== null) {
+      const report = latest as UpdateCheckReport;
+      updateReport.value = report;
+      updateBadge.value = hasAvailable(report);
+    }
+  } catch (error) {
+    updateError.value = error instanceof Error ? error.message : String(error);
+  }
+}
+
+async function runUpdateCheck(open = true): Promise<void> {
+  updateBusy.value = true;
+  try {
+    const report = (await globalThis.window.skillManager.updates.check()) as UpdateCheckReport;
+    acceptUpdateReport(report, open);
+  } catch (error) {
+    updateError.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    updateBusy.value = false;
+  }
+}
+
+async function openUpdates(): Promise<void> {
+  if (updateBadge.value && updateReport.value !== null) {
+    updateBadge.value = false;
+    showUpdates.value = true;
+    return;
+  }
+  await runUpdateCheck(true);
+}
+
+async function toggleUpdateSetting(key: keyof UpdateSettings, enabled: boolean): Promise<void> {
+  const previous = updateSettings.value;
+  updateSettings.value = { ...previous, [key]: enabled };
+  try {
+    updateSettings.value = (await globalThis.window.skillManager.updates.setSettings({
+      [key]: enabled,
+    })) as UpdateSettings;
+    updateError.value = '';
+  } catch (error) {
+    updateSettings.value = previous;
+    updateError.value = error instanceof Error ? error.message : String(error);
+  }
+}
+
+function checkedOf(event: globalThis.Event): boolean {
+  return (event.target as globalThis.HTMLInputElement | null)?.checked === true;
+}
+
+function togglePeriodic(event: globalThis.Event): void {
+  void toggleUpdateSetting('periodic_check_enabled', checkedOf(event));
+}
+
+function toggleInstant(event: globalThis.Event): void {
+  void toggleUpdateSetting('instant_check_enabled', checkedOf(event));
+}
+
+async function performUpdate(id: string) {
+  updatingId.value = id;
+  try {
+    const result = await kernel.runWithConfirm(['update', id], `更新 ${id}`);
+    return { cancelled: result === null, result };
+  } finally {
+    updatingId.value = null;
+  }
+}
+
+function mergeResults(results: UpdateRunResult[]): void {
+  const next = { ...updateResults.value };
+  for (const result of results) next[result.id] = result;
+  updateResults.value = next;
+}
+
+async function refreshAfterUpdates(): Promise<void> {
+  await kernel.refresh();
+  await runUpdateCheck(false);
+}
+
+async function updateOne(id: string): Promise<void> {
+  updateBusy.value = true;
+  try {
+    mergeResults(await runSequentialUpdates([id], performUpdate));
+    await refreshAfterUpdates();
+  } finally {
+    updateBusy.value = false;
+  }
+}
+
+async function updateAll(): Promise<void> {
+  const ids =
+    updateReport.value?.data.items
+      .filter((item) => item.state === 'update-available')
+      .map((item) => item.id) ?? [];
+  if (ids.length === 0) return;
+  updateBusy.value = true;
+  try {
+    updateResults.value = {};
+    mergeResults(await runSequentialUpdates(ids, performUpdate));
+    await refreshAfterUpdates();
+  } finally {
+    updateBusy.value = false;
+  }
+}
+
 onMounted(async () => {
+  unsubscribeUpdates = globalThis.window.skillManager.updates.onReport((report) => {
+    acceptUpdateReport(report as UpdateCheckReport, false);
+  });
   await kernel.describe();
   await kernel.refresh();
+  await loadUpdateState();
 });
+
+onBeforeUnmount(() => unsubscribeUpdates?.());
 </script>
 
 <template>
@@ -141,6 +294,14 @@ onMounted(async () => {
         <button :disabled="kernel.busy.value" @click="runValidate">批量校验</button>
         <button :disabled="kernel.busy.value" @click="runExport">导出备份</button>
         <button :disabled="kernel.busy.value" @click="runImport">导入备份</button>
+        <button
+          class="update-check"
+          :disabled="kernel.busy.value || updateBusy"
+          @click="openUpdates"
+        >
+          检查更新
+          <span v-if="updateBadge" class="update-dot" aria-label="有可更新项" />
+        </button>
         <span class="spacer" />
         <select v-model="filterState" class="filter" aria-label="按状态过滤">
           <option value="">全部状态</option>
@@ -283,6 +444,32 @@ onMounted(async () => {
           </label>
           <button class="primary" :disabled="kernel.busy.value" @click="saveConfig">写入</button>
         </div>
+        <div class="panel">
+          <h2>更新检查</h2>
+          <p class="muted">
+            手动检查始终可用。定期与即时检查默认关闭；定期检查固定至少 6
+            小时，只在应用运行期间生效，且只提示、不执行更新。
+          </p>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              data-setting="periodic"
+              :checked="updateSettings.periodic_check_enabled"
+              @change="togglePeriodic"
+            />
+            <span>定期检查（6 小时，仅应用运行期间，只提示）</span>
+          </label>
+          <label class="toggle">
+            <input
+              type="checkbox"
+              data-setting="instant"
+              :checked="updateSettings.instant_check_enabled"
+              @change="toggleInstant"
+            />
+            <span>立即检查（启动后执行一次只读检查）</span>
+          </label>
+          <p v-if="updateError" class="bad">更新设置或检查失败：{{ updateError }}</p>
+        </div>
       </section>
     </main>
 
@@ -322,6 +509,17 @@ onMounted(async () => {
       "
     />
     <ValidationDialog v-if="report && view !== 'backup'" :result="report" @close="report = null" />
+    <UpdateCheckDialog
+      v-if="showUpdates && updateReport"
+      :report="updateReport"
+      :busy="updateBusy"
+      :updating-id="updatingId"
+      :results="updateResults"
+      @close="showUpdates = false"
+      @retry="runUpdateCheck(true)"
+      @update="updateOne"
+      @update-all="updateAll"
+    />
     <ConfirmDialog
       v-if="kernel.pendingConfirm.value"
       :request="kernel.pendingConfirm.value"
@@ -423,6 +621,21 @@ main {
   width: 148px;
 }
 
+.update-check {
+  position: relative;
+}
+
+.update-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
 .content {
   flex: 1;
   overflow: auto;
@@ -503,6 +716,16 @@ main {
   font-size: 13px;
 }
 
+.panel label.toggle {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--space) * 2);
+}
+
+.panel label.toggle input {
+  width: auto;
+}
+
 pre {
   margin: 0;
   background: var(--surface-muted);
@@ -527,6 +750,10 @@ pre {
 }
 
 .statusbar .bad {
+  color: var(--danger);
+}
+
+.bad {
   color: var(--danger);
 }
 </style>

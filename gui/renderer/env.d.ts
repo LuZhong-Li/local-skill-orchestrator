@@ -12,6 +12,14 @@ interface SkillManagerApi {
   preview(argv: string[]): Promise<unknown>;
   execute(argv: string[]): Promise<unknown>;
   describe(): Promise<unknown>;
+  updates: {
+    check(): Promise<unknown>;
+    getSettings(): Promise<unknown>;
+    setSettings(patch: unknown): Promise<unknown>;
+    update(id: string): Promise<unknown>;
+    latest(): Promise<unknown>;
+    onReport(callback: (report: unknown) => void): () => void;
+  };
 }
 
 declare global {

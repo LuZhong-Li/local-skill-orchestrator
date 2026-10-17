@@ -64,3 +64,41 @@ export interface BackupRow {
   file_count: number;
   path: string;
 }
+
+export type UpdateCheckState = 'update-available' | 'up-to-date' | 'not-checkable' | 'failed';
+
+export interface UpdateCheckItem {
+  id: string;
+  state: UpdateCheckState;
+  summary: string;
+  provenance: {
+    url: string | null;
+    ref: string | null;
+    checked_at: string;
+  };
+  backup_notice: string;
+  checksum?: string;
+  baseline_version?: string;
+  available?: { ref: string; commit: string };
+  latest?: { ref: string; commit: string };
+  reason?: string;
+  code?: string;
+  remedy?: string;
+}
+
+export interface UpdateCheckReport {
+  command: 'update-check';
+  ok: boolean;
+  findings: Finding[];
+  changes: Change[];
+  exit_code: number;
+  data: {
+    checked_at: string;
+    items: UpdateCheckItem[];
+  };
+}
+
+export interface UpdateSettings {
+  periodic_check_enabled: boolean;
+  instant_check_enabled: boolean;
+}

@@ -2,6 +2,15 @@
 
 ## 未发布
 
+### M4a T2：GUI 更新检查接线（IPC、四态交互、确认执行、频率开关）
+
+- **主进程 IPC**：新增 `updates:check` / `updates:settings:get` / `updates:settings:set` / `updates:update` / `updates:latest` 与 `updates:report` 事件；preload 只暴露白名单方法。`updates:update` 内部调用既有 `KernelBridge.execute(['update', id])`，没有新增指令或第二套写入路径。
+- **设置与调度**：开关保存到 `userData/settings.json`，默认均为关闭，只有用户切换开关时写入；检查动作零写入。定期检查固定 6 小时、仅在应用运行期间存在，启动前退出即停止；定期/即时路径只发提示事件，不执行更新；无可更新项时不提示。
+- **四态界面**：工具栏新增「检查更新」与更新角标；结果弹窗按 `update-available` / `up-to-date` / `not-checkable` / `failed` 分组，展示基线 → 目标、来源/引用/校验、备份提示、不可检查原因与 `E-SRC-*` 可读说明。本地来源明确引导 `update --check`。
+- **确认执行**：单项和「全部更新」都走既有「预览 → 确认 → `update --yes`」链路；用户取消时执行通道零调用，单条失败继续其余条目，完成后刷新列表并重新检查。
+- **测试**：新增 16 项（单元 12、契约 4），常规套件 503 → **519 项全绿**，慢测试 1 项通过；`smoke:gui` **13/13 通过**（检查入口、四态视图、本地来源引导、默认关闭、`settings.json` 写入）。
+- **边界不变**：不新增指令（仍 16 条）与运行时依赖；不注册系统计划任务、登录项或启动项；应用自更新 M4a-2 仍未实现。
+
 ### M4a T1：Skill 更新检查能力（纯逻辑与只读探测）
 
 - **四态判定**：新增 `gui/main/update-check/`，输出 `update-available` / `up-to-date` / `not-checkable` / `failed`；只有远端 git 且 `ref` 为 semver 正式版标签才进入检查，本地、归档、未知、分支/提交/非正式标签均返回带具体原因的 `not-checkable`。

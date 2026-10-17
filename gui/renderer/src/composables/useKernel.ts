@@ -57,7 +57,12 @@ export function useKernel() {
   async function execute(argv: string[]): Promise<KernelResult> {
     busy.value = true;
     try {
-      const result = (await window.skillManager.execute(argv)) as KernelResult;
+      // update 走主进程专用通道（内部仍是同一个 KernelBridge.execute），
+      // 其他已确认写操作继续使用通用执行通道。
+      const result =
+        argv[0] === 'update' && argv.length === 2
+          ? ((await window.skillManager.updates.update(argv[1]!)) as KernelResult)
+          : ((await window.skillManager.execute(argv)) as KernelResult);
       record(summarize(result), result.ok);
       return result;
     } finally {

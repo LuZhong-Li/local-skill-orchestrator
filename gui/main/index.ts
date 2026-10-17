@@ -1,8 +1,8 @@
 /**
  * Electron 主进程：窗口、生命周期与内核桥接的装配。
  *
- * 边界：主进程只做两件事——把渲染层的请求转成一次内核调用，把内核结果原样回传；
- * 不解释业务语义，也不直接读写工作区的任何文件。
+ * 边界：主进程把渲染层请求转成内核调用并把结果原样回传；更新检查只读，
+ * 运行期调度与两个设置开关留在主进程，不直接读写工作区文件。
  */
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -10,9 +10,17 @@ import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { KernelBridge } from '../bridge/commands.ts';
 import type { KernelOptions } from '../bridge/kernel.ts';
+import { UpdateCoordinator, UpdateSettingsStore } from './updates/index.ts';
+import { registerUpdateIpc, sendUpdateReport } from './updates/ipc.ts';
 
 /** 主进程以 ES 模块运行，没有 __dirname，从模块地址推导 */
 const here = dirname(fileURLToPath(import.meta.url));
+
+// 冒烟与便携调试可把设置落到隔离目录；正常安装形态仍使用 Electron 的 userData。
+const userDataOverride = process.env['SKILL_MANAGER_USER_DATA_DIR'];
+if (userDataOverride !== undefined && userDataOverride !== '') {
+  app.setPath('userData', resolve(userDataOverride));
+}
 
 /**
  * 解析内核调用参数。
@@ -79,9 +87,7 @@ function createWindow(): void {
   }
 }
 
-function registerKernelHandlers(): void {
-  const bridge = new KernelBridge(resolveKernelOptions());
-
+function registerKernelHandlers(bridge: KernelBridge): void {
   ipcMain.handle('kernel:describe', () => ({
     workspace: resolveKernelOptions().workspace,
     packaged: app.isPackaged,
@@ -93,7 +99,21 @@ function registerKernelHandlers(): void {
 }
 
 app.whenReady().then(() => {
-  registerKernelHandlers();
+  const bridge = new KernelBridge(resolveKernelOptions());
+  registerKernelHandlers(bridge);
+  const updates = new UpdateCoordinator({
+    bridge,
+    settings: new UpdateSettingsStore(join(app.getPath('userData'), 'settings.json')),
+    now: () => Date.now(),
+    notify: (report) =>
+      sendUpdateReport(
+        BrowserWindow.getAllWindows().map((window) => window.webContents),
+        report,
+      ),
+  });
+  registerUpdateIpc(updates);
+  app.on('before-quit', () => updates.stop());
+  void updates.start();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
