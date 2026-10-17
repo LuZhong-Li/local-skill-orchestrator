@@ -234,6 +234,25 @@ test('T1 宿主：启用后技能可分发给 x- 宿主，账本留存，停用�
   );
   assert.equal(existsSync(landed), true, '停用不删除既有宿主副本');
 
+  const uninstallPreview = await json([
+    'uninstall',
+    'acme-tools',
+    '--kind',
+    'plugin',
+    '--workspace',
+    root,
+    '--dry-run',
+  ]);
+  assert.equal(uninstallPreview.code, 0);
+  assert.ok(
+    ((uninstallPreview.result['changes'] as unknown[]) ?? []).length > 0,
+    '卸载预演必须给出影响范围',
+  );
+  assert.ok(
+    String((uninstallPreview.result['data'] as Record<string, unknown>)['notes']).includes('孤儿'),
+    '卸载预演必须提示孤儿副本',
+  );
+
   const skillIndexBefore = readFileSync(layoutOf(root).indexFile);
   const removed = await json([
     'uninstall',
@@ -255,6 +274,36 @@ test('T1 宿主：启用后技能可分发给 x- 宿主，账本留存，停用�
     '插件卸载不改 Skill 索引',
   );
   assert.equal(existsSync(landed), true, '卸载不删除 Skill 产物');
+});
+
+test('T2 分发链路：已安装 Skill 通过 update --host 落位并写入账本', async () => {
+  const root = temp('sm-plugin-update-host-');
+  assert.equal((await capture(['init', '--workspace', root])).code, 0);
+  const plugin = writePlugin(temp('sm-plugin-update-src-'));
+  assert.equal(
+    (await capture(['install', plugin, '--kind', 'plugin', '--workspace', root, '--yes'])).code,
+    0,
+  );
+  assert.equal(
+    (await capture(['enable', 'acme-tools', '--kind', 'plugin', '--workspace', root])).code,
+    0,
+  );
+  const skill = writeSkillSource(root, 'late-update-skill');
+  assert.equal((await capture(['install', skill, '--workspace', root, '--yes'])).code, 0);
+  const updated = await capture([
+    'update',
+    'late-update-skill',
+    '--host',
+    'x-acme-tools-zed',
+    '--workspace',
+    root,
+    '--yes',
+  ]);
+  assert.equal(updated.code, 0, updated.out);
+  assert.equal(existsSync(join(root, '.zed', 'rules', 'late-update-skill.md')), true);
+  const landings = readPluginIndex(root)['landings'] as Array<Record<string, unknown>>;
+  assert.equal(landings.length, 1);
+  assert.equal(landings[0]?.['skill_id'], 'late-update-skill');
 });
 
 test('T1 配置与扫描：global 根必须显式配置；未登记插件只报告候选', async () => {

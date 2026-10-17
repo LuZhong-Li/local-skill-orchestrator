@@ -15,6 +15,23 @@ const api = {
   execute: (argv: string[]): Promise<unknown> => ipcRenderer.invoke('kernel:execute', argv),
   /** 读取当前工作区与运行模式，供界面展示 */
   describe: (): Promise<unknown> => ipcRenderer.invoke('kernel:describe'),
+  plugins: {
+    /** 插件/内置宿主分区，由主进程消费同一份 list --kind plugin 结果 */
+    hosts: (): Promise<unknown> => ipcRenderer.invoke('plugins:hosts'),
+    list: (): Promise<unknown> => ipcRenderer.invoke('kernel:invoke', ['list', '--kind', 'plugin']),
+    scan: (): Promise<unknown> =>
+      ipcRenderer.invoke('kernel:invoke', ['scan', '--kind', 'plugin', '--dry-run']),
+    inspect: (id: string): Promise<unknown> =>
+      ipcRenderer.invoke('kernel:invoke', ['inspect', id, '--kind', 'plugin']),
+    install: (source: string): Promise<unknown> =>
+      ipcRenderer.invoke('kernel:invoke', ['install', source, '--kind', 'plugin']),
+    enable: (id: string): Promise<unknown> =>
+      ipcRenderer.invoke('kernel:invoke', ['enable', id, '--kind', 'plugin']),
+    disable: (id: string): Promise<unknown> =>
+      ipcRenderer.invoke('kernel:invoke', ['disable', id, '--kind', 'plugin']),
+    uninstall: (id: string): Promise<unknown> =>
+      ipcRenderer.invoke('kernel:invoke', ['uninstall', id, '--kind', 'plugin']),
+  },
   updates: {
     /** 手动触发一次只读检查 */
     check: (): Promise<unknown> => ipcRenderer.invoke('updates:check'),

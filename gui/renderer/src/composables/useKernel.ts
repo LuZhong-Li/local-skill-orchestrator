@@ -60,8 +60,9 @@ export function useKernel() {
       // update 走主进程专用通道（内部仍是同一个 KernelBridge.execute），
       // 其他已确认写操作继续使用通用执行通道。
       const refIndex = argv.indexOf('--ref');
+      const hasHost = argv.includes('--host');
       const result =
-        argv[0] === 'update' && argv[1] !== undefined
+        argv[0] === 'update' && argv[1] !== undefined && !hasHost
           ? ((await window.skillManager.updates.update(
               argv[1],
               refIndex >= 0 ? argv[refIndex + 1] : undefined,

@@ -12,6 +12,7 @@ import { KernelBridge } from '../bridge/commands.ts';
 import type { KernelOptions } from '../bridge/kernel.ts';
 import { UpdateCoordinator, UpdateSettingsStore } from './updates/index.ts';
 import { registerUpdateIpc, sendUpdateReport } from './updates/ipc.ts';
+import { registerPluginIpc } from './plugins/ipc.ts';
 
 /** 主进程以 ES 模块运行，没有 __dirname，从模块地址推导 */
 const here = dirname(fileURLToPath(import.meta.url));
@@ -112,6 +113,7 @@ app.whenReady().then(() => {
       ),
   });
   registerUpdateIpc(updates);
+  registerPluginIpc(bridge);
   app.on('before-quit', () => updates.stop());
   void updates.start();
   createWindow();

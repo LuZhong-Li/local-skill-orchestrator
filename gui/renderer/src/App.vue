@@ -12,18 +12,25 @@ import InstallDialog from './components/InstallDialog.vue';
 import ValidationDialog from './components/ValidationDialog.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import UpdateCheckDialog from './components/UpdateCheckDialog.vue';
+import PluginPanel from './components/PluginPanel.vue';
+import PluginInstallDialog from './components/PluginInstallDialog.vue';
+import PluginDetailDialog from './components/PluginDetailDialog.vue';
 import { useKernel } from './composables/useKernel.ts';
 import { runSequentialUpdates, type UpdateRunResult } from './update-runner.ts';
+import { pluginInstallNotice } from './plugin-presentation.ts';
 import {
   cardStateOf,
   type BackupRow,
   type KernelResult,
+  type PluginCandidate,
+  type PluginHosts,
+  type PluginSummary,
   type SkillSummary,
   type UpdateCheckReport,
   type UpdateSettings,
 } from './types.ts';
 
-type View = 'dashboard' | 'validation' | 'backup' | 'settings';
+type View = 'dashboard' | 'validation' | 'backup' | 'plugins' | 'settings';
 
 const kernel = useKernel();
 const view = ref<View>('dashboard');
@@ -48,6 +55,15 @@ const updatingId = ref<string | null>(null);
 const updateResults = ref<Record<string, UpdateRunResult>>({});
 const updateBadge = ref(false);
 const updateError = ref('');
+const pluginRecords = ref<PluginSummary[]>([]);
+const pluginCandidates = ref<PluginCandidate[]>([]);
+const pluginHosts = ref<PluginHosts>({ builtin: [], third_party: [] });
+const pluginLoading = ref(false);
+const pluginMessage = ref('');
+const pluginSelected = ref<PluginSummary | null>(null);
+const pluginDetail = ref<KernelResult | null>(null);
+const pluginDetailLoading = ref(false);
+const showPluginInstall = ref(false);
 const updateSettings = ref<UpdateSettings>({
   periodic_check_enabled: false,
   instant_check_enabled: false,
@@ -67,6 +83,114 @@ async function openDetail(record: SkillSummary): Promise<void> {
   detailLoading.value = true;
   detail.value = await kernel.run(['inspect', record.id]);
   detailLoading.value = false;
+}
+
+async function loadPlugins(): Promise<void> {
+  pluginLoading.value = true;
+  pluginMessage.value = '';
+  try {
+    const hostResponse = (await globalThis.window.skillManager.plugins.hosts()) as {
+      result?: KernelResult;
+      builtin?: PluginHosts['builtin'];
+      third_party?: PluginHosts['third_party'];
+    };
+    const result = hostResponse.result;
+    const data = result?.data ?? {};
+    pluginRecords.value = (data['plugins'] ?? []) as PluginSummary[];
+    pluginHosts.value = {
+      builtin: hostResponse.builtin ?? [],
+      third_party: hostResponse.third_party ?? [],
+    };
+    const scan = (await globalThis.window.skillManager.plugins.scan()) as KernelResult;
+    pluginCandidates.value = (scan.data?.['unregistered'] ?? []) as PluginCandidate[];
+    if (result !== undefined && !result.ok) {
+      pluginMessage.value = result.findings
+        .map((item) => `${item.code}：${item.message}`)
+        .join('；');
+    }
+  } catch (error) {
+    pluginMessage.value = error instanceof Error ? error.message : String(error);
+  } finally {
+    pluginLoading.value = false;
+  }
+}
+
+function openPlugins(): void {
+  view.value = 'plugins';
+  void loadPlugins();
+}
+
+async function openPluginDetail(id: string): Promise<void> {
+  pluginSelected.value = pluginRecords.value.find((item) => item.id === id) ?? null;
+  pluginDetail.value = null;
+  pluginDetailLoading.value = true;
+  try {
+    pluginDetail.value = (await globalThis.window.skillManager.plugins.inspect(id)) as KernelResult;
+  } finally {
+    pluginDetailLoading.value = false;
+  }
+}
+
+async function installPlugin(source: string): Promise<void> {
+  showPluginInstall.value = false;
+  const result = await kernel.runWithConfirm(['install', source, '--kind', 'plugin'], '安装插件');
+  if (result?.ok === true) {
+    pluginMessage.value = pluginInstallNotice();
+    await loadPlugins();
+  } else if (result !== null) {
+    pluginMessage.value = result.findings.map((item) => `${item.code}：${item.message}`).join('；');
+  }
+}
+
+async function togglePlugin(action: 'enable' | 'disable', id: string): Promise<void> {
+  const result = await kernel.runWithConfirm(
+    [action, id, '--kind', 'plugin'],
+    action === 'enable' ? `启用插件 ${id}` : `停用插件 ${id}`,
+  );
+  if (result !== null) await loadPlugins();
+  if (result !== null && !result.ok) {
+    pluginMessage.value = result.findings.map((item) => `${item.code}：${item.message}`).join('；');
+  }
+}
+
+async function uninstallPlugin(id: string): Promise<void> {
+  const result = await kernel.runWithConfirm(
+    ['uninstall', id, '--kind', 'plugin'],
+    `卸载插件 ${id}`,
+  );
+  if (result !== null) {
+    pluginSelected.value = null;
+    await loadPlugins();
+    if (!result.ok) {
+      pluginMessage.value = result.findings
+        .map((item) => `${item.code}：${item.message}`)
+        .join('；');
+    }
+  }
+}
+
+async function distributePlugin(hostId: string, skillId: string): Promise<void> {
+  if (skillId === '') {
+    pluginMessage.value = '请先选择要分发的 Skill';
+    return;
+  }
+  const result = await kernel.runWithConfirm(
+    ['update', skillId, '--host', hostId],
+    `分发 ${skillId} 到 ${hostId}`,
+  );
+  if (result?.ok === true) {
+    pluginMessage.value = `已将 ${skillId} 分发到 ${hostId}`;
+    await loadPlugins();
+  }
+}
+
+function usePluginConfigHint(hint: string): void {
+  const parts = hint.match(/^config set (\S+) (.*)$/);
+  view.value = 'settings';
+  if (parts !== null) {
+    configKey.value = parts[1] ?? '';
+    configValue.value = '';
+  }
 }
 
 /** 写操作的统一入口：预览 → 确认 → 执行，取消时不发写请求 */
@@ -276,6 +400,9 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
           校验报告
         </button>
         <button :class="{ active: view === 'backup' }" @click="view = 'backup'">备份管理</button>
+        <button data-nav="plugins" :class="{ active: view === 'plugins' }" @click="openPlugins">
+          插件（扩展）
+        </button>
         <button :class="{ active: view === 'settings' }" @click="view = 'settings'">设置</button>
       </nav>
       <dl class="counts">
@@ -306,6 +433,7 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
         <button :disabled="kernel.busy.value" @click="runExport">导出备份</button>
         <button :disabled="kernel.busy.value" @click="runImport">导入备份</button>
         <button
+          v-if="view !== 'plugins'"
           class="update-check"
           :disabled="kernel.busy.value || updateBusy"
           @click="openUpdates"
@@ -433,6 +561,24 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
         </div>
       </section>
 
+      <PluginPanel
+        v-else-if="view === 'plugins'"
+        :plugins="pluginRecords"
+        :candidates="pluginCandidates"
+        :hosts="pluginHosts"
+        :skills="kernel.records.value"
+        :loading="pluginLoading"
+        :message="pluginMessage"
+        @refresh="loadPlugins"
+        @install="showPluginInstall = true"
+        @install-candidate="installPlugin"
+        @open="openPluginDetail"
+        @enable="(id) => togglePlugin('enable', id)"
+        @disable="(id) => togglePlugin('disable', id)"
+        @uninstall="uninstallPlugin"
+        @distribute="distributePlugin"
+        @config-hint="usePluginConfigHint"
+      />
       <section v-else class="content">
         <div class="panel">
           <h2>当前配置</h2>
@@ -447,6 +593,12 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
               <option value="default_target">default_target</option>
               <option value="default_mode">default_mode</option>
               <option value="skill_roots">skill_roots</option>
+              <option
+                v-if="!['default_target', 'default_mode', 'skill_roots'].includes(configKey)"
+                :value="configKey"
+              >
+                {{ configKey }}
+              </option>
             </select>
           </label>
           <label>
@@ -518,6 +670,21 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
           void act(argv, '安装 Skill');
         }
       "
+    />
+    <PluginInstallDialog
+      v-if="showPluginInstall"
+      @close="showPluginInstall = false"
+      @submit="installPlugin"
+    />
+    <PluginDetailDialog
+      v-if="pluginSelected"
+      :plugin="pluginSelected"
+      :detail="pluginDetail"
+      :loading="pluginDetailLoading"
+      @close="pluginSelected = null"
+      @enable="(id) => togglePlugin('enable', id)"
+      @disable="(id) => togglePlugin('disable', id)"
+      @uninstall="uninstallPlugin"
     />
     <ValidationDialog v-if="report && view !== 'backup'" :result="report" @close="report = null" />
     <UpdateCheckDialog

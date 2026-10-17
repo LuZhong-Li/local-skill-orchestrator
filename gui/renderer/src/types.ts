@@ -102,3 +102,36 @@ export interface UpdateSettings {
   periodic_check_enabled: boolean;
   instant_check_enabled: boolean;
 }
+
+export type PluginState = 'enabled' | 'disabled' | 'invalid';
+
+export interface PluginSummary {
+  id: string;
+  version: string;
+  state: PluginState;
+  hosts: number;
+  validation: { status: 'ok' | 'invalid'; errors: string[]; last_scan_at?: string };
+}
+
+export interface PluginCandidate {
+  plugin_id: string;
+  path: string;
+  manifest_hash: string;
+}
+
+export interface PluginHostOption {
+  host_id: string;
+  display_name: string;
+  group: 'builtin' | 'plugin';
+  plugin_id?: string;
+  plugin_name?: string;
+  plugin_state?: PluginState;
+  selectable: boolean;
+  reason: string;
+  config_hint: string[];
+}
+
+export interface PluginHosts {
+  builtin: PluginHostOption[];
+  third_party: PluginHostOption[];
+}

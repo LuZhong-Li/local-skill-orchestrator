@@ -12,6 +12,16 @@ interface SkillManagerApi {
   preview(argv: string[]): Promise<unknown>;
   execute(argv: string[]): Promise<unknown>;
   describe(): Promise<unknown>;
+  plugins: {
+    hosts(): Promise<unknown>;
+    list(): Promise<unknown>;
+    scan(): Promise<unknown>;
+    inspect(id: string): Promise<unknown>;
+    install(source: string): Promise<unknown>;
+    enable(id: string): Promise<unknown>;
+    disable(id: string): Promise<unknown>;
+    uninstall(id: string): Promise<unknown>;
+  };
   updates: {
     check(): Promise<unknown>;
     getSettings(): Promise<unknown>;

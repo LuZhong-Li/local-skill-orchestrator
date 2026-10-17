@@ -1146,6 +1146,35 @@ function pluginListCommand(context: { args: ParsedArgs }): Result<unknown> {
     (item) =>
       item.state === 'orphaned' || !index.plugins.some((plugin) => plugin.id === item.plugin_id),
   );
+  const builtinHosts = loadHostRegistry().hosts.map((host) => ({
+    host_id: host.host_id,
+    display_name: host.display_name,
+    adapter_state: host.adapter_state,
+    support_state: host.support_state,
+    roots: host.roots ?? [],
+  }));
+  const pluginHosts = index.plugins.flatMap((plugin) =>
+    plugin.hosts.map((host) => ({
+      host_id: host.host_id,
+      host_key: host.host_key,
+      display_name: host.display_name,
+      form: host.form,
+      plugin_id: plugin.id,
+      plugin_name: plugin.name,
+      plugin_state: plugin.state,
+      roots: host.roots,
+      root_config: host.roots.map((root) => ({
+        key: `plugin.${plugin.id}.${host.host_key}.${
+          root.kind === 'rules' ? 'rules_root' : 'root'
+        }`,
+        scope: root.scope,
+        configured:
+          index.config[
+            `plugin.${plugin.id}.${host.host_key}.${root.kind === 'rules' ? 'rules_root' : 'root'}`
+          ] ?? null,
+      })),
+    })),
+  );
   return buildResult('list', loaded.findings, [], {
     data: {
       kind: 'plugin',
@@ -1153,6 +1182,9 @@ function pluginListCommand(context: { args: ParsedArgs }): Result<unknown> {
       total: index.plugins.length,
       filtered: records.length,
       plugins: records,
+      builtin_hosts: builtinHosts,
+      plugin_hosts: pluginHosts,
+      config: index.config,
       orphaned_landings: orphaned,
     },
   });
@@ -1407,7 +1439,20 @@ async function pluginUninstallCommand(context: CommandContext): Promise<Result<u
       { action: 'remove', kind: 'plugin', path: pluginDir, detail: `${fileCount} 个文件` },
       { action: 'remove', kind: 'plugin_index', path: layout.pluginIndexFile },
     ],
-    data: {},
+    data: {
+      notes: [
+        `将删除插件包：${pluginDir}（${fileCount} 个文件）`,
+        '插件登记将从 plugin_index.yaml 移除；Skill 索引不会被触碰',
+        orphaned.length > 0
+          ? `已有 ${orphaned.length} 个宿主副本会保留并标记为孤儿：${orphaned
+              .map((item) => item.target_path)
+              .join('、')}`
+          : '没有已记录的插件宿主副本',
+      ],
+      plugin_dir: pluginDir,
+      file_count: fileCount,
+      orphaned_landings: orphaned,
+    },
   };
   const dryRun = flag(args, 'dry-run');
   if (!dryRun) {
@@ -1438,13 +1483,14 @@ async function pluginUninstallCommand(context: CommandContext): Promise<Result<u
     rmSync(pluginDir, { recursive: true, force: true });
     savePluginIndex(layout.pluginIndexFile, next);
   }
-  return buildResult('uninstall', loaded.findings, dryRun ? [] : [preview.changes[0]!], {
+  return buildResult('uninstall', loaded.findings, preview.changes, {
     data: {
       kind: 'plugin',
       removed: !dryRun,
       plugin_dir: pluginDir,
       file_count: fileCount,
       orphaned_landings: marked.orphaned,
+      notes: preview.data['notes'],
     },
     ...(dryRun ? { preview: true } : {}),
   });

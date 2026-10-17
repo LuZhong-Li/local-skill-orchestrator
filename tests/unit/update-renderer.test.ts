@@ -125,6 +125,49 @@ test('T3 确认：目标标签经专用通道传递到主进程 update', async (
   }
 });
 
+test('T2 插件宿主分发：update --host 必须走通用执行通道，不能丢掉 --host', async () => {
+  const generic: string[][] = [];
+  const updates: string[] = [];
+  const original = globalThis.window;
+  globalThis.window = {
+    skillManager: {
+      invoke: async () => result('list'),
+      preview: async () => ({ ...result('update'), preview: true }),
+      execute: async (argv: string[]) => {
+        generic.push(argv);
+        return result('update');
+      },
+      describe: async () => ({ workspace: 'C:/tmp/ws' }),
+      updates: {
+        check: async () => ({}),
+        getSettings: async () => ({}),
+        setSettings: async () => ({}),
+        update: async (id: string) => {
+          updates.push(id);
+          return result('update');
+        },
+        latest: async () => null,
+        onReport: () => () => undefined,
+      },
+    },
+  } as unknown as Window;
+
+  try {
+    const kernel = useKernel();
+    const pending = kernel.runWithConfirm(
+      ['update', 'smoke-skill', '--host', 'x-smoke-tools-zed'],
+      '分发 smoke-skill',
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    kernel.answerConfirm(true);
+    await pending;
+    assert.deepEqual(generic, [['update', 'smoke-skill', '--host', 'x-smoke-tools-zed']]);
+    assert.deepEqual(updates, []);
+  } finally {
+    globalThis.window = original;
+  }
+});
+
 test('T2 批量执行：单条失败不阻断后续条目，取消停止剩余条目', async () => {
   const failure = await runSequentialUpdates(['a', 'b', 'c'], async (id) => {
     if (id === 'b') return { cancelled: false, result: result('update', false) };
