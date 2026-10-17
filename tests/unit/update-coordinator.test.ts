@@ -248,6 +248,13 @@ test('T2 执行：确认后的专用通道只调用既有 update <id> --yes', as
   assert.deepEqual(bridge.executeCalls, [['update', 'alpha']]);
 });
 
+test('T3 执行：确认后的远端目标通过 --ref 交给既有 update 通道', async () => {
+  const { instance, bridge } = coordinator({});
+  const result = await instance.executeConfirmed('alpha', 'v1.1.0');
+  assert.equal(result.ok, true);
+  assert.deepEqual(bridge.executeCalls, [['update', 'alpha', '--ref', 'v1.1.0']]);
+});
+
 test('T2 设置切换：开启定期登记 6h 调度并写入一次；关闭即清除', async () => {
   const { instance, timers, memory } = coordinator({});
   await instance.start();

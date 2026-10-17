@@ -149,8 +149,12 @@ export class UpdateCoordinator {
     return task;
   }
 
-  executeConfirmed(id: string): Promise<KernelResult> {
-    return this.bridge.execute(['update', id]);
+  executeConfirmed(id: string, ref?: string): Promise<KernelResult> {
+    return this.bridge.execute([
+      'update',
+      id,
+      ...(ref === undefined || ref === '' ? [] : ['--ref', ref]),
+    ]);
   }
 
   private async performCheck(reason: UpdateCheckReason): Promise<UpdateCheckReport> {

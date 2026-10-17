@@ -14,7 +14,9 @@ export function registerUpdateIpc(coordinator: UpdateCoordinator): void {
   ipcMain.handle('updates:settings:set', (_event, patch: Partial<UpdateSettings>) =>
     coordinator.setSettings(patch),
   );
-  ipcMain.handle('updates:update', (_event, id: string) => coordinator.executeConfirmed(id));
+  ipcMain.handle('updates:update', (_event, id: string, ref?: string) =>
+    coordinator.executeConfirmed(id, ref),
+  );
   ipcMain.handle('updates:latest', () => coordinator.getLatestReport());
 }
 

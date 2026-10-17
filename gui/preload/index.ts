@@ -24,7 +24,8 @@ const api = {
     setSettings: (patch: unknown): Promise<unknown> =>
       ipcRenderer.invoke('updates:settings:set', patch),
     /** 用户已确认后的单项 update 执行通道（主进程仍调用既有 KernelBridge.execute） */
-    update: (id: string): Promise<unknown> => ipcRenderer.invoke('updates:update', id),
+    update: (id: string, ref?: string): Promise<unknown> =>
+      ipcRenderer.invoke('updates:update', id, ref),
     /** 最近一次检查结果，供窗口重建后恢复角标 */
     latest: (): Promise<unknown> => ipcRenderer.invoke('updates:latest'),
     /** 定期/即时检查只发提示事件，不带任何执行能力 */

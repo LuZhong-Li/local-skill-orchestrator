@@ -38,16 +38,19 @@ import {
 import {
   BACKUP_CONTENT_DIR_NAME,
   BACKUP_TYPE_VALUES,
+  createBackup,
   listBackups,
   verifyBackup,
 } from '../../store/backup-fs/index.ts';
 import { ID_PATTERN } from '../metadata/constants.ts';
 import type { SkillTarget } from '../metadata/types.ts';
-import { parseYaml } from '../../store/yaml/index.ts';
+import { parseYaml, stringifyYaml } from '../../store/yaml/index.ts';
+import { atomicWriteFile } from '../../store/atomic/index.ts';
 import { toPortablePath } from '../../store/paths/index.ts';
 import {
   acquireFromPath,
   acquireSource,
+  looksRemote,
   readDeclaredSource,
   releaseSource,
   type AcquiredSource,
@@ -1125,6 +1128,8 @@ export interface UpdateInput {
   check?: boolean;
   /** 只刷新指定目标的副本；省略时刷新全部已存在的副本 */
   target?: string | undefined;
+  /** 远端 git 来源的目标标签；成功后持久化为新的 source.ref */
+  ref?: string | undefined;
 }
 
 /**
@@ -1141,6 +1146,28 @@ export interface UpdateInput {
 export async function updateSkill(input: UpdateInput): Promise<LifecycleOutcome> {
   const libraryDir = libraryPathOf(input.layout.root, input.id);
   const declared = readDeclaredSource(join(libraryDir, META_FILE_NAME));
+  if (input.ref !== undefined) {
+    if (
+      declared === null ||
+      declared.type !== 'git' ||
+      declared.location === undefined ||
+      !looksRemote(declared.location)
+    ) {
+      return {
+        index: input.index,
+        findings: [
+          finding(CODES.INPUT_INVALID_ARG, {
+            source: 'input',
+            target: '--ref',
+            message: '--ref 只适用于远端 git 来源',
+            remedy: '本地来源请省略 --ref；如需查看本地漂移，请使用 update --check',
+          }),
+        ],
+        changes: [],
+        data: { rejected: 'ref_requires_remote_git' },
+      };
+    }
+  }
   const refetchable =
     declared !== null &&
     (declared.type === 'git' || declared.type === 'archive') &&
@@ -1154,7 +1181,7 @@ export async function updateSkill(input: UpdateInput): Promise<LifecycleOutcome>
     acquired = await acquireSource({
       type: declared.type,
       location: declared.location as string,
-      ref: declared.ref,
+      ref: input.ref ?? declared.ref,
     });
   } catch (error) {
     return {
@@ -1523,16 +1550,47 @@ function updateFromSource(input: UpdateInput, fetchedDir: string | null): Lifecy
   const record = index.skills.find((item) => item.id === id);
   if (record === undefined) return notRegistered(id, index);
 
-  // 一、按声明重新获取内容时，先替换中心库原件；此时尚未改动索引，失败不会刷新记录
+  let backupData: Record<string, unknown> = {};
+
+  // 一、按声明重新获取内容时，先备份并替换中心库原件；此时尚未改动索引，失败不会刷新记录
   if (fetchedDir !== null) {
     const libraryDir = libraryPathOf(layout.root, id);
     if (!check) {
+      if (isDirectory(libraryDir)) {
+        try {
+          const backup = createBackup({
+            workspaceRoot: layout.root,
+            backupsDir: layout.backupsDir,
+            id,
+            sourceDir: libraryDir,
+            now,
+            checksum: record.checksum,
+          });
+          backupData = {
+            backup_path: backup.portableDir,
+            backup_timestamp: backup.timestamp,
+            backup_file_count: backup.fileCount,
+            backup_digest: backup.digest,
+          };
+        } catch (error) {
+          return {
+            index,
+            findings: [toFinding(toKernelError(error, CODES.BACKUP_FAILED))],
+            changes: [],
+            data: { rejected: 'backup_failed' },
+          };
+        }
+      } else {
+        backupData = { backup_reason: '中心库原件不存在，没有可备份的内容' };
+      }
       try {
         replaceTree(fetchedDir, libraryDir);
+        if (input.ref !== undefined) persistDeclaredRef(libraryDir, input.ref);
       } catch (error) {
+        const kernelError = toKernelError(error, CODES.IO_FAILED);
         return {
           index,
-          findings: [toFinding(toKernelError(error, CODES.IO_FAILED))],
+          findings: [toFinding(kernelError)],
           changes: [],
           data: { rejected: 'library_refresh_failed' },
         };
@@ -1541,7 +1599,8 @@ function updateFromSource(input: UpdateInput, fetchedDir: string | null): Lifecy
   }
 
   const libraryDir = libraryPathOf(layout.root, id);
-  const read = readMetaFile(libraryDir, id);
+  const readDir = check && fetchedDir !== null ? fetchedDir : libraryDir;
+  const read = readMetaFile(readDir, id);
   if (read.raw === null) {
     return {
       index,
@@ -1561,7 +1620,7 @@ function updateFromSource(input: UpdateInput, fetchedDir: string | null): Lifecy
     };
   }
 
-  const checksum = computeChecksum(libraryDir);
+  const checksum = computeChecksum(readDir);
   const raw = read.raw;
   const meta = raw as unknown as SkillMeta;
   const findings: Finding[] = [...metaFindings];
@@ -1600,14 +1659,31 @@ function updateFromSource(input: UpdateInput, fetchedDir: string | null): Lifecy
       scope: item.scope,
       path: item.declaredPath,
     })),
+    backup: backupData,
     notes: ['刷新会按落位计划把副本内容一并更新；任一处落位失败则整体不生效'],
   };
 
   if (check === true) {
+    const previewChanges: Change[] =
+      fetchedDir === null
+        ? []
+        : [
+            { action: 'modify', kind: 'library', path: record.path },
+            ...targets
+              .filter(
+                (item) =>
+                  (target === undefined || item.target === target) && pathExists(item.absolutePath),
+              )
+              .map((item): Change => ({
+                action: 'modify',
+                kind: 'target_copy',
+                path: item.declaredPath,
+              })),
+          ];
     return {
       index,
       findings,
-      changes: [],
+      changes: previewChanges,
       preview: true,
       data: { ...summary, checked: true },
     };
@@ -1665,6 +1741,24 @@ function updateFromSource(input: UpdateInput, fetchedDir: string | null): Lifecy
     ],
     data: { ...summary, copies: copied },
   };
+}
+
+/** 目标标签更新成功后，把中心库受控副本的 source.ref 持久化为新基线。 */
+function persistDeclaredRef(libraryDir: string, ref: string): void {
+  const metaFile = join(libraryDir, META_FILE_NAME);
+  const raw = parseYaml(readFileSync(metaFile, 'utf8'), { source: 'meta', target: metaFile });
+  const source = raw['source'];
+  if (source === null || typeof source !== 'object' || Array.isArray(source)) {
+    throw new KernelError({
+      code: CODES.FIELD_REQUIRED,
+      message: '目标版本元文件缺少 source 声明，无法持久化目标 ref',
+      source: 'meta',
+      target: 'source',
+      remedy: '请修正目标版本的 skill_meta.yaml 后重试',
+    });
+  }
+  (source as Record<string, unknown>)['ref'] = ref;
+  atomicWriteFile(metaFile, stringifyYaml(raw));
 }
 
 /**

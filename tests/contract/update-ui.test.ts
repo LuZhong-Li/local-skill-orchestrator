@@ -74,3 +74,20 @@ test('契约：四态对话框组件存在，且四态标签由纯映射统一�
     assert.ok(presentation.includes(label), `视图映射应提供「${label}」`);
   }
 });
+
+test('契约：update --ref 的远端限定、目标持久化与帮助文本同源', () => {
+  const contract = read('docs/specification/cli-contract.md');
+  const update = contract.slice(
+    contract.indexOf('### 4.11 `update`'),
+    contract.indexOf('### 4.12'),
+  );
+  assert.match(update, /--ref <tag>/);
+  assert.match(update, /只适用于远端 git 来源/);
+  assert.match(update, /source\.ref/);
+  assert.match(update, /与 `--ref` 组合按参数类错误拒绝/);
+  assert.match(update, /目标标签不存在.*返回 `4`/);
+
+  const help = read('kernel/entry/cli.ts');
+  assert.match(help, /update <标识>.*--ref <tag>/);
+  assert.match(help, /--ref <tag>.*source\.ref/);
+});

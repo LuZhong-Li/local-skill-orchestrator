@@ -193,10 +193,13 @@ function toggleInstant(event: globalThis.Event): void {
   void toggleUpdateSetting('instant_check_enabled', checkedOf(event));
 }
 
-async function performUpdate(id: string) {
+async function performUpdate(id: string, ref: string | undefined) {
   updatingId.value = id;
   try {
-    const result = await kernel.runWithConfirm(['update', id], `更新 ${id}`);
+    const result = await kernel.runWithConfirm(
+      ['update', id, ...(ref === undefined ? [] : ['--ref', ref])],
+      `更新 ${id}`,
+    );
     return { cancelled: result === null, result };
   } finally {
     updatingId.value = null;
@@ -215,9 +218,11 @@ async function refreshAfterUpdates(): Promise<void> {
 }
 
 async function updateOne(id: string): Promise<void> {
+  const target = updateReport.value?.data.items.find((item) => item.id === id)?.available?.ref;
+  if (target === undefined) return;
   updateBusy.value = true;
   try {
-    mergeResults(await runSequentialUpdates([id], performUpdate));
+    mergeResults(await runSequentialUpdates([id], (itemId) => performUpdate(itemId, target)));
     await refreshAfterUpdates();
   } finally {
     updateBusy.value = false;
@@ -225,15 +230,21 @@ async function updateOne(id: string): Promise<void> {
 }
 
 async function updateAll(): Promise<void> {
+  const report = updateReport.value;
+  if (report === null) return;
   const ids =
-    updateReport.value?.data.items
-      .filter((item) => item.state === 'update-available')
-      .map((item) => item.id) ?? [];
+    report.data.items.filter((item) => item.state === 'update-available').map((item) => item.id) ??
+    [];
   if (ids.length === 0) return;
+  const targets = new Map(
+    report.data.items
+      .filter((item) => item.state === 'update-available')
+      .map((item) => [item.id, item.available?.ref]),
+  );
   updateBusy.value = true;
   try {
     updateResults.value = {};
-    mergeResults(await runSequentialUpdates(ids, performUpdate));
+    mergeResults(await runSequentialUpdates(ids, (id) => performUpdate(id, targets.get(id))));
     await refreshAfterUpdates();
   } finally {
     updateBusy.value = false;

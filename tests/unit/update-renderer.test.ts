@@ -90,6 +90,41 @@ test('T2 确认：批准后 update 走专用通道，且仍由既有 preview→c
   }
 });
 
+test('T3 确认：目标标签经专用通道传递到主进程 update', async () => {
+  const updates: Array<[string, string | undefined]> = [];
+  const original = globalThis.window;
+  globalThis.window = {
+    skillManager: {
+      invoke: async () => result('list'),
+      preview: async () => ({ ...result('update'), preview: true }),
+      execute: async () => result('update'),
+      describe: async () => ({ workspace: 'C:/tmp/ws' }),
+      updates: {
+        check: async () => ({}),
+        getSettings: async () => ({}),
+        setSettings: async () => ({}),
+        update: async (id: string, ref?: string) => {
+          updates.push([id, ref]);
+          return result('update');
+        },
+        latest: async () => null,
+        onReport: () => () => undefined,
+      },
+    },
+  } as unknown as Window;
+
+  try {
+    const kernel = useKernel();
+    const pending = kernel.runWithConfirm(['update', 'alpha', '--ref', 'v1.1.0'], '更新 alpha');
+    await new Promise((resolve) => setImmediate(resolve));
+    kernel.answerConfirm(true);
+    await pending;
+    assert.deepEqual(updates, [['alpha', 'v1.1.0']]);
+  } finally {
+    globalThis.window = original;
+  }
+});
+
 test('T2 批量执行：单条失败不阻断后续条目，取消停止剩余条目', async () => {
   const failure = await runSequentialUpdates(['a', 'b', 'c'], async (id) => {
     if (id === 'b') return { cancelled: false, result: result('update', false) };

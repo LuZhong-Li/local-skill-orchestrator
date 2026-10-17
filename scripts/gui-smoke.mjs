@@ -9,7 +9,7 @@
  *       node scripts/gui-smoke.mjs --app <可执行文件路径>（针对打包产物，需要图形会话；
  *       相对路径按当前目录解析，例如 build/desktop/win-unpacked/skill-manager.exe）
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -47,6 +47,45 @@ function killTree(child) {
   child.kill('SIGTERM');
 }
 
+function git(cwd, args) {
+  const result = spawnSync(
+    'git',
+    ['-C', cwd, '-c', 'user.email=smoke@example.com', '-c', 'user.name=smoke', ...args],
+    { encoding: 'utf8' },
+  );
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')} 失败：${result.stderr}`);
+  return result.stdout ?? '';
+}
+
+async function startGitDaemon(basePath, port) {
+  const child = spawn(
+    'git',
+    [
+      'daemon',
+      '--reuseaddr',
+      '--export-all',
+      `--base-path=${basePath}`,
+      `--port=${port}`,
+      '--listen=127.0.0.1',
+    ],
+    { stdio: 'ignore', detached: process.platform !== 'win32' },
+  );
+  await new Promise((resolve, reject) => {
+    const deadline = Date.now() + 10_000;
+    const attempt = () => {
+      const probe = spawnSync(process.execPath, [
+        '-e',
+        `require('net').connect(${port},'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))`,
+      ]);
+      if (probe.status === 0) return resolve();
+      if (Date.now() > deadline) return reject(new Error('git daemon 未在 10 秒内就绪'));
+      setTimeout(attempt, 100);
+    };
+    attempt();
+  });
+  return child;
+}
+
 /** 指定 --app 时直接运行打包后的可执行文件，否则运行开发产物 */
 const appIndex = process.argv.indexOf('--app');
 const appArgument = appIndex >= 0 ? process.argv[appIndex + 1] : undefined;
@@ -61,25 +100,53 @@ if (appIndex >= 0 && (appArgument === undefined || appArgument.startsWith('--'))
  */
 const packagedApp = appArgument === undefined ? undefined : resolve(appArgument);
 
-function prepareWorkspace() {
+function remoteMeta(url, ref, version) {
+  return [
+    'id: smoke-skill',
+    'name: smoke-skill',
+    `version: ${version}`,
+    'status: enabled',
+    'path: ./skills/smoke-skill',
+    'source:',
+    '  type: git',
+    `  url: ${url}`,
+    `  ref: ${ref}`,
+    'targets:',
+    '  - target: claude',
+    '    scope: global',
+    '    path: .claude/skills/smoke-skill',
+    '    mode: copy',
+    '    enabled: true',
+    '    file_map:',
+    '      SKILL.md: SKILL.md',
+    '',
+  ].join('\n');
+}
+
+function prepareWorkspace(url) {
   const root = mkdtempSync(join(tmpdir(), 'sm-gui-smoke-'));
   const skill = join(root, 'skills', 'smoke-skill');
   mkdirSync(skill, { recursive: true });
   writeFileSync(join(skill, 'SKILL.md'), '# smoke');
+  writeFileSync(join(skill, 'skill_meta.yaml'), remoteMeta(url, 'v1.0.0', '1.0.0'));
+
+  const localSkill = join(root, 'skills', 'local-skill');
+  mkdirSync(localSkill, { recursive: true });
+  writeFileSync(join(localSkill, 'SKILL.md'), '# local');
   writeFileSync(
-    join(skill, 'skill_meta.yaml'),
+    join(localSkill, 'skill_meta.yaml'),
     [
-      'id: smoke-skill',
-      'name: smoke-skill',
+      'id: local-skill',
+      'name: local-skill',
       'version: 1.0.0',
       'status: enabled',
-      'path: ./skills/smoke-skill',
+      'path: ./skills/local-skill',
       'source:',
       '  type: local',
       'targets:',
       '  - target: claude',
       '    scope: global',
-      '    path: .claude/skills/smoke-skill',
+      '    path: .claude/skills/local-skill',
       '    mode: copy',
       '    enabled: true',
       '    file_map:',
@@ -152,7 +219,28 @@ function connect(webSocketDebuggerUrl) {
 
 async function main() {
   const PORT = await freePort();
-  const workspace = prepareWorkspace();
+  const gitPort = await freePort();
+  const gitRoot = mkdtempSync(join(tmpdir(), 'sm-gui-git-'));
+  const gitWork = join(gitRoot, 'work');
+  const gitServed = join(gitRoot, 'served');
+  mkdirSync(gitWork, { recursive: true });
+  mkdirSync(gitServed, { recursive: true });
+  const gitUrl = `git://127.0.0.1:${gitPort}/sample.git`;
+  git(gitWork, ['init', '-q', '-b', 'main']);
+  writeFileSync(join(gitWork, 'SKILL.md'), '# smoke');
+  writeFileSync(join(gitWork, 'skill_meta.yaml'), remoteMeta(gitUrl, 'v1.0.0', '1.0.0'));
+  git(gitWork, ['add', '-A']);
+  git(gitWork, ['commit', '-q', '-m', 'v1']);
+  git(gitWork, ['tag', 'v1.0.0']);
+  writeFileSync(join(gitWork, 'SKILL.md'), '# smoke v2');
+  writeFileSync(join(gitWork, 'skill_meta.yaml'), remoteMeta(gitUrl, 'v1.0.0', '1.1.0'));
+  git(gitWork, ['add', '-A']);
+  git(gitWork, ['commit', '-q', '-m', 'v2']);
+  git(gitWork, ['tag', 'v1.1.0']);
+  git(gitRoot, ['clone', '-q', '--bare', gitWork, join(gitServed, 'sample.git')]);
+  const gitDaemon = await startGitDaemon(gitServed, gitPort);
+
+  const workspace = prepareWorkspace(gitUrl);
   const userData = mkdtempSync(join(tmpdir(), 'sm-gui-user-data-'));
   const electron =
     packagedApp ??
@@ -261,7 +349,7 @@ async function main() {
     );
     await waitFor("document.querySelectorAll('article.card').length > 0", 60);
     const cards = Number(await evaluate("document.querySelectorAll('article.card').length"));
-    check('扫描后仪表盘展示真实 Skill 卡片', cards === 1, `卡片数 ${String(cards)}`);
+    check('扫描后仪表盘展示真实 Skill 卡片', cards === 2, `卡片数 ${String(cards)}`);
     if (cards === 0) {
       diagnostics.push(
         `扫描后正文：${String(await evaluate('document.body.innerText')).slice(0, 400)}`,
@@ -276,31 +364,7 @@ async function main() {
       (await evaluate("document.querySelector('.statusbar')?.innerText.includes('scan')")) === true,
     );
 
-    // T2：手动检查入口与四态视图。烟测夹具是本地来源，因此真实内核会给出 not-checkable，
-    // 不需要网络即可验证「检查入口 → 只读来源判定 → 结果弹窗」这条链路。
-    await evaluate(
-      "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('检查更新'))?.click()",
-    );
-    await waitFor("document.querySelector('.dialog') !== null", 60);
-    const updateDialog = String(
-      await evaluate(
-        "(() => { const dialog = document.querySelector('.dialog'); return dialog ? dialog.innerText.replace(/\\s+/g, ' ') : ''; })()",
-      ),
-    );
-    check(
-      '检查更新入口打开四态结果视图',
-      ['可更新', '已是最新', '不可检查', '检查失败'].every((label) => updateDialog.includes(label)),
-      updateDialog.slice(0, 220),
-    );
-    check(
-      '本地来源给出可读不可检查原因并引导 update --check',
-      updateDialog.includes('本地来源') && updateDialog.includes('update --check'),
-      updateDialog.slice(0, 220),
-    );
-    await evaluate('document.querySelector(\'.dialog header button[aria-label="关闭"]\')?.click()');
-    await waitFor("document.querySelector('.dialog') === null");
-
-    // T2：更新设置开关默认关闭；切换开关才写 userData/settings.json。
+    // T2/T3：设置默认关闭；即时检查触发角标，点击角标进入已有结果视图。
     await evaluate(
       "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '设置')?.click()",
     );
@@ -314,8 +378,103 @@ async function main() {
       String(defaults),
     );
 
-    await evaluate('document.querySelector(\'input[data-setting="periodic"]\')?.click()');
+    await evaluate('document.querySelector(\'input[data-setting="instant"]\')?.click()');
     let settingsText = '';
+    for (let index = 0; index < 40; index += 1) {
+      try {
+        settingsText = readFileSync(join(userData, 'settings.json'), 'utf8');
+        if (JSON.parse(settingsText).instant_check_enabled === true) break;
+      } catch {
+        // 文件尚未写入，继续等
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    check(
+      '切换即时检查开关写入 userData/settings.json',
+      JSON.parse(settingsText).instant_check_enabled === true,
+      settingsText,
+    );
+    check(
+      '即时检查发现更新后点亮角标',
+      await waitFor("document.querySelector('.update-dot') !== null", 60),
+    );
+
+    await evaluate(
+      "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('检查更新'))?.click()",
+    );
+    await waitFor("document.querySelector('.dialog') !== null", 60);
+    const updateDialog = String(
+      await evaluate(
+        "(() => { const dialog = document.querySelector('.dialog'); return dialog ? dialog.innerText.replace(/\\s+/g, ' ') : ''; })()",
+      ),
+    );
+    check(
+      '检查更新入口打开四态结果视图',
+      ['可更新', '已是最新', '不可检查', '检查失败'].every((label) => updateDialog.includes(label)),
+      updateDialog.slice(0, 260),
+    );
+    check(
+      '检查结果显示基线到目标标签并保留本地来源引导',
+      updateDialog.includes('1.0.0') &&
+        updateDialog.includes('v1.1.0') &&
+        updateDialog.includes('本地来源') &&
+        updateDialog.includes('update --check'),
+      updateDialog.slice(0, 260),
+    );
+
+    await evaluate(
+      "[...document.querySelectorAll('.dialog button')].find((b) => b.textContent.includes('预览并更新'))?.click()",
+    );
+    await waitFor(
+      "[...document.querySelectorAll('.dialog footer button')].some((b) => b.textContent.includes('确认执行'))",
+      120,
+    );
+    const confirmUpdate = String(
+      await evaluate(
+        "(() => { const dialog = [...document.querySelectorAll('.dialog')].find((item) => item.innerText.includes('确认执行')); return dialog ? dialog.innerText.replace(/\\s+/g, ' ') : ''; })()",
+      ),
+    );
+    check(
+      '更新确认弹窗展示内核预演的影响范围',
+      confirmUpdate.includes('确认更新 smoke-skill') &&
+        confirmUpdate.includes('skills/smoke-skill') &&
+        confirmUpdate.includes('确认执行'),
+      confirmUpdate.slice(0, 220),
+    );
+    await evaluate(
+      "[...document.querySelectorAll('.dialog footer button')].find((b) => b.textContent.includes('确认执行'))?.click()",
+    );
+
+    let updatedContent = '';
+    for (let index = 0; index < 80; index += 1) {
+      updatedContent = readFileSync(
+        join(workspace, 'skills', 'smoke-skill', 'SKILL.md'),
+        'utf8',
+      ).replace(/\r\n/g, '\n');
+      if (updatedContent === '# smoke v2') break;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    const updatedMeta = readFileSync(
+      join(workspace, 'skills', 'smoke-skill', 'skill_meta.yaml'),
+      'utf8',
+    );
+    check(
+      '确认后更新到目标标签并持久化 source.ref',
+      updatedContent === '# smoke v2' && /ref: v1\.1\.0/.test(updatedMeta),
+      `内容 ${JSON.stringify(updatedContent)}｜meta ${updatedMeta.replace(/\s+/g, ' ').slice(0, 120)}`,
+    );
+    check(
+      '更新完成后结果视图重新检查为已是最新',
+      await waitFor(
+        "document.querySelector('.dialog')?.innerText.includes('已是最新（1）') === true",
+        60,
+      ),
+      String(await evaluate("document.querySelector('.dialog')?.innerText.slice(0, 260) ?? ''")),
+    );
+    await evaluate('document.querySelector(\'.dialog header button[aria-label="关闭"]\')?.click()');
+    await waitFor("document.querySelector('.dialog') === null");
+
+    await evaluate('document.querySelector(\'input[data-setting="periodic"]\')?.click()');
     for (let index = 0; index < 40; index += 1) {
       try {
         settingsText = readFileSync(join(userData, 'settings.json'), 'utf8');
@@ -339,26 +498,26 @@ async function main() {
       "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('读取备份列表'))?.click()",
     );
     await waitFor("document.querySelectorAll('table.backups tbody tr').length > 0");
-    const backupRow = String(
+    const backupSummary = String(
       await evaluate(
-        "(() => { const row = document.querySelector('table.backups tbody tr'); return row ? row.innerText.replace(/\\s+/g, ' ') : ''; })()",
+        "[...document.querySelectorAll('table.backups tbody tr')].map((row) => row.innerText.replace(/\\s+/g, ' ')).join(' || ')",
       ),
     );
     const restoreEntry = await evaluate(
       "[...document.querySelectorAll('table.backups tbody tr button')].some((b) => b.textContent.trim() === '恢复')",
     );
     check(
-      '备份管理页经内核列出真实备份并给出恢复入口',
-      backupRow.includes('smoke-skill') &&
-        backupRow.includes('2026-01-01T00:00:00Z') &&
-        backupRow.includes('2') &&
+      '备份管理页经内核列出真实备份并给出恢复入口（含更新前备份）',
+      backupSummary.includes('smoke-skill') &&
+        backupSummary.includes('2026-01-01T00:00:00Z') &&
+        backupSummary.split(' || ').length >= 2 &&
         restoreEntry === true,
-      backupRow,
+      backupSummary.slice(0, 260),
     );
 
     // 恢复是覆盖性写操作：确认弹窗必须展示内核预演的真实影响范围（覆盖提示 + 逐文件清单）
     await evaluate(
-      "[...document.querySelectorAll('table.backups tbody tr button')].find((b) => b.textContent.trim() === '恢复')?.click()",
+      "(() => { const row = [...document.querySelectorAll('table.backups tbody tr')].find((item) => item.innerText.includes('2026-01-01T00:00:00Z')); return row?.querySelector('button')?.click(); })()",
     );
     await waitFor("document.querySelector('.dialog') !== null");
     const dialogText = String(
@@ -400,9 +559,11 @@ async function main() {
     client.close();
   } finally {
     killTree(child);
+    killTree(gitDaemon);
     await new Promise((resolve) => setTimeout(resolve, 500));
     rmSync(workspace, { recursive: true, force: true });
     rmSync(userData, { recursive: true, force: true });
+    rmSync(gitRoot, { recursive: true, force: true });
   }
 
   for (const item of checks) {

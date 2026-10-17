@@ -16,7 +16,7 @@ interface SkillManagerApi {
     check(): Promise<unknown>;
     getSettings(): Promise<unknown>;
     setSettings(patch: unknown): Promise<unknown>;
-    update(id: string): Promise<unknown>;
+    update(id: string, ref?: string): Promise<unknown>;
     latest(): Promise<unknown>;
     onReport(callback: (report: unknown) => void): () => void;
   };

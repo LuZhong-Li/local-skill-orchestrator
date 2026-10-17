@@ -1436,8 +1436,20 @@ const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
   if (index === null) return unreadableIndex('update', layout, findings, missing);
 
   const check = flag(args, 'check');
+  const dryRun = flag(args, 'dry-run');
+  const targetRef = option(args, 'ref');
+  if (check && targetRef !== undefined) {
+    return buildResult('update', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--ref',
+        message: '--ref 不能与 --check 组合',
+        remedy: '--check 只检查当前声明；请用 update --ref <tag> --dry-run 预览目标标签',
+      }),
+    ]);
+  }
   const updateTarget = option(args, 'target');
-  if (!check) {
+  if (!check && !dryRun) {
     const preview = await updateSkill({
       layout,
       index,
@@ -1445,6 +1457,7 @@ const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
       now,
       check: true,
       target: updateTarget,
+      ref: targetRef,
     });
     const blocked = await confirmationGate({
       command: 'update',
@@ -1452,20 +1465,30 @@ const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
       interaction,
       preview,
       plan: planOf('update', id, preview, [
-        '刷新会按磁盘现状更新索引记录与派生区字段，不改写元文件与用户源文件',
+        '刷新会先备份中心库原件，再更新索引记录与派生区字段',
+        '目标标签会持久化为新的 source.ref，用户源文件不被改写',
       ]),
     });
     if (blocked !== null) return blocked;
   }
 
-  const outcome = await updateSkill({ layout, index, id, now, check, target: updateTarget });
-  if (!check && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
+  const outcome = await updateSkill({
+    layout,
+    index,
+    id,
+    now,
+    check: check || dryRun,
+    target: updateTarget,
+    ref: targetRef,
+  });
+  if (!check && !dryRun && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
 
   // 宿主分发通道：刷新后按落位计划把新内容重分发到宿主真实根（不新建副本）
   const hostValue = option(args, 'host');
   if (
     hostValue !== undefined &&
     !check &&
+    !dryRun &&
     !outcome.findings.some((item) => item.severity === 'error')
   ) {
     const host = runHostLanding({
