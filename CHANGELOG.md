@@ -1,6 +1,31 @@
 # 变更记录
 
-## 未发布
+## 0.3.0
+
+M4b 声明式插件生态。未签名交付口径不变。
+
+### 【新增】
+
+- **声明式插件生态**：第三方通过 `plugin.json` manifest 声明新宿主 profile，复用 `skill` / `rules` / `entry` 三种渲染形态；第三方宿主使用 canonical `x-<plugin_id>-<host_key>` 命名空间。
+- **七个既有指令接入 `--kind plugin`**：`scan` / `list` / `inspect` / `install` / `uninstall` / `enable` / `disable`；省略时仍为 Skill，指令总数保持 16。
+- **独立插件索引与副本账本**：`plugin_index.yaml` 记录插件状态与配置，`landings` 记录插件宿主副本（含 `active` / `orphaned`）；插件卸载删除插件包但保留 Skill 索引与既有副本。
+- **GUI 插件管理**：列表/详情/安装/启停/卸载、未登记候选、canonical 宿主与 `landings` 视图；内置 7 宿主与第三方 `x-` 宿主分区，global 根提供 `plugin.*` 配置引导。
+- **配置路由**：`config set/get plugin.<id>.<host>.root` / `.rules_root` 路由到插件索引；`host.*` 仍只认内置注册表。
+
+### 【安全边界】
+
+- 不加载、不执行第三方代码：拒绝 JS/原生库/可执行文件，插件路径不使用 `import` / `require` / `eval`。
+- 插件默认 `disabled`（安装≠启用）；启用前重新校验；内置 7 宿主不可覆盖；安全控制字段整插件拒绝；global 根必须显式配置。
+
+### 【明确不做】
+
+- 代码插件与沙箱、全局插件、插件更新检查（本期手动 uninstall/install）、应用自更新 M4a-2（待签名/公证与 `latest*.yml`）。
+
+### 【不变】
+
+- 指令数 16；Skill 索引格式版本不变；内置宿主与既有 Skill 行为不变。
+
+## 0.3.0 开发记录
 
 ### M4b T0：第六份规范、插件 schema 与加载合并纯函数
 
@@ -36,13 +61,6 @@
 - **验收与文档**：9.3.5 R1~R5、高层目标 6/7 映射回填计划；README 增加插件章节与最小 manifest 示例；明确无代码执行、默认 disabled、内置不可覆盖、global 根显式配置。
 - **测试**：常规套件 552 → **558 项**（单元 365、契约 107、端到端 86；557 通过 + 1 项符号链接平台条件跳过）；`smoke:gui` **28/28 通过**；CI run **39053919194**（Windows/Linux）与 Bench run **39053919195**（Windows/Linux/macOS）均 Success。
 - **v0.3.0 发布准备（待授权，未发版）**：建议 minor `v0.3.0`；CHANGELOG 版本段要点为声明式插件 manifest/新宿主 profile/三渲染形态/七指令 `--kind plugin`/独立 `plugin_index` 与 `landings`/GUI 插件管理；明确不做代码形态/沙箱、全局插件、插件更新检查、应用自更新 M4a-2。
-
-### v0.3.0 发版要点（待授权，未定版）
-
-- **新增**：声明式插件 manifest 与新宿主 profile；复用 `skill` / `rules` / `entry` 三形态；七个既有指令的 `--kind plugin`；独立 `plugin_index.yaml` 与 `landings` 副本账本；GUI 插件列表/详情/安装/启停/卸载。
-- **安全边界**：不加载/执行第三方代码；插件默认 disabled；第三方宿主仅使用 `x-` 命名空间；内置 7 宿主不可覆盖；安全控制字段整插件拒绝；global 根必须显式配置。
-- **不做**：代码插件/沙箱、全局插件、插件更新检查、应用自更新 M4a-2。
-- **定版前置**：`package.json` / `gui/package.json` / `kernel/package.json` / `TOOL_VERSION` / CHANGELOG 顶部统一定为 `0.3.0`，版本守卫通过后由维护者授权 tag 与 Release。
 
 ## 0.2.0
 
