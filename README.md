@@ -112,7 +112,7 @@ npm run smoke:gui     # 界面冒烟（需图形会话）
 
 ## 跨平台分发与安装
 
-产物随 GitHub Releases 发布：当前版本 **v0.1.2**，下载入口 —— [最新 Release](https://github.com/LuZhong-Li/skill-manager/releases/latest)（或仓库 **Releases** 页选择版本后在 Assets 下载）。
+产物随 GitHub Releases 发布：当前版本 **v0.2.0**，下载入口 —— [最新 Release](https://github.com/LuZhong-Li/skill-manager/releases/latest)（或仓库 **Releases** 页选择版本后在 Assets 下载）。
 
 | 平台        | 产物                                                                | 形态                                          |
 | ----------- | ------------------------------------------------------------------- | --------------------------------------------- |
