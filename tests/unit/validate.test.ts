@@ -176,7 +176,13 @@ test('K-01 依赖成环被检出', () => {
   ]);
   const metas = [metaWithDependencies('a', ['b']), metaWithDependencies('b', ['a'])];
   const findings = validateDependencies(metas, availability);
-  assert.deepEqual(codesOf(findings), [CODES.DEP_CYCLE]);
+  // 2026-10-17 内核核查批次：环在**全量图**上定死，环上每个技能各报一次（target 为自身），
+  // 且环成员不再叠加 E-VALIDATION-002（根因只归一次环）
+  assert.deepEqual(codesOf(findings), [CODES.DEP_CYCLE, CODES.DEP_CYCLE]);
+  assert.deepEqual(
+    findings.map((item) => item.target),
+    ['a', 'b'],
+  );
 });
 
 test('K-01 自环被检出且只报告一次', () => {

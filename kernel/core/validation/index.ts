@@ -21,7 +21,7 @@
  * V-16 比对声明区投影，两者合起来覆盖元数据规范 5.7 列举的全部字段，且同一字段只报一次。
  */
 import { statSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { META_ALLOWED_FIELDS } from '../metadata/constants.ts';
 import type { IndexRecord, SkillIndex, SkillMeta, ValidationStatus } from '../metadata/types.ts';
 import {
@@ -396,19 +396,22 @@ function validateRecord(
   const id = record.id;
   const declaredDir = resolveDeclaredDir(layout, record);
   const dir = declaredDir ?? join(layout.skillsDir, id);
-  const context: MetaContext = { dirName: id, dirPath: dir };
+  // dirName 取**物理目录名**：id 与目录名不一致由 V-03 报告，而不是按 id 反推目录后假装一致
+  const physicalDirName = declaredDir === null ? id : basename(declaredDir);
+  const context: MetaContext = { dirName: physicalDirName, dirPath: dir };
 
   findings.push(...read.findings);
   findings.push(...dependencyFindings);
 
   if (registered) {
-    // V-17 引用路径可达性：标识必须能在 ./skills/ 下找到同名目录
-    if (!isDirectory(join(layout.skillsDir, id))) {
+    // V-17 引用路径可达性：以记录**声明的物理位置**为准（悬空记录才报）。
+    // 「id 与目录名不一致」由 V-03（E-ID-003）单独报告，避免同一根因双报、也保证与扫描结论一致。
+    if (!isDirectory(dir)) {
       findings.push(
         finding(CODES.PATH_INVALID, {
           source: 'registry',
           target: id,
-          message: `索引记录指向的目录不存在：${SKILLS_DIR_NAME}/${id}`,
+          message: `索引记录指向的目录不存在：${record.path}`,
           remedy: '请确认该 Skill 是否被移除；如已移除，可执行卸载以清理记录',
         }),
       );

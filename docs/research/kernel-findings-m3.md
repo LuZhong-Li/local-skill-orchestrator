@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M3 内核观察项核查报告（现状 → 代码位置 → 契约比对 → 判定 → 修复候选） |
 | 文档路径 | `docs/research/kernel-findings-m3.md` |
-| 文档状态 | **核查稿（待拍板）**：本阶段**未改内核**，只做源码核查与只读探针 |
+| 文档状态 | **已拍板并修复（T1 完成，2026-10-17）**；下文「拍板项」保留决议原文，修复落地见第 6 节 |
 | 探针 | `scripts/research/probe-kernel-findings.mjs`（独立子进程跑真实 CLI，临时工作区，不写仓库） |
 | 复现 | `node scripts/research/probe-kernel-findings.mjs` |
 | 依据 | 需求 9.3.3 / 9.4.3（M3 观察项来源）；`docs/specification/` 五份规范；`docs/requirements.md` 的 CON-04 裁决批次 |
@@ -234,12 +234,45 @@
 
 ---
 
-## 5. 复现与证据留存
+## 5. 复现与证据留存（探针已按惯例退役）
 
-```bash
-node scripts/research/probe-kernel-findings.mjs
-```
+核查期的只读探针（`scripts/research/probe-kernel-findings.mjs`）在 T1 把全部最小复现**转成正式用例**后删除，避免"探针与测试两套真相"。现在可复现的证据是：
 
-输出依次为：观察项 1（scan/validate 的退出码与 findings、连续 4 次扫描的索引结论、`--json` 对照）、观察项 1b（3 个与 4 个候选的两组逐轮状态）、观察项 2（退出码、`E-YAML-001` 原文与类别）、观察项 3（三次扫描的记录数与 id 列表、validate 输出）。
+| 用例 | 覆盖 |
+|---|---|
+| `tests/unit/dependency-cycle.test.ts` | 环矩阵（自环 / 2 环 / 3 环 / 环 + 下游 / 加与不加无关技能）、环成员不叠加 `E-VALIDATION-002`、环成员的缺失依赖仍报 `E-DEP-001` |
+| `tests/e2e/kernel-findings.test.ts` | 独立进程断言：环的 `E-DEP-003` 形态与 `scan` 退出码 6、紧随 `validate` 无 `W-INDEX-002`、`deps` 一致、三次扫描结论一致、加/不加无关技能结论一致、元文件 YAML → 1、索引损坏仍 → 3、`foo/`（`id=bar`）始终一条记录、两目录同 id 报 `E-ID-002` |
+| `tests/unit/exit-codes.test.ts` | 退出码对象限定：`source=meta` 的 YAML → 1；索引 / 配置 YAML 与索引版本 → 3；其余类别按派生顺序 |
+| `tests/unit/validate.test.ts` | 环的既有断言按新语义重写（每成员一条、target 为自身） |
 
-**本阶段未改动任何内核文件**；探针与报告均不影响既有测试与门禁。
+---
+
+## 6. T1 修复落地（2026-10-17，六项裁决全部采纳）
+
+### 6.1 三项修复的最终行为（修复后实测）
+
+| 场景 | 修复前 | 修复后 |
+|---|---|---|
+| `a↔b` 环 + `c→a` 下游：`scan` | 退出码 1；`a: ok / b,c: invalid`；环不可见 | **退出码 6**；`a: E-DEP-003`、`b: E-DEP-003`、`c: E-VALIDATION-002` |
+| 同一场景：紧随的 `validate` | 归咎 `a` + 三条 `W-INDEX-002` | **与 scan 完全一致**（无 `W-INDEX-002`） |
+| 加一个无关技能 `d` | 归咎对象从 `b/c` 翻成 `a` | **结论完全相同** |
+| 技能元文件 YAML 损坏：`scan` / `validate` | 3 / 1（同一数据两种结论） | **1 / 1** |
+| 索引文件本身损坏：`scan` | 3 | **3**（反向断言保留） |
+| 目录 `foo` / 元文件 `id: bar`：重扫 | 第 2 次起 2 条同 id 记录 + 误报 `E-ID-002`/`E-INDEX-002` | **始终 1 条**；只报 `E-ID-003` + `E-FIELD-002` |
+| 两目录同一 `id` | — | 显式 `E-ID-002`；记录数 2（物理唯一） |
+
+### 6.2 实现落点
+
+| 文件 | 变更 |
+|---|---|
+| `kernel/core/metadata/validate.ts` | `validateDependencies` 改为**全量图定环**（新增 `cyclesByNode`）：环成员各一条 `E-DEP-003`、不叠加 `E-VALIDATION-002`、保留 `E-DEP-001`；环外依赖方按可用性报 `E-VALIDATION-002` |
+| `kernel/core/discovery/index.ts` | 物理归属键改为**目录名**（由记录 `path` 推导）；可用性与依赖图改以**节点 id** 为键；跨目录 `id` 重复在扫描期显式报 `E-ID-002`；不动点只可能 true→false（收敛且与 N 无关） |
+| `kernel/core/validation/index.ts` | 校验以**物理目录名**为上下文（`id≠目录名` 由 V-03 报告）；V-17 可达性改按记录声明的物理位置判断（悬空记录才报 `E-PATH-001`），避免同一根因双报导致「刚扫完就过期」 |
+| `kernel/dispatch/result/index.ts` | 第 3 步增加对象限定：`source === 'meta'` 的 `YAML` 问题不计入 3 档 |
+| 四份规范 | skill-meta-spec（5.2 物理唯一 + 5.3 环形态）、index-format（2.3 不变量 + 3.2 结论一致性）、cli-contract（4.4 退出码按派生规则）、result-and-exit-codes（5.2 对象限定），各自附变更记录行 |
+
+### 6.3 连带项
+
+- **bench 预期码表**：`scan` 的允许退出码由 `[0,1,3]` 改为 `[0,1,6]`（夹具的悬空依赖属 `DEP` 类）；修复后小档实测 `scan`=6、`validate`=1、`export`=0、`startup`=0 ✓。
+- **基线不重录**：`baseline-0.1.0.json` 是 0.1.0 的真实记录，**原样保留**；性能数字不受本次修复影响（同一夹具实测 339 ms vs 329 ms，属波动），报告已注明**退出码口径变化**。
+- **检查后的影响面评估**（供裁决 v0.1.2）：三项都是用户可见的正确性问题（环归因错误、退出码档位错误、索引重复记录），修复不改功能面、不改索引格式版本；建议随 v0.1.2 补丁发布。

@@ -31,15 +31,16 @@ export const SCENARIO_STATE = {
  *
  * 夹具刻意含不合格项（8% 无效样本 + 5% 悬空依赖），因此 `scan` / `validate` 返回非 0 是
  * **预期语义**（「扫描 / 校验完成，但环境中存在不合格项」），不是测量失败：
- *   - `scan`：派生规则口径，实测 1（FIELD 类）或 3（含 `E-YAML-001` 时的 YAML 类档位）；
+ *   - `scan`：派生规则口径，实测 1（FIELD/ID/STATUS/HASH 类）或 **6**（夹具的悬空依赖
+ *     产生 `E-DEP-001`，DEP 类；2026-10-17 内核核查批次后环也会落到 6）；
  *   - `validate`：指令契约 4.12 的专属口径，存在错误级问题即 1；
  *   - `export`：导出属只读动作，实测码见 T1 执行状态（预期 0 或 1）；
  *   - `startup`：`--version` 必须 0。
  * 超出该表取值即为**失败样本**（参数 / 文件系统 / 远端 / 依赖类档位说明测量链路出了问题）。
  */
 export const EXPECTED_EXIT_CODES = {
-  'scan-cold': [0, 1, 3],
-  'scan-hot': [0, 1, 3],
+  'scan-cold': [0, 1, 6],
+  'scan-hot': [0, 1, 6],
   validate: [0, 1],
   export: [0, 1],
   [STARTUP_SCENARIO]: [0],

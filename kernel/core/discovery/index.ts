@@ -60,42 +60,63 @@ interface Candidate {
   findings: Finding[];
 }
 
+/** 由索引记录的 `path` 推导物理目录名（记录的物理归属键） */
+function dirNameOfRecordPath(path: string): string {
+  const parts = path.split('/').filter((part) => part !== '' && part !== '.');
+  const last = parts.at(-1);
+  return last !== undefined && last !== '' ? last : path;
+}
+
+/** 候选记录的节点标识：元文件 id（非空字符串）优先，否则回退到目录名 */
+function nodeIdOf(candidate: Candidate): string {
+  const rawId = candidate.raw?.['id'];
+  return typeof rawId === 'string' && rawId !== '' ? rawId : candidate.dirName;
+}
+
 /** 扫描技能根目录，返回新的索引与本次扫描的问题清单 */
 export function scanWorkspace(input: ScanInput): ScanOutcome {
   const { layout, index, now } = input;
   const findings: Finding[] = [];
   const changes: Change[] = [];
-  const existing = new Map(index.skills.map((record) => [record.id, record]));
+  // 物理归属键 = 实际目录名：一个目录一条记录（2026-10-17 内核核查批次裁决）。
+  // 逻辑错误（id 与目录名不一致、跨记录 id 重复、path 不符）照常显式报告，但不改变物理归属。
+  const existing = new Map<string, IndexRecord>();
+  for (const record of index.skills) existing.set(dirNameOfRecordPath(record.path), record);
 
   const candidates = collectCandidates(layout, index, findings);
 
-  // 先判定每条记录的自身问题，得到可用性映射供依赖校验使用
+  // 每条候选的节点 id 与自身错误；跨记录 id 重复在这里显式判定
+  const nodes = candidates.map((candidate) => ({
+    candidate,
+    id: nodeIdOf(candidate),
+    ownError: candidate.findings.some((item) => item.severity === 'error'),
+    duplicate: false,
+  }));
+  const idCounts = new Map<string, number>();
+  for (const node of nodes) idCounts.set(node.id, (idCounts.get(node.id) ?? 0) + 1);
+  for (const node of nodes) node.duplicate = (idCounts.get(node.id) ?? 0) > 1;
+
+  // 可用性以节点 id 为键：异常记录（自身错误或重复 id）一律按不可用进入依赖传播
   const ownAvailability: AvailabilityMap = new Map();
   const metas: SkillMeta[] = [];
-  for (const candidate of candidates) {
-    if (candidate.raw === null) {
-      ownAvailability.set(candidate.dirName, false);
-      continue;
-    }
-    const hasError = candidate.findings.some((item) => item.severity === 'error');
-    ownAvailability.set(candidate.dirName, !hasError);
-    metas.push(toMeta(candidate));
+  for (const node of nodes) {
+    ownAvailability.set(node.id, !node.ownError && !node.duplicate);
+    if (node.candidate.raw !== null) metas.push({ ...toMeta(node.candidate), id: node.id });
   }
 
   // 依赖校验会产生新问题，而这些问题又会改变依赖方的可用性，因此迭代到可用性不再变化。
-  // 每一轮只可能把可用翻转为不可用，所以最多经过「候选数 + 1」轮必然收敛。
+  // 环在**全量图**上一次性定死（见 validateDependencies），因此每轮只会把可用翻成不可用，
+  // 最多经过「候选数 + 1」轮必然收敛，且结果与依赖顺序、技能数量无关。
   let availability: AvailabilityMap = ownAvailability;
   let dependencyFindings: Finding[] = [];
   for (let round = 0; round <= candidates.length; round += 1) {
     dependencyFindings = validateDependencies(metas, availability);
     const recomputed: AvailabilityMap = new Map();
-    for (const candidate of candidates) {
-      const own = candidate.findings.some((item) => item.severity === 'error');
+    for (const node of nodes) {
       const fromDependencies = dependencyFindings.some(
-        (item) =>
-          item.severity === 'error' && (item.target.split('.')[0] ?? '') === candidate.dirName,
+        (item) => item.severity === 'error' && (item.target.split('.')[0] ?? '') === node.id,
       );
-      recomputed.set(candidate.dirName, !own && !fromDependencies);
+      recomputed.set(node.id, !node.ownError && !node.duplicate && !fromDependencies);
     }
     if (sameAvailability(recomputed, availability)) break;
     availability = recomputed;
@@ -109,20 +130,18 @@ export function scanWorkspace(input: ScanInput): ScanOutcome {
     byOwner.set(owner, bucket);
   }
 
-  const seenIds = new Map<string, number>();
   const records: IndexRecord[] = [];
   const summary: ScanSummary = { available: 0, invalid: 0, added: 0, updated: 0, missing: 0 };
 
-  for (const candidate of candidates) {
-    const own = [...candidate.findings, ...(byOwner.get(candidate.dirName) ?? [])];
-    const duplicates = seenIds.get(candidate.dirName) ?? 0;
-    seenIds.set(candidate.dirName, duplicates + 1);
-    if (duplicates > 0) {
+  for (const node of nodes) {
+    const { candidate, id } = node;
+    const own = [...candidate.findings, ...(byOwner.get(id) ?? [])];
+    if (node.duplicate) {
       own.push(
         finding(CODES.ID_DUPLICATED, {
           source: 'registry',
-          target: candidate.dirName,
-          message: `标识 ${candidate.dirName} 在本次扫描中出现多次`,
+          target: id,
+          message: `标识 ${id} 在工作区内出现多次`,
           remedy: '请确保同一工作区内 Skill 标识唯一，必要时重命名其中一个目录',
         }),
       );

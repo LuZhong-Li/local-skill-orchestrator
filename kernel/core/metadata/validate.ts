@@ -467,19 +467,84 @@ export function validateTriggerKeywords(value: unknown, ctx: MetaContext): Findi
   return findings;
 }
 
+/** 取一条依赖声明里的 Skill 标识（忽略版本约束） */
+function declaredNameOf(raw: string): string {
+  return raw.trim().split(' ')[0] ?? '';
+}
+
+/** 每个节点所属的环（同一节点的多个环都保留，供消息与 deps 对照） */
+export function cyclesByNode(edges: Map<string, string[]>): Map<string, string[][]> {
+  const byNode = new Map<string, string[][]>();
+  for (const cycle of findCycles(edges)) {
+    for (const member of new Set(cycle)) {
+      const list = byNode.get(member) ?? [];
+      list.push(cycle);
+      byNode.set(member, list);
+    }
+  }
+  return byNode;
+}
+
 /**
  * 校验依赖：存在性、被依赖对象的可用性与环路。
- * 被依赖对象不在索引、或其运行期结论为校验不通过时，依赖方一律判定为依赖未满足。
+ *
+ * 语义（2026-10-17 裁决，M3 内核核查批次）：
+ *   一、**环是全量图上的结构事实**——用全部声明建图检测，不受本轮可用性影响；
+ *       环上每个技能各带一条 `E-DEP-003`（target 为自身），环成员**不再叠加**
+ *       `E-VALIDATION-002`（根因只归一次环）；
+ *   二、环外依赖方（直接或传递）在目标不可用时带 `E-VALIDATION-002`；
+ *   三、被依赖对象不在索引中 → `E-DEP-001`（环成员同样保留这条可操作的事实）；
+ *   四、因为环不再随轮次出现/消失，可用性只会由 true 翻 false，扫描的不动点收敛且结果
+ *       与迭代顺序、技能数量无关（此前在「当前轮可用图」上现算环会导致振荡）。
  */
 export function validateDependencies(metas: SkillMeta[], availability: AvailabilityMap): Finding[] {
   const findings: Finding[] = [];
-  const edges = new Map<string, string[]>();
+
+  // 全量图：键为节点 id（异常的 id 关系由扫描侧按不可用处理，不在此过滤）
+  const fullEdges = new Map<string, string[]>();
+  for (const meta of metas) {
+    const names: string[] = [];
+    for (const raw of meta.dependencies?.skills ?? []) {
+      const name = declaredNameOf(raw);
+      if (name !== '' && !names.includes(name)) names.push(name);
+    }
+    fullEdges.set(meta.id, names);
+  }
+  const byNode = cyclesByNode(fullEdges);
 
   for (const meta of metas) {
     const declared = meta.dependencies?.skills ?? [];
-    const reachable: string[] = [];
+    const cyclesOfMeta = byNode.get(meta.id);
+
+    if (cyclesOfMeta !== undefined) {
+      findings.push(
+        finding(CODES.DEP_CYCLE, {
+          source: 'meta',
+          target: meta.id,
+          message: `依赖关系成环：${cyclesOfMeta.map((cycle) => cycle.join(' -> ')).join('；')}`,
+          remedy: '请打断环中的任意一条依赖声明',
+        }),
+      );
+      // 环成员只报环本身；「声明了不存在的依赖」仍是可操作事实，继续报告
+      for (const raw of declared) {
+        const name = declaredNameOf(raw);
+        if (name === '') continue;
+        if (judgeDependency(name, availability) === 'missing') {
+          findings.push(
+            finding(CODES.DEP_MISSING, {
+              source: 'meta',
+              target: `${meta.id}.dependencies`,
+              message: `依赖的 Skill ${name} 不在索引中`,
+              remedy: `请先安装 ${name}，或从依赖声明中移除该项`,
+            }),
+          );
+        }
+      }
+      continue;
+    }
+
     for (const raw of declared) {
-      const name = raw.trim().split(' ')[0] ?? '';
+      const name = declaredNameOf(raw);
       if (name === '') continue;
       const verdict = judgeDependency(name, availability);
       if (verdict === 'missing') {
@@ -502,14 +567,10 @@ export function validateDependencies(metas: SkillMeta[], availability: Availabil
             remedy: `请先修复 ${name} 的问题并重新扫描`,
           }),
         );
-        continue;
       }
-      reachable.push(name);
     }
-    edges.set(meta.id, reachable);
   }
 
-  findings.push(...detectCycles(edges));
   return findings;
 }
 

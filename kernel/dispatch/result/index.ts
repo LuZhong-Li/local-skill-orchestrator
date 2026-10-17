@@ -29,7 +29,12 @@ export function exitCodeFor(findings: Finding[]): number {
 
   const categories = new Set(errors.map((item) => categoryOf(item.code)));
   if (categories.has('INPUT')) return 2;
-  if (categories.has('VER') || categories.has('INDEX') || categories.has('YAML')) return 3;
+  // 「索引或配置文件损坏」才落 3 档：技能元文件（source === 'meta'）的 YAML 问题属技能级，
+  // 不命中第 3 步（结果规范 5.2 的对象限定），按其余错误归 1（2026-10-17 内核核查批次裁决）。
+  const indexOrConfigProblem = errors.some(
+    (item) => ['VER', 'INDEX', 'YAML'].includes(categoryOf(item.code)) && item.source !== 'meta',
+  );
+  if (indexOrConfigProblem) return 3;
   if (categories.has('SRC')) return 4;
   if (categories.has('LOCK') || categories.has('IO') || categories.has('BAK')) return 5;
   if (categories.has('DEP') || categories.has('RUN')) return 6;
