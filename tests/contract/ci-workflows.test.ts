@@ -418,11 +418,17 @@ test('契约：pack.yml 在 v0.1.1 发布时给受影响的历史版本追加缺
     String(item.name).includes('标注受影响的历史版本'),
   );
   assert.ok(step !== undefined, '应有历史版本缺陷提示步骤（EX-13）');
-  assert.equal(String(step.if), "github.ref == 'refs/tags/v0.1.1'", '只在 v0.1.1 发布时执行');
+  assert.equal(
+    String(step.if),
+    "startsWith(github.ref, 'refs/tags/v') && github.ref != 'refs/tags/v0.1.0'",
+    '在后续任何 tag 发布时执行（提示始终指向最新补丁），但不对 v0.1.0 本身执行',
+  );
   assert.equal(step['continue-on-error'], true, '提示失败不得阻断发布');
   const run = String(step.run);
   assert.match(run, /gh release view v0\.1\.0 --json body/, '先取回旧 notes');
-  assert.match(run, /grep -q 'EX-13'/, '幂等：已含提示则跳过');
+  assert.match(run, /已知问题（EX-13）/, '识别并剥离旧提示块');
+  assert.match(run, /awk .*v010-clean\.md/, '幂等：先剥离旧提示块再重写');
+  assert.match(run, /releases\/tag\/\$\{GITHUB_REF_NAME\}/, '提示指向当前发布 tag（最新补丁）');
   assert.match(
     run,
     /gh release edit v0\.1\.0 --notes-file/,

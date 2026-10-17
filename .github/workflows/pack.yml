@@ -302,25 +302,24 @@ jobs:
             echo "::warning title=Release GUI 冒烟（降级结论）::xvfb 启动未通过（退出码 ${code}）；按设计 8.3 降级为「结构与内核闭环已通过」，完整 GUI 交互仍留本地"
           fi
 
-      # EX-13（v0.1.1 起）：给受影响的历史版本 v0.1.0 追加已知问题提示（保留旧版与旧 notes）
+      # EX-13（v0.1.1 起）：给受影响的历史版本 v0.1.0 维护「升级到最新补丁」提示。
+      # 幂等：先剥离旧提示块再按当前 tag 重写，因此每次发布都会把提示指向最新版本（保留旧版与旧 notes 正文）。
       - name: 标注受影响的历史版本（EX-13）
-        if: github.ref == 'refs/tags/v0.1.1'
+        if: startsWith(github.ref, 'refs/tags/v') && github.ref != 'refs/tags/v0.1.0'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
           gh release view v0.1.0 --json body --jq .body > v010-notes.md
-          if grep -q 'EX-13' v010-notes.md; then
-            echo "::notice::v0.1.0 的 notes 已含 EX-13 提示，跳过"
-            exit 0
-          fi
+          # 剥离旧的提示块（以 `> **已知问题（EX-13）**` 开头的连续引用块）
+          awk 'BEGIN{skip=0} /^> \*\*已知问题（EX-13）\*\*/{skip=1; next} skip==1 && /^>/{next} {skip=0; print}' v010-notes.md > v010-clean.md
           {
             echo '> **已知问题（EX-13）**：本版本的 macOS 包（arm64 / x64）内嵌内核启动即崩溃（SIGSEGV，退出码 139），'
-            echo "> 安装后所有依赖内核的功能不可用。请改用 [v0.1.1](https://github.com/${GITHUB_REPOSITORY}/releases/tag/v0.1.1)。"
+            echo "> 安装后所有依赖内核的功能不可用。请改用 [${GITHUB_REF_NAME}](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME})（最新补丁）。"
             echo '> Windows / Linux 产物不受影响。'
             echo
-            cat v010-notes.md
+            cat v010-clean.md
           } > v010-notes-updated.md
           gh release edit v0.1.0 --notes-file v010-notes-updated.md
-          echo "::notice::已在 v0.1.0 的 Release notes 顶部追加 EX-13 已知问题提示（旧版保留）"
+          echo "::notice::已在 v0.1.0 的 Release notes 顶部把 EX-13 提示指向 ${GITHUB_REF_NAME}（旧版保留）"
