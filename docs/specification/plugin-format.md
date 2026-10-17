@@ -118,7 +118,7 @@ profile 不得声明 `adapter_ref`、`host_id`、`security_control_evidence`、`
 1. 必须是相对路径，使用 `/` 分隔；禁止绝对路径、盘符、反斜杠、空字节与 `..`；
 2. 只允许一个受控占位符 `<skill_id>`；`skill` / `rules` 形态必须恰好出现一次，`entry` 可省略；
 3. 不得包含未知占位符；长度不超过 512 字符；
-4. `scope: project` 相对工作区展开；`scope: global` 必须由 `plugin.<plugin_id>.<host_key>.root` / `.rules_root` 显式提供宿主根，不得默认写到用户主目录；
+4. `scope: project` 相对工作区展开；`scope: global` 的模板相对 `plugin.<plugin_id>.<host_key>.root` / `.rules_root` 显式提供的宿主根展开，未配置即报错，不得默认写到用户主目录；
 5. 外部根写入沿用既有确认机制，且不得借模板越出已解析的根。
 
 ### 3.4 `render_policy`
@@ -154,6 +154,7 @@ profile 不得声明 `adapter_ref`、`host_id`、`security_control_evidence`、`
 | `generated_at` | 字符串 | 是 | 最近一次写入时间（UTC，秒级） |
 | `config` | 对象 | 是 | 插件专用配置；只允许 `plugin.<plugin_id>.<host_key>.root` / `.rules_root` |
 | `plugins` | 数组 | 是 | 插件记录；见 4.2 |
+| `landings` | 数组 | 是 | 插件宿主副本账本；见 4.6 |
 
 `plugin_index.yaml` 是**插件类型的唯一事实源**，与 `skill_index.yaml` 物理分离。两者各自原子写、各自加锁，不建立跨索引事务。
 
@@ -238,7 +239,25 @@ plugins:
       last_scan_at: 2026-10-17T00:00:00Z
     installed_at: 2026-10-17T00:00:00Z
     updated_at: 2026-10-17T00:00:00Z
+landings: []
 ```
+
+### 4.6 插件宿主副本账本
+
+`landings` 独立于插件记录留存：插件停用不删除，插件卸载后条目保留并置为 `orphaned`，供孤儿副本追踪。它不是 Skill 的 `targets[]`，不改变 Skill 索引。
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `plugin_id` | 字符串 | 是 | 提供该宿主 profile 的插件 |
+| `skill_id` | 字符串 | 是 | 已分发的 Skill |
+| `host_id` | 字符串 | 是 | canonical `x-...` 宿主标识 |
+| `host_key` | 字符串 | 是 | 插件内局部宿主键 |
+| `target_path` | 字符串 | 是 | 实际写入路径；使用绝对路径以便卸载后仍可定位 |
+| `state` | 字符串 | 是 | `active` / `orphaned`；卸载时置为 `orphaned` |
+| `created_at` | 字符串 | 是 | 首次落位时间 |
+| `updated_at` | 字符串 | 是 | 最近一次落位/状态变更时间 |
+
+写入规则：仅在实际落位成功后写入；同一 `plugin_id + host_id + skill_id` 只保留一条，重复落位更新时间与路径；`dry-run` 不写账本。插件重新启用或重新安装不会自动把孤儿副本改回 active；下一次成功落位才更新该条。
 
 ---
 
@@ -272,7 +291,7 @@ plugins:
 | `invalid` | 修复后重新 `enable` | `enabled`（校验通过时） |
 | 任意 | `uninstall --kind plugin` | 删除记录与插件包；不触碰 Skill 索引 |
 
-插件停用或删除后，已落在第三方宿主根中的副本**保留**；本期不建立宿主落位账本，不自动删除、不回滚。
+插件停用或删除后，已落在第三方宿主根中的副本**保留**；`landings` 账本保留追踪，卸载时标记 `orphaned`，不自动删除、不回滚。
 
 ---
 
@@ -384,4 +403,5 @@ plugins:
 | # | 日期 | 变更 |
 |---|---|---|
 | 1 | 2026-10-17 | 建立第六份契约规范：定义声明式 host-profile 插件 manifest、独立 `plugin_index.yaml`、canonical `x-` 命名空间、生命周期、安全约束与问题码；新增 `schemas/plugin_manifest.schema.json` 与 `schemas/plugin_index.schema.json` |
+| 2 | 2026-10-18 | T1 补文：新增 `landings` 插件宿主副本账本（4.6 节）；明确 global 模板相对显式宿主根展开、插件停用/卸载后的孤儿副本保留与重新落位口径 |
 

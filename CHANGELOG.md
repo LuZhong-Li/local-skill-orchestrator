@@ -11,6 +11,15 @@
 - **契约与初始化**：七个既有指令登记 `--kind <skill|plugin>`；`init` 建立 `plugins/` 与空 `plugin_index.yaml`；Skill 索引结构不变，插件使用独立事实源。
 - **测试**：常规套件 525 → **541 项**（单元 361、契约 107、端到端 73；540 通过 + 1 项符号链接平台条件跳过），慢测试 1 项通过；`check` / `typecheck` / `lint` / `format:check` 全绿。
 
+### M4b T1：七个指令插件分支、生命周期与插件宿主落位
+
+- **指令分支**：`scan` / `list` / `inspect` / `install` / `uninstall` / `enable` / `disable` 接入显式 `--kind plugin`；省略仍为 Skill；其他指令与重复 `--kind` 返回 `E-INPUT-002`。
+- **生命周期**：插件安装复用 `acquireFromPath`（`plugin.json` 内容根、既有协议/超时/体积口径），默认 `disabled`；enable 重新校验 manifest、哈希、代码文件与 canonical 冲突；disable 只停用 profile；uninstall 删除插件包并保留 Skill 索引。
+- **宿主落位**：`--host x-<plugin>-<host_key>` 仅在插件 enabled 时可用；复用 `skill` / `rules` / `entry` 渲染与 `landPlan`；global 根必须显式配置 `plugin.<id>.<host>.root` / `.rules_root`。
+- **副本账本**：`plugin_index.yaml` 新增独立 `landings` 区，记录 plugin/skill/host/target/时间/状态；插入、停用、卸载（标记 `orphaned`）与重新落位口径写入 `plugin-format.md` 4.6。
+- **配置**：`config set plugin.*` 路由到插件索引，`config get` 附加 `plugin_config`；`host.*` 继续只认内置注册表。
+- **测试**：常规套件 541 → **547 项**（单元 361、契约 107、端到端 79；546 通过 + 1 项符号链接平台条件跳过）；新增真实 CLI 生命周期、账本、孤儿副本、global/local 落位、`--kind` 门禁与 enable 重校验用例。
+
 ## 0.2.0
 
 M4a Skill 更新检查与远端目标标签更新。未签名交付口径不变。

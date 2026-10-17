@@ -3127,6 +3127,30 @@ M5 分两批交付，M5a 在前（框架），M5b 在后（适配器）。
 | 用户可见变化 | 暂无 CLI/GUI 插件入口；`init` 新增空插件索引与 `plugins/` 目录，既有 Skill 行为不变 |
 | 已定稿内容 | 第 1 至 8 章与既有里程碑正文未改动；`docs/reviews/` 快照未改动 |
 
+### 回写批次 2026-10-18（M4b-T1：七个指令插件分支与插件宿主落位）
+
+来源：M4b 计划 T1（`docs/plan/m4b-plugin-ecosystem.md`）。本批把 T0 的声明式插件模型接入既有指令，不新增指令，也不改变省略 `--kind` 时的 Skill 路径。
+
+| 序号 | 落点 | 本次变更 |
+|---|---|---|
+| 1 | 指令分支 | `scan/list/inspect/install/uninstall/enable/disable` 接入显式 `--kind plugin`；插件操作必须显式，其他指令与重复给出拒绝 |
+| 2 | 生命周期 | 安装复用来源获取并默认 disabled；enable 重校验；disable 停用 profile；uninstall 删除插件包并保留 Skill 索引；scan 只核对已登记项与未登记候选 |
+| 3 | 宿主落位 | `--host x-<plugin>-<host_key>` 复用 skill/rules/entry 渲染与落位；global 根必须显式配置；停用/卸载不删除既有宿主副本 |
+| 4 | 账本 | `plugin_index.yaml` 新增独立 `landings` 区，记录 plugin/skill/host/target/时间/active-or-orphaned；插件卸载后将账本标为 orphaned 并给出孤儿副本提示 |
+| 5 | 配置 | `config set plugin.*` 路由到插件索引；`config get` 增加 `plugin_config`；`host.*` 继续只认内置注册表 |
+| 6 | 测试与文档 | 真实 CLI 覆盖安装→enable→x- 宿主落位→disable→uninstall、local/global、scan 候选、门禁与 enable 重校验；README/one-summary/CHANGELOG/规范同步 |
+
+### 计数校验（M4b-T1 批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动；七个既有指令增加 `--kind` 消费面 |
+| 功能需求编号 | FR-01 至 FR-12，未变动；里程碑需求条目仍为 35 条 |
+| 契约规范份数 / Schema 份数 | 6 份 / 7 份，未变动；`plugin-format.md` 与 `plugin_index.schema.json` 仅做 T1 补文/账本字段增量 |
+| 测试总数 | 常规套件由 541 项增至 **547 项**（单元 361、契约 107、端到端 79）；546 通过 + 1 项符号链接平台条件跳过 |
+| 用户可见变化 | 插件可通过既有指令登记/启停/卸载，并作为 `x-` 宿主接收 Skill；插件默认 disabled，宿主账本独立留存 |
+| 已定稿内容 | 第 1 至 8 章与既有里程碑正文未改动；`docs/reviews/` 快照未改动 |
+
 ---
 
 **文档结束**。本文档仅描述需求，不包含实现。一期功能清单在进入实现阶段后冻结，后续变更需先更新本文档再实施。

@@ -4,8 +4,17 @@
  * 把参数转成对内核服务的调用，
  * 捕获内核抛出的错误并转换为标准结果封装。领域规则一律不在本层实现。
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import {
   createInitialIndex,
   loadIndex,
@@ -30,6 +39,7 @@ import { probeRuntimes } from '../../core/dependency/runtime.ts';
 import { exportIndex, importIndex } from '../../core/backup/index.ts';
 import { listAllBackups, listBackups } from '../../store/backup-fs/index.ts';
 import { createInitialPluginIndex, savePluginIndex } from '../../store/plugin-registry/index.ts';
+import { loadPluginIndex } from '../../store/plugin-registry/index.ts';
 import { ID_PATTERN, META_FILE_NAME } from '../../core/metadata/constants.ts';
 import { declaredRuntimeOf, declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
@@ -49,11 +59,26 @@ import { resolveHostRoot } from '../../core/adapters/roots.ts';
 import type { AdapterForm, PlacementPlan } from '../../core/adapters/types.ts';
 import type { RenderSource } from '../../core/render/types.ts';
 import { hostIds as registeredHostIds } from '../../core/hosts/index.ts';
+import { loadHostRegistry } from '../../core/hosts/index.ts';
 import type { HostRootResolution } from '../../core/adapters/roots.ts';
 import type { RootKind } from '../../core/hosts/types.ts';
 import type { DeliveryPlanEntry } from '../../store/library-fs/index.ts';
 import { buildResult, type Change, type Result } from '../result/index.ts';
 import { flag, option, optionList, type ParsedArgs } from '../parsers/index.ts';
+import { acquireFromPath, looksRemote, releaseSource } from '../../core/lifecycle/source.ts';
+import { inspectPluginPackage } from '../../core/plugins/discovery.ts';
+import { createPluginRecord } from '../../core/plugins/record.ts';
+import {
+  buildPluginHostPlan,
+  loadPluginCatalog,
+  orphanPluginLandings,
+  pluginHostIds,
+  upsertPluginLanding,
+  type LoadedPluginCatalog,
+} from '../../core/plugins/host.ts';
+import { countTreeFiles } from '../../store/library-fs/index.ts';
+import { buildHostCatalog } from '../../core/plugins/catalog.ts';
+import type { PluginIndex } from '../../core/plugins/types.ts';
 import {
   confirmLevelOf,
   decideConfirmation,
@@ -105,8 +130,41 @@ export function register(spec: CommandSpec): void {
   handlers.set(spec.name, spec.handler);
 }
 
+const KIND_COMMANDS = new Set([
+  'scan',
+  'list',
+  'inspect',
+  'install',
+  'uninstall',
+  'enable',
+  'disable',
+]);
+
 /** 指令路由：未注册的指令返回输入类错误 */
 export async function dispatch(context: CommandContext): Promise<Result<unknown>> {
+  const kind = option(context.args, 'kind');
+  if (kind !== undefined) {
+    if (!KIND_COMMANDS.has(context.args.command)) {
+      return buildResult(context.args.command, [
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: '--kind',
+          message: `指令 ${context.args.command} 不接受 --kind`,
+          remedy: '--kind 只用于 scan、list、inspect、install、uninstall、enable、disable',
+        }),
+      ]);
+    }
+    if (kind !== 'skill' && kind !== 'plugin') {
+      return buildResult(context.args.command, [
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: '--kind',
+          message: `--kind 取值非法：${kind}`,
+          remedy: '仅允许 skill 或 plugin',
+        }),
+      ]);
+    }
+  }
   const handler = handlers.get(context.args.command);
   if (handler === undefined) {
     return buildResult(context.args.command, [
@@ -119,6 +177,31 @@ export async function dispatch(context: CommandContext): Promise<Result<unknown>
     ]);
   }
   return handler(context);
+}
+
+function pluginKind(args: ParsedArgs): boolean {
+  return option(args, 'kind') === 'plugin';
+}
+
+/** 插件分支只接受 plugin-format 明确列出的选项；Skill 专用选项必须显式拒绝。 */
+function rejectPluginOptions(
+  command: string,
+  args: ParsedArgs,
+  disallowed: readonly string[],
+): Result<unknown> | null {
+  for (const name of disallowed) {
+    if (option(args, name) !== undefined || flag(args, name)) {
+      return buildResult(command, [
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: `--${name}`,
+          message: `插件分支不接受 --${name}`,
+          remedy: '使用 --kind plugin 的插件专用语义；Skill 目标/宿主选项不适用于插件对象',
+        }),
+      ]);
+    }
+  }
+  return null;
 }
 
 /** 解析工作区根目录：命令行选项优先，其次环境变量，最后用户主目录 */
@@ -138,10 +221,12 @@ interface HostChannel {
   /** 解析后的宿主真实根；不可落盘的形态没有该值 */
   resolution?: HostRootResolution;
   plan: PlacementPlan;
+  /** 第三方插件宿主上下文；内置宿主为 undefined */
+  plugin?: import('../../core/plugins/host.ts').PluginHostPlan;
 }
 
 /** `--host` 的可用取值：注册表内每个有适配器的宿主，按其形态展开（规则路径类加后缀） */
-function hostOptionValues(): string[] {
+function hostOptionValues(pluginIds: readonly string[] = []): string[] {
   const values: string[] = [];
   for (const hostId of registeredHostIds()) {
     const adapter = adapterFor(hostId);
@@ -150,7 +235,7 @@ function hostOptionValues(): string[] {
       values.push(form === 'rules' ? `${hostId}-rules` : hostId);
     }
   }
-  return values.sort();
+  return [...values, ...pluginIds].sort();
 }
 
 /** 解析 `--host` 取值：宿主标识 + 形态；非法取值返回 undefined */
@@ -173,8 +258,10 @@ function buildHostChannel(input: {
   index: SkillIndex;
   source: RenderSource;
   form?: AdapterForm;
+  pluginCatalog?: LoadedPluginCatalog;
 }): { channel?: HostChannel; findings: Finding[] } {
   const findings: Finding[] = [];
+  const pluginIds = input.pluginCatalog === undefined ? [] : pluginHostIds(input.pluginCatalog);
   const target = hostTargetOf(input.value);
   if (target === undefined) {
     findings.push(
@@ -182,10 +269,29 @@ function buildHostChannel(input: {
         source: 'input',
         target: '--host',
         message: `--host 取值非法：${input.value}`,
-        remedy: `可用取值为 ${hostOptionValues().join('、')}`,
+        remedy: `可用取值为 ${hostOptionValues(pluginIds).join('、')}`,
       }),
     );
-    return { findings };
+    if (!input.value.startsWith('x-') || input.pluginCatalog === undefined) return { findings };
+    const plugin = buildPluginHostPlan({
+      layout: input.layout,
+      catalog: input.pluginCatalog,
+      hostId: input.value,
+      source: input.source,
+    });
+    findings.length = 0;
+    findings.push(...plugin.findings);
+    if (plugin.plan === undefined) return { findings };
+    return {
+      channel: {
+        hostId: plugin.plan.hostId,
+        form: plugin.plan.form,
+        resolution: plugin.plan.resolution,
+        plan: plugin.plan.plan,
+        plugin: plugin.plan,
+      },
+      findings,
+    };
   }
   const adapter = adapterFor(target.hostId);
   if (adapter === undefined) {
@@ -194,7 +300,7 @@ function buildHostChannel(input: {
         source: 'input',
         target: '--host',
         message: `该宿主没有适配器：${input.value}`,
-        remedy: `可用取值为 ${hostOptionValues().join('、')}`,
+        remedy: `可用取值为 ${hostOptionValues(pluginIds).join('、')}`,
       }),
     );
     return { findings };
@@ -220,7 +326,7 @@ function buildHostChannel(input: {
         source: 'input',
         target: '--host',
         message: `该宿主没有可用于分发的落位根：${input.value}`,
-        remedy: `可用取值为 ${hostOptionValues().join('、')}`,
+        remedy: `可用取值为 ${hostOptionValues(pluginIds).join('、')}`,
       }),
     );
     return { findings };
@@ -278,9 +384,45 @@ function hostLandingResult(input: {
   const consumedBy = [
     ...new Set(input.channel.plan.entries.flatMap((entry) => entry.consumed_by)),
   ].sort();
-  return buildResult(input.command, landed.findings, changes, {
+  const findings = [...landed.findings];
+  let ledgerRecorded = false;
+  if (
+    !input.dryRun &&
+    input.channel.plugin !== undefined &&
+    !findings.some((item) => item.severity === 'error')
+  ) {
+    const placement = input.channel.plan.entries.find((entry) => entry.landable);
+    if (placement !== undefined) {
+      try {
+        const updated = upsertPluginLanding(input.channel.plugin.catalog.index, {
+          pluginId: input.channel.plugin.pluginId,
+          skillId: input.skillId,
+          hostId: input.channel.plugin.hostId,
+          hostKey: input.channel.plugin.hostKey,
+          targetPath: placement.target_path,
+          now: input.now,
+        });
+        savePluginIndex(input.layout.pluginIndexFile, updated);
+        ledgerRecorded = true;
+      } catch (error) {
+        const kernelError = toKernelError(error, CODES.IO_FAILED);
+        findings.push(
+          finding(kernelError.code, {
+            source: kernelError.source,
+            target: kernelError.target,
+            message: `插件落位账本写入失败：${kernelError.message}`,
+            remedy: '检查 plugin_index.yaml 是否可写；下次分发前先修复账本',
+          }),
+        );
+      }
+    }
+  }
+  return buildResult(input.command, findings, changes, {
     data: {
       host: input.channel.hostId,
+      ...(input.channel.plugin === undefined
+        ? {}
+        : { plugin_id: input.channel.plugin.pluginId, ledger_recorded: ledgerRecorded }),
       host_root: input.channel.resolution?.path ?? '',
       host_writes_outside_workspace: hostWritesOutside(input.channel.plan),
       skipped: landed.skipped,
@@ -357,13 +499,24 @@ function runHostLanding(input: {
   if (metaRead.raw === null) {
     return { findings: metaRead.findings, changes: [], data: {} };
   }
+  const pluginCatalog = input.hostValue.startsWith('x-')
+    ? loadPluginCatalog({
+        layout: input.layout,
+        builtins: loadHostRegistry().hosts,
+        toolVersion: TOOL_VERSION,
+      })
+    : undefined;
   const built = buildHostChannel({
     value: input.hostValue,
     layout: input.layout,
     index: input.index,
     source: renderSourceOf(input.skillDir, metaRead.raw),
+    ...(pluginCatalog === undefined ? {} : { pluginCatalog }),
   });
-  if (built.channel === undefined) {
+  if (
+    built.channel === undefined ||
+    (built.channel.plugin !== undefined && built.findings.some((item) => item.severity === 'error'))
+  ) {
     return { findings: built.findings, changes: [], data: {} };
   }
   const landed = hostLandingResult({
@@ -403,16 +556,76 @@ async function runHostToggle(input: {
   if (metaRead.raw === null) {
     return buildResult(command, metaRead.findings, [], { data: { host: hostValue } });
   }
+  const pluginCatalog = hostValue.startsWith('x-')
+    ? loadPluginCatalog({
+        layout,
+        builtins: loadHostRegistry().hosts,
+        toolVersion: TOOL_VERSION,
+      })
+    : undefined;
   const built = buildHostChannel({
     value: hostValue,
     layout,
     index,
     source: renderSourceOf(join(layout.skillsDir, id), metaRead.raw),
+    ...(pluginCatalog === undefined ? {} : { pluginCatalog }),
   });
   if (built.channel === undefined) {
     return buildResult(command, built.findings, [], { data: { host: hostValue } });
   }
   const channel = built.channel;
+  if (channel.plugin?.form === 'rules') {
+    const target = channel.plan.entries.find((entry) => entry.landable)?.target_path;
+    if (target === undefined) {
+      return buildResult(command, [
+        ...built.findings,
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: '--host',
+          message: '插件规则形态没有可切换的 Skill 副本',
+          remedy: '先安装/分发该 Skill 到该插件宿主',
+        }),
+      ]);
+    }
+    const disabled = `${target}.disabled`;
+    const from = command === 'disable' ? target : disabled;
+    const to = command === 'disable' ? disabled : target;
+    const plan: ConfirmPlan = {
+      action: command === 'enable' ? '启用' : '禁用',
+      subject: `${id}（插件宿主 ${channel.hostId}）`,
+      writes: [
+        { action: command === 'disable' ? '改名' : '恢复', kind: 'rule_file', path: target },
+      ],
+      notes: [`插件规则副本：${target}`, '只切换规则文件后缀，不改动 Skill 索引或插件登记'],
+    };
+    if (!dryRun) {
+      const blocked = await confirmationGate({
+        command,
+        args,
+        interaction,
+        preview: { index: index, findings: [], changes: [], data: {} } satisfies LifecycleOutcome,
+        plan,
+        ...(channel.resolution?.external === true ? { escalateTo: 'light' as const } : {}),
+      });
+      if (blocked !== null) return blocked;
+    }
+    if (dryRun) {
+      return buildResult(command, built.findings, [], {
+        data: { host: channel.hostId, host_root: dirname(target), preview_writes: plan.writes },
+        preview: true,
+      });
+    }
+    const changed = existsSync(from);
+    if (changed) renameSync(from, to);
+    return buildResult(
+      command,
+      built.findings,
+      changed
+        ? [{ action: 'modify', kind: 'host-copy', path: to, detail: `插件宿主：${channel.hostId}` }]
+        : [],
+      { data: { host: channel.hostId, host_root: dirname(target), idempotent: !changed } },
+    );
+  }
   const rootPath = channel.resolution?.path ?? '';
   if (rootPath === '') {
     // 该宿主的该形态不落盘（例如指令文件载体只产出片段），没有副本可供切换可见性
@@ -432,7 +645,8 @@ async function runHostToggle(input: {
     );
   }
 
-  const copyDir = join(rootPath, id);
+  const visibilityRoot = channel.plugin?.form === 'skill' ? dirname(rootPath) : rootPath;
+  const copyDir = join(visibilityRoot, id);
   const targetPath = join(copyDir, command === 'disable' ? `${'SKILL.md'}.disabled` : 'SKILL.md');
   const plan: ConfirmPlan = {
     action: command === 'enable' ? '启用' : '禁用',
@@ -476,7 +690,7 @@ async function runHostToggle(input: {
   }
 
   const visibility = setHostSkillVisibility({
-    rootPath,
+    rootPath: visibilityRoot,
     skillId: id,
     enabled: command === 'enable',
   });
@@ -561,7 +775,683 @@ const initHandler: CommandHandler = async ({ args, now }) => {
   }
 };
 
+function emptyPluginIndex(now: string): PluginIndex {
+  return {
+    schema_version: '1',
+    tool_version: TOOL_VERSION,
+    generated_at: now,
+    config: {},
+    plugins: [],
+    landings: [],
+  };
+}
+
+function loadPluginsForRead(layout: ReturnType<typeof layoutOf>): {
+  index: PluginIndex | null;
+  findings: Finding[];
+  initialized: boolean;
+} {
+  if (!existsSync(layout.pluginIndexFile)) {
+    return { index: null, findings: [], initialized: false };
+  }
+  const loaded = loadPluginIndex(layout.pluginIndexFile);
+  return { index: loaded.index, findings: [...loaded.findings], initialized: true };
+}
+
+function loadPluginsForWrite(
+  layout: ReturnType<typeof layoutOf>,
+  now: string,
+): { index: PluginIndex | null; findings: Finding[]; missing: boolean } {
+  if (!existsSync(layout.pluginIndexFile)) {
+    return { index: null, findings: [], missing: true };
+  }
+  const loaded = loadPluginIndex(layout.pluginIndexFile);
+  return {
+    index:
+      loaded.index ??
+      (loaded.findings.some((item) => item.severity === 'error') ? null : emptyPluginIndex(now)),
+    findings: [...loaded.findings],
+    missing: false,
+  };
+}
+
+function pluginUnreadable(
+  command: string,
+  layout: ReturnType<typeof layoutOf>,
+  findings: Finding[],
+  missing: boolean,
+): Result<unknown> {
+  return buildResult(command, [
+    ...findings,
+    missing
+      ? finding(CODES.ENV_NOT_INITIALIZED, {
+          source: 'workspace',
+          target: layout.root,
+          message: '工作区尚未初始化',
+          remedy: '请先执行 init',
+        })
+      : finding(CODES.ENV_INCOMPLETE, {
+          source: 'workspace',
+          target: layout.pluginIndexFile,
+          message: '插件索引无法读取，不能执行该操作',
+          remedy: '修复 plugin_index.yaml 或重新初始化工作区',
+        }),
+  ]);
+}
+
+async function pluginInstallCommand(context: CommandContext): Promise<Result<unknown>> {
+  const { args, now } = context;
+  const layout = layoutOf(workspaceRootOf(args));
+  const source = args.positionals[0];
+  const rejected = rejectPluginOptions('install', args, [
+    'target',
+    'host',
+    'scope',
+    'mode',
+    'library-only',
+  ]);
+  if (rejected !== null) return rejected;
+  if (source === undefined || source === '') {
+    return buildResult('install', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'source',
+        message: 'install --kind plugin 需要给出来源',
+        remedy: '提供包含 plugin.json 的目录、归档或远端仓库',
+      }),
+    ]);
+  }
+  const loaded = loadPluginsForWrite(layout, now);
+  if (loaded.index === null)
+    return pluginUnreadable('install', layout, loaded.findings, loaded.missing);
+
+  let acquired;
+  try {
+    acquired = await acquireFromPath(source, 'plugin.json');
+  } catch (error) {
+    const kernelError = toKernelError(error, CODES.SRC_UNRESOLVED);
+    return buildResult('install', [
+      finding(kernelError.code, {
+        source: kernelError.source,
+        target: kernelError.target,
+        message: kernelError.message,
+        remedy: kernelError.remedy,
+      }),
+    ]);
+  }
+  try {
+    const inspected = inspectPluginPackage(acquired.dir, TOOL_VERSION);
+    if (
+      inspected.manifest === null ||
+      inspected.findings.some((item) => item.severity === 'error')
+    ) {
+      return buildResult('install', inspected.findings, []);
+    }
+    const manifest = inspected.manifest;
+    const existing = loaded.index.plugins.find((item) => item.id === manifest.plugin_id);
+    if (existing !== undefined) {
+      if (existing.manifest_hash === inspected.manifest_hash) {
+        return buildResult('install', [], [], {
+          data: { kind: 'plugin', plugin: existing, idempotent: true },
+        });
+      }
+      return buildResult('install', [
+        finding(CODES.CONFLICT_NAMING, {
+          source: 'plugin-install',
+          target: manifest.plugin_id,
+          message: `插件 ${manifest.plugin_id} 已登记且版本内容不同`,
+          remedy: '如需替换，请先 uninstall --kind plugin，再重新安装；插件本期不做 update',
+        }),
+      ]);
+    }
+    const destination = join(layout.pluginsDir, manifest.plugin_id);
+    if (existsSync(destination)) {
+      return buildResult('install', [
+        finding(CODES.CONFLICT_NAMING, {
+          source: 'plugin-install',
+          target: manifest.plugin_id,
+          message: `插件目录已存在但未登记：${destination}`,
+          remedy: '先清理该目录，或运行 scan --kind plugin 确认候选',
+        }),
+      ]);
+    }
+    const relativeManifest = `./plugins/${manifest.plugin_id}/plugin.json`;
+    const record = createPluginRecord({
+      manifest,
+      manifestPath: relativeManifest,
+      manifestHash: inspected.manifest_hash,
+      now,
+      ...(looksRemote(source) ? { sourceUrl: source } : {}),
+    });
+    const dryRun = flag(args, 'dry-run');
+    const preview: LifecycleOutcome = {
+      index: {} as SkillIndex,
+      findings: [],
+      changes: [
+        { action: 'add', kind: 'plugin', path: destination },
+        { action: 'add', kind: 'plugin_index', path: layout.pluginIndexFile },
+      ],
+      data: {},
+    };
+    if (!dryRun) {
+      const blocked = await confirmationGate({
+        command: 'install',
+        args,
+        interaction: context.interaction,
+        preview,
+        plan: planOf('install', manifest.plugin_id, preview, [
+          `将把插件包复制到 ${destination}`,
+          '安装只登记插件，默认状态为 disabled；启用需要显式 enable --kind plugin',
+        ]),
+      });
+      if (blocked !== null) return blocked;
+    }
+    if (dryRun) {
+      return buildResult('install', [], [], {
+        data: {
+          kind: 'plugin',
+          plugin: record,
+          manifest_hash: inspected.manifest_hash,
+          target: destination,
+          state: 'disabled',
+        },
+        preview: true,
+      });
+    }
+
+    const temp = join(layout.pluginsDir, `.${manifest.plugin_id}.tmp-${randomUUID()}`);
+    try {
+      mkdirSync(temp, { recursive: true });
+      cpSync(acquired.dir, temp, {
+        recursive: true,
+        filter: (path) => basename(path) !== '.git',
+      });
+      const copied = inspectPluginPackage(temp, TOOL_VERSION);
+      if (
+        copied.manifest === null ||
+        copied.manifest.plugin_id !== manifest.plugin_id ||
+        copied.manifest_hash !== inspected.manifest_hash
+      ) {
+        return buildResult('install', [
+          ...copied.findings,
+          finding(CODES.IO_FAILED, {
+            source: 'plugin-install',
+            target: temp,
+            message: '插件复制后校验失败',
+            remedy: '删除临时目录后重试',
+          }),
+        ]);
+      }
+      renameSync(temp, destination);
+    } finally {
+      if (existsSync(temp)) rmSync(temp, { recursive: true, force: true });
+    }
+    const next: PluginIndex = {
+      ...loaded.index,
+      generated_at: now,
+      plugins: [...loaded.index.plugins, record],
+    };
+    try {
+      savePluginIndex(layout.pluginIndexFile, next);
+    } catch (error) {
+      rmSync(destination, { recursive: true, force: true });
+      throw error;
+    }
+    return buildResult(
+      'install',
+      [],
+      [
+        { action: 'add', kind: 'plugin', path: destination },
+        { action: 'add', kind: 'plugin_index', path: layout.pluginIndexFile },
+      ],
+      { data: { kind: 'plugin', plugin: record, state: 'disabled' } },
+    );
+  } finally {
+    releaseSource(acquired);
+  }
+}
+
+function pluginScanCommand(context: { args: ParsedArgs; now: string }): Result<unknown> {
+  const { args, now } = context;
+  const layout = layoutOf(workspaceRootOf(args));
+  const rejected = rejectPluginOptions('scan', args, ['root']);
+  if (rejected !== null) return rejected;
+  const loaded = loadPluginsForWrite(layout, now);
+  if (loaded.index === null)
+    return pluginUnreadable('scan', layout, loaded.findings, loaded.missing);
+  const dryRun = flag(args, 'dry-run');
+  const unregistered: Array<Record<string, unknown>> = [];
+  const findings: Finding[] = [...loaded.findings];
+  const byId = new Map(loaded.index.plugins.map((item) => [item.id, item]));
+  const discovered = inspectPluginPackagesForScan(layout, TOOL_VERSION);
+  for (const candidate of discovered) {
+    if (!byId.has(candidate.plugin_id)) {
+      unregistered.push({
+        plugin_id: candidate.plugin_id,
+        path: candidate.dir,
+        manifest_hash: candidate.manifest_hash,
+      });
+      continue;
+    }
+  }
+  const plugins = loaded.index.plugins.map((record) => {
+    const packageDir = join(layout.pluginsDir, record.id);
+    const inspected = inspectPluginPackage(packageDir, TOOL_VERSION);
+    const errors = inspected.findings.filter((item) => item.severity === 'error');
+    if (errors.length > 0 || inspected.manifest === null) {
+      findings.push(...errors);
+      return {
+        ...record,
+        state: 'invalid' as const,
+        validation: {
+          status: 'invalid' as const,
+          errors: errors.map((item) => item.code),
+          last_scan_at: now,
+        },
+        updated_at: now,
+      };
+    }
+    if (
+      inspected.manifest_hash !== record.manifest_hash ||
+      inspected.manifest.plugin_id !== record.id
+    ) {
+      findings.push(
+        finding(CODES.HASH_FORMAT, {
+          source: 'plugin-scan',
+          target: record.id,
+          message: 'manifest 哈希或标识与登记不一致',
+          remedy: '确认插件包未被修改；必要时重新安装',
+        }),
+      );
+      return {
+        ...record,
+        state: 'invalid' as const,
+        validation: {
+          status: 'invalid' as const,
+          errors: [CODES.HASH_FORMAT],
+          last_scan_at: now,
+        },
+        updated_at: now,
+      };
+    }
+    return {
+      ...record,
+      validation: { ...record.validation, status: 'ok' as const, errors: [], last_scan_at: now },
+      updated_at: now,
+    };
+  });
+  const orphaned = loaded.index.landings.filter((item) => !byId.has(item.plugin_id));
+  const next: PluginIndex = { ...loaded.index, generated_at: now, plugins };
+  if (!dryRun) savePluginIndex(layout.pluginIndexFile, next);
+  return buildResult('scan', findings, [], {
+    data: {
+      kind: 'plugin',
+      registered: plugins.length,
+      invalid: plugins.filter((item) => item.state === 'invalid').length,
+      unregistered,
+      orphaned_landings: orphaned,
+    },
+    ...(dryRun ? { preview: true } : {}),
+  });
+}
+
+function inspectPluginPackagesForScan(
+  layout: ReturnType<typeof layoutOf>,
+  toolVersion: string,
+): Array<{ plugin_id: string; dir: string; manifest_hash: string }> {
+  if (!existsSync(layout.pluginsDir)) return [];
+  const result: Array<{ plugin_id: string; dir: string; manifest_hash: string }> = [];
+  for (const entry of readdirSync(layout.pluginsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name.startsWith('.')) continue;
+    const inspected = inspectPluginPackage(join(layout.pluginsDir, entry.name), toolVersion);
+    result.push({
+      plugin_id: inspected.manifest?.plugin_id ?? entry.name,
+      dir: inspected.dir,
+      manifest_hash: inspected.manifest_hash,
+    });
+  }
+  return result;
+}
+
+function pluginListCommand(context: { args: ParsedArgs }): Result<unknown> {
+  const { args } = context;
+  const layout = layoutOf(workspaceRootOf(args));
+  const rejected = rejectPluginOptions('list', args, ['target']);
+  if (rejected !== null) return rejected;
+  const loaded = loadPluginsForRead(layout);
+  const index = loaded.index ?? emptyPluginIndex('');
+  const state = option(args, 'state');
+  if (state !== undefined && !['enabled', 'disabled', 'invalid'].includes(state)) {
+    return buildResult('list', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--state',
+        message: `插件状态取值非法：${state}`,
+        remedy: '仅允许 enabled、disabled 或 invalid',
+      }),
+    ]);
+  }
+  const source = option(args, 'source');
+  const records = index.plugins
+    .filter((item) => (state === undefined ? true : item.state === state))
+    .filter((item) => (source === undefined ? true : (item.source_url ?? 'local') === source))
+    .map((item) => ({
+      id: item.id,
+      version: item.version,
+      state: item.state,
+      hosts: item.hosts.length,
+      validation: item.validation,
+    }));
+  const orphaned = index.landings.filter(
+    (item) =>
+      item.state === 'orphaned' || !index.plugins.some((plugin) => plugin.id === item.plugin_id),
+  );
+  return buildResult('list', loaded.findings, [], {
+    data: {
+      kind: 'plugin',
+      initialized: loaded.initialized,
+      total: index.plugins.length,
+      filtered: records.length,
+      plugins: records,
+      orphaned_landings: orphaned,
+    },
+  });
+}
+
+function pluginInspectCommand(context: { args: ParsedArgs }): Result<unknown> {
+  const { args } = context;
+  const layout = layoutOf(workspaceRootOf(args));
+  const id = args.positionals[0];
+  if (id === undefined || id === '') {
+    return buildResult('inspect', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'id',
+        message: 'inspect --kind plugin 需要给出插件标识',
+        remedy: '请提供已登记的插件标识',
+      }),
+    ]);
+  }
+  const loaded = loadPluginsForRead(layout);
+  const record = loaded.index?.plugins.find((item) => item.id === id);
+  if (record === undefined) {
+    return buildResult('inspect', [
+      ...loaded.findings,
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: id,
+        message: `插件 ${id} 不在插件登记中`,
+        remedy: '先用 list --kind plugin 确认插件标识',
+      }),
+    ]);
+  }
+  const inspected = inspectPluginPackage(join(layout.pluginsDir, id), TOOL_VERSION);
+  return buildResult('inspect', [...loaded.findings, ...inspected.findings], [], {
+    data: {
+      kind: 'plugin',
+      plugin: record,
+      manifest: inspected.manifest,
+      manifest_hash: inspected.manifest_hash,
+      config: loaded.index?.config ?? {},
+      root_config: record.hosts.map((host) => ({
+        host_id: host.host_id,
+        host_key: host.host_key,
+        keys: host.roots.map((root) => {
+          const key = `plugin.${id}.${host.host_key}.${
+            root.kind === 'rules' ? 'rules_root' : 'root'
+          }`;
+          return {
+            key,
+            scope: root.scope,
+            value: loaded.index?.config[key] ?? null,
+          };
+        }),
+      })),
+      landings: (loaded.index?.landings ?? []).filter((item) => item.plugin_id === id),
+    },
+  });
+}
+
+async function pluginToggleCommand(
+  command: 'enable' | 'disable',
+  context: CommandContext,
+): Promise<Result<unknown>> {
+  const { args, now } = context;
+  const layout = layoutOf(workspaceRootOf(args));
+  const id = args.positionals[0];
+  if (id === undefined || id === '') {
+    return buildResult(command, [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'id',
+        message: `${command} --kind plugin 需要给出插件标识`,
+        remedy: '请提供已登记的插件标识',
+      }),
+    ]);
+  }
+  const rejected = rejectPluginOptions(command, args, ['target', 'host', 'scope']);
+  if (rejected !== null) return rejected;
+  const loaded = loadPluginsForWrite(layout, now);
+  if (loaded.index === null)
+    return pluginUnreadable(command, layout, loaded.findings, loaded.missing);
+  const record = loaded.index.plugins.find((item) => item.id === id);
+  if (record === undefined) {
+    return buildResult(command, [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: id,
+        message: `插件 ${id} 不在插件登记中`,
+        remedy: '先用 list --kind plugin 确认插件标识',
+      }),
+    ]);
+  }
+  const dryRun = flag(args, 'dry-run');
+  if (command === 'disable') {
+    const next: PluginIndex = {
+      ...loaded.index,
+      generated_at: now,
+      plugins: loaded.index.plugins.map((item) =>
+        item.id === id ? { ...item, state: 'disabled' as const, updated_at: now } : item,
+      ),
+    };
+    if (!dryRun) savePluginIndex(layout.pluginIndexFile, next);
+    return buildResult(command, loaded.findings, [], {
+      data: { kind: 'plugin', plugin: next.plugins.find((item) => item.id === id) },
+      ...(dryRun ? { preview: true } : {}),
+    });
+  }
+
+  const inspected = inspectPluginPackage(join(layout.pluginsDir, id), TOOL_VERSION);
+  const errors = [...inspected.findings.filter((item) => item.severity === 'error')];
+  if (inspected.manifest === null || inspected.manifest.plugin_id !== id) {
+    errors.push(
+      finding(CODES.ID_PLUGIN_INVALID, {
+        source: 'plugin-enable',
+        target: id,
+        message: '插件包 manifest 无法通过校验',
+        remedy: '修复 plugin.json 后重新安装',
+      }),
+    );
+  }
+  if (inspected.manifest !== null && inspected.manifest_hash !== record.manifest_hash) {
+    errors.push(
+      finding(CODES.HASH_FORMAT, {
+        source: 'plugin-enable',
+        target: id,
+        message: '插件包 manifest 哈希与登记不一致',
+        remedy: '重新安装插件，或运行 scan --kind plugin 确认变更',
+      }),
+    );
+  }
+  if (errors.length > 0 || inspected.manifest === null) {
+    const next: PluginIndex = {
+      ...loaded.index,
+      generated_at: now,
+      plugins: loaded.index.plugins.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              state: 'invalid' as const,
+              updated_at: now,
+              validation: {
+                status: 'invalid' as const,
+                errors: errors.map((item) => item.code),
+                last_scan_at: now,
+              },
+            }
+          : item,
+      ),
+    };
+    if (!dryRun) savePluginIndex(layout.pluginIndexFile, next);
+    return buildResult(command, [...loaded.findings, ...errors], [], { data: { kind: 'plugin' } });
+  }
+  const base = loadPluginCatalog({
+    layout,
+    builtins: loadHostRegistry().hosts,
+    toolVersion: TOOL_VERSION,
+  });
+  const entries = base.entries
+    .filter(
+      (entry) =>
+        entry.record.id === id ||
+        (entry.record.state === 'enabled' &&
+          entry.manifest !== null &&
+          !(entry.findings ?? []).some((item) => item.severity === 'error')),
+    )
+    .map((entry) =>
+      entry.record.id === id
+        ? {
+            ...entry,
+            manifest: inspected.manifest,
+            findings: [],
+            record: {
+              ...entry.record,
+              state: 'enabled' as const,
+              validation: { status: 'ok' as const, errors: [] },
+            },
+          }
+        : entry,
+    );
+  const candidateView = buildHostCatalog({
+    builtins: loadHostRegistry().hosts,
+    entries,
+  });
+  if (candidateView.findings.some((item) => item.severity === 'error')) {
+    return buildResult(command, [...loaded.findings, ...candidateView.findings], [], {
+      data: { kind: 'plugin' },
+    });
+  }
+  const next: PluginIndex = {
+    ...loaded.index,
+    generated_at: now,
+    plugins: loaded.index.plugins.map((item) =>
+      item.id === id
+        ? {
+            ...item,
+            state: 'enabled' as const,
+            updated_at: now,
+            validation: { status: 'ok' as const, errors: [], last_scan_at: now },
+          }
+        : item,
+    ),
+  };
+  if (!dryRun) savePluginIndex(layout.pluginIndexFile, next);
+  return buildResult(command, [...loaded.findings, ...inspected.findings], [], {
+    data: {
+      kind: 'plugin',
+      plugin: next.plugins.find((item) => item.id === id),
+      hosts: candidateView.pluginHosts.map((item) => item.host_id),
+    },
+    ...(dryRun ? { preview: true } : {}),
+  });
+}
+
+async function pluginUninstallCommand(context: CommandContext): Promise<Result<unknown>> {
+  const { args, now } = context;
+  const layout = layoutOf(workspaceRootOf(args));
+  const id = args.positionals[0];
+  if (id === undefined || id === '') {
+    return buildResult('uninstall', [
+      finding(CODES.INPUT_MISSING_ARG, {
+        source: 'input',
+        target: 'id',
+        message: 'uninstall --kind plugin 需要给出插件标识',
+        remedy: '请提供已登记的插件标识',
+      }),
+    ]);
+  }
+  const rejected = rejectPluginOptions('uninstall', args, ['keep-library', 'hard']);
+  if (rejected !== null) return rejected;
+  const loaded = loadPluginsForWrite(layout, now);
+  if (loaded.index === null)
+    return pluginUnreadable('uninstall', layout, loaded.findings, loaded.missing);
+  const record = loaded.index.plugins.find((item) => item.id === id);
+  if (record === undefined) {
+    return buildResult('uninstall', [
+      ...loaded.findings,
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: id,
+        message: `插件 ${id} 不在插件登记中`,
+        remedy: '先用 list --kind plugin 确认插件标识',
+      }),
+    ]);
+  }
+  const pluginDir = join(layout.pluginsDir, id);
+  const fileCount = countTreeFiles(pluginDir);
+  const orphaned = loaded.index.landings.filter((item) => item.plugin_id === id);
+  const preview: LifecycleOutcome = {
+    index: {} as SkillIndex,
+    findings: [],
+    changes: [
+      { action: 'remove', kind: 'plugin', path: pluginDir, detail: `${fileCount} 个文件` },
+      { action: 'remove', kind: 'plugin_index', path: layout.pluginIndexFile },
+    ],
+    data: {},
+  };
+  const dryRun = flag(args, 'dry-run');
+  if (!dryRun) {
+    const blocked = await confirmationGate({
+      command: 'uninstall',
+      args,
+      interaction: context.interaction,
+      preview,
+      plan: planOf('uninstall', id, preview, [
+        `将删除插件包：${pluginDir}（${fileCount} 个文件）`,
+        '插件登记将从 plugin_index.yaml 移除；Skill 索引不会被触碰',
+        orphaned.length > 0
+          ? `已有 ${orphaned.length} 个宿主副本会保留并标记为孤儿：${orphaned
+              .map((item) => item.target_path)
+              .join('、')}`
+          : '没有已记录的插件宿主副本',
+      ]),
+    });
+    if (blocked !== null) return blocked;
+  }
+  const marked = orphanPluginLandings(loaded.index, id, now);
+  const next: PluginIndex = {
+    ...marked.index,
+    generated_at: now,
+    plugins: marked.index.plugins.filter((item) => item.id !== id),
+  };
+  if (!dryRun) {
+    rmSync(pluginDir, { recursive: true, force: true });
+    savePluginIndex(layout.pluginIndexFile, next);
+  }
+  return buildResult('uninstall', loaded.findings, dryRun ? [] : [preview.changes[0]!], {
+    data: {
+      kind: 'plugin',
+      removed: !dryRun,
+      plugin_dir: pluginDir,
+      file_count: fileCount,
+      orphaned_landings: marked.orphaned,
+    },
+    ...(dryRun ? { preview: true } : {}),
+  });
+}
+
 const scanHandler: CommandHandler = async ({ args, now }) => {
+  if (pluginKind(args)) return pluginScanCommand({ args, now });
   const layout = layoutOf(workspaceRootOf(args));
   const dryRun = flag(args, 'dry-run');
   const overrides = optionList(args, 'root');
@@ -718,6 +1608,7 @@ function planOf(
 }
 
 const installHandler: CommandHandler = async ({ args, now, interaction }) => {
+  if (pluginKind(args)) return pluginInstallCommand({ args, now, interaction });
   const layout = layoutOf(workspaceRootOf(args));
   const source = args.positionals[0];
   const dryRun = flag(args, 'dry-run');
@@ -863,6 +1754,7 @@ const installHandler: CommandHandler = async ({ args, now, interaction }) => {
 };
 
 const uninstallHandler: CommandHandler = async ({ args, now, interaction }) => {
+  if (pluginKind(args)) return pluginUninstallCommand({ args, now, interaction });
   const layout = layoutOf(workspaceRootOf(args));
   const id = args.positionals[0];
   const dryRun = flag(args, 'dry-run');
@@ -1046,6 +1938,9 @@ function loadForRead(layout: ReturnType<typeof layoutOf>): {
 }
 
 const listHandler: CommandHandler = async ({ args }) => {
+  if (pluginKind(args)) {
+    return pluginListCommand({ args });
+  }
   const layout = layoutOf(workspaceRootOf(args));
   const { index, findings, initialized } = loadForRead(layout);
   const state = option(args, 'state');
@@ -1086,6 +1981,9 @@ const listHandler: CommandHandler = async ({ args }) => {
 };
 
 const inspectHandler: CommandHandler = async ({ args }) => {
+  if (pluginKind(args)) {
+    return pluginInspectCommand({ args });
+  }
   const layout = layoutOf(workspaceRootOf(args));
   const id = args.positionals[0];
   if (id === undefined || id === '') {
@@ -1128,7 +2026,15 @@ const configGetHandler: CommandHandler = async ({ args }) => {
       }),
     ]);
   }
-  return buildResult('config get', findings, [], { data: readConfig(index) });
+  const pluginLoaded = existsSync(layout.pluginIndexFile)
+    ? loadPluginIndex(layout.pluginIndexFile)
+    : { index: null, findings: [] };
+  return buildResult('config get', [...findings, ...pluginLoaded.findings], [], {
+    data: {
+      ...readConfig(index),
+      plugin_config: pluginLoaded.index?.config ?? {},
+    },
+  });
 };
 
 const depsHandler: CommandHandler = async ({ args }) => {
@@ -1317,7 +2223,82 @@ function unreadableIndex(
   ]);
 }
 
-const configSetHandler: CommandHandler = async ({ args }) => {
+const PLUGIN_CONFIG_PATTERN =
+  /^plugin\.([a-z0-9]+(?:-[a-z0-9]+)*)\.([a-z0-9]+(?:-[a-z0-9]+)*)\.(root|rules_root)$/;
+
+function configSetPluginCommand(
+  context: CommandContext,
+  key: string,
+  value: string,
+): Result<unknown> {
+  const layout = layoutOf(workspaceRootOf(context.args));
+  const loaded = loadPluginsForWrite(layout, context.now);
+  if (loaded.index === null) {
+    return pluginUnreadable('config set', layout, loaded.findings, loaded.missing);
+  }
+  const match = PLUGIN_CONFIG_PATTERN.exec(key);
+  if (match === null) {
+    return buildResult('config set', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: key,
+        message: `插件配置键非法：${key}`,
+        remedy:
+          '使用 plugin.<plugin_id>.<host_key>.root 或 plugin.<plugin_id>.<host_key>.rules_root',
+      }),
+    ]);
+  }
+  const pluginId = match[1] as string;
+  const hostKey = match[2] as string;
+  const record = loaded.index.plugins.find((item) => item.id === pluginId);
+  const host = record?.hosts.find((item) => item.host_key === hostKey);
+  if (record === undefined || host === undefined) {
+    return buildResult('config set', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: key,
+        message: `插件或宿主未登记：${pluginId}/${hostKey}`,
+        remedy: '先安装插件，并使用 list --kind plugin 查看可用宿主',
+      }),
+    ]);
+  }
+  const trimmed = value.trim();
+  const relativeWithTraversal = !isAbsolute(trimmed) && trimmed.split(/[\\/]/).includes('..');
+  if (trimmed === '' || trimmed.includes('\0') || relativeWithTraversal) {
+    return buildResult('config set', [
+      finding(CODES.PATH_INVALID, {
+        source: 'input',
+        target: key,
+        message: '插件宿主根路径不能为空或包含空字节',
+        remedy: '提供可写目录路径',
+      }),
+    ]);
+  }
+  const resolved = isAbsolute(trimmed) ? trimmed : resolve(layout.root, trimmed);
+  if (resolved.includes('\0')) {
+    return buildResult('config set', [
+      finding(CODES.PATH_INVALID, {
+        source: 'input',
+        target: key,
+        message: '插件宿主根路径非法',
+        remedy: '提供合法路径',
+      }),
+    ]);
+  }
+  const config = { ...loaded.index.config, [key]: trimmed };
+  const next: PluginIndex = { ...loaded.index, generated_at: context.now, config };
+  savePluginIndex(layout.pluginIndexFile, next);
+  return buildResult('config set', loaded.findings, [], {
+    data: {
+      key,
+      previous_value: loaded.index.config[key] ?? null,
+      new_value: trimmed,
+      resolved_path: resolved,
+    },
+  });
+}
+
+const configSetHandler: CommandHandler = async ({ args, now, interaction }) => {
   const layout = layoutOf(workspaceRootOf(args));
   const key = args.positionals[0];
   const value = args.positionals[1];
@@ -1341,6 +2322,8 @@ const configSetHandler: CommandHandler = async ({ args }) => {
       }),
     ]);
   }
+  if (key.startsWith('plugin.'))
+    return configSetPluginCommand({ args, now, interaction }, key, value);
   const { index, findings, missing } = loadForWrite(layout);
   if (index === null) return unreadableIndex('config set', layout, findings, missing);
 
@@ -1372,6 +2355,7 @@ const configSetHandler: CommandHandler = async ({ args }) => {
 /** 启用与禁用共用同一套参数与载荷形状 */
 function toggleHandler(command: 'enable' | 'disable'): CommandHandler {
   return async ({ args, now, interaction }) => {
+    if (pluginKind(args)) return pluginToggleCommand(command, { args, now, interaction });
     const layout = layoutOf(workspaceRootOf(args));
     const id = args.positionals[0];
     if (id === undefined || id === '') {

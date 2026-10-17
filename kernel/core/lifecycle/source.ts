@@ -46,6 +46,8 @@ export interface SourceSpec {
   location: string;
   /** 引用标识：分支、标签或提交，仅本地仓库使用 */
   ref?: string | undefined;
+  /** 内容根识别文件；Skill 默认 skill_meta.yaml，插件传 plugin.json */
+  root_file?: string | undefined;
 }
 
 export interface AcquiredSource {
@@ -501,7 +503,7 @@ async function extractGit(repo: string, ref: string | undefined, dest: string): 
 
 /** 取出来源内容；调用方负责在完成后调用 releaseSource */
 export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
-  const { type, location, ref } = spec;
+  const { type, location, ref, root_file: rootFile = META_FILE_NAME } = spec;
   assertRefUsable(ref);
   if (location.trim() === '') {
     throw sourceError(
@@ -513,8 +515,8 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
   }
   if (looksRemote(location)) {
     assertProtocolAllowed(location);
-    if (type === 'git') return acquireRemoteGit(location, ref);
-    if (type === 'archive') return acquireRemoteArchive(location);
+    if (type === 'git') return acquireRemoteGit(location, ref, rootFile);
+    if (type === 'archive') return acquireRemoteArchive(location, rootFile);
     throw sourceError(
       CODES.SRC_UNRESOLVED,
       `来源类型与地址形态不匹配：${type} / ${location}`,
@@ -527,7 +529,7 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
     const dir = tempDir();
     try {
       await extractGit(location, ref, dir);
-      const root = assertEntrySafeRoot(dir, location);
+      const root = assertEntrySafeRoot(dir, location, rootFile);
       assertNoSymlinks(root);
       return { dir: root, temporary: true, scratch: dir };
     } catch (error) {
@@ -558,7 +560,7 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
           '仅支持 zip、tar 与 tar.gz 归档',
         );
       }
-      const root = assertEntrySafeRoot(dir, location);
+      const root = assertEntrySafeRoot(dir, location, rootFile);
       assertNoSymlinks(root);
       return { dir: root, temporary: true, scratch: dir };
     } catch (error) {
@@ -577,7 +579,7 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
       '请确认该路径存在且是一个目录',
     );
   }
-  assertEntrySafeRoot(location, location);
+  assertEntrySafeRoot(location, location, rootFile);
   return { dir: location, temporary: false };
 }
 
@@ -586,22 +588,26 @@ export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {
  * 否则若根下恰好存在一个子目录且该子目录内直接含元文件，则下钻一层。
  * 只下钻一层，多个候选或下钻后仍缺失都按获取失败上报。
  */
-function assertEntrySafeRoot(dir: string, target: string): string {
-  if (existsSync(join(dir, META_FILE_NAME))) return dir;
+function assertEntrySafeRoot(
+  dir: string,
+  target: string,
+  rootFile: string = META_FILE_NAME,
+): string {
+  if (existsSync(join(dir, rootFile))) return dir;
   const children = readdirSync(dir, { withFileTypes: true }).filter(
     (entry) => entry.isDirectory() && !entry.isSymbolicLink(),
   );
   if (children.length === 1) {
     const inner = join(dir, children[0]!.name);
-    if (existsSync(join(inner, META_FILE_NAME))) return inner;
+    if (existsSync(join(inner, rootFile))) return inner;
   }
   throw sourceError(
     CODES.SRC_FETCH_FAILED,
-    `无法确定唯一内容目录：内容根下没有 ${META_FILE_NAME}`,
+    `无法确定唯一内容目录：内容根下没有 ${rootFile}`,
     target,
     children.length === 1
-      ? `请让 ${children[0]!.name}/ 目录内直接包含元文件`
-      : '请让归档的内容根直接包含元文件，或只在外层保留一个目录',
+      ? `请让 ${children[0]!.name}/ 目录内直接包含 ${rootFile}`
+      : `请让归档的内容根直接包含 ${rootFile}，或只在外层保留一个目录`,
   );
 }
 
@@ -609,14 +615,17 @@ function assertEntrySafeRoot(dir: string, target: string): string {
  * 按命令行给出的位置取出来源：文件按归档处理，目录先看元文件声明的来源类型，
  * 声明为本地仓库时按仓库读取（读的是已提交内容，不含版本控制目录与未提交改动）。
  */
-export async function acquireFromPath(sourcePath: string): Promise<AcquiredSource> {
+export async function acquireFromPath(
+  sourcePath: string,
+  rootFile: string = META_FILE_NAME,
+): Promise<AcquiredSource> {
   // 远端地址：按地址形态推断是仓库还是归档——元文件还在远端，此时只能靠地址判断
   if (looksRemote(sourcePath)) {
     assertProtocolAllowed(sourcePath);
     const kind = remoteKindOf(sourcePath);
     return kind === 'archive'
-      ? acquireRemoteArchive(sourcePath)
-      : acquireRemoteGit(sourcePath, undefined);
+      ? acquireRemoteArchive(sourcePath, rootFile)
+      : acquireRemoteGit(sourcePath, undefined, rootFile);
   }
   const absolute = resolve(sourcePath);
   if (!existsSync(absolute)) {
@@ -629,7 +638,7 @@ export async function acquireFromPath(sourcePath: string): Promise<AcquiredSourc
   }
   const stats = statSync(absolute);
   if (stats.isFile()) {
-    return acquireSource({ type: 'archive', location: absolute });
+    return acquireSource({ type: 'archive', location: absolute, root_file: rootFile });
   }
   if (!stats.isDirectory()) {
     throw sourceError(
@@ -645,6 +654,7 @@ export async function acquireFromPath(sourcePath: string): Promise<AcquiredSourc
       type: 'git',
       location: declared.location as string,
       ref: declared.ref,
+      root_file: rootFile,
     });
   }
   return { dir: absolute, temporary: false };
@@ -688,7 +698,11 @@ export function normalizeSource(
 }
 
 /** 远端仓库：克隆到临时目录后复用本地仓库的读取路径 */
-async function acquireRemoteGit(url: string, ref: string | undefined): Promise<AcquiredSource> {
+async function acquireRemoteGit(
+  url: string,
+  ref: string | undefined,
+  rootFile: string = META_FILE_NAME,
+): Promise<AcquiredSource> {
   const scratch = tempDir();
   const cloneDir = join(scratch, 'repo');
   const outDir = join(scratch, 'content');
@@ -696,7 +710,7 @@ async function acquireRemoteGit(url: string, ref: string | undefined): Promise<A
     await cloneRemoteRepo(url, ref, cloneDir);
     mkdirSync(outDir, { recursive: true });
     await extractGit(cloneDir, undefined, outDir);
-    const root = assertEntrySafeRoot(outDir, url);
+    const root = assertEntrySafeRoot(outDir, url, rootFile);
     assertNoSymlinks(root);
     return { dir: root, temporary: true, scratch };
   } catch (error) {
@@ -706,7 +720,10 @@ async function acquireRemoteGit(url: string, ref: string | undefined): Promise<A
 }
 
 /** 远端归档：下载到临时文件后复用本地归档解压路径 */
-async function acquireRemoteArchive(url: string): Promise<AcquiredSource> {
+async function acquireRemoteArchive(
+  url: string,
+  rootFile: string = META_FILE_NAME,
+): Promise<AcquiredSource> {
   const lower = (url.split(/[?#]/)[0] ?? '').toLowerCase();
   if (!/\.(zip|tar|tar\.gz|tgz)$/.test(lower)) {
     throw sourceError(
@@ -724,7 +741,7 @@ async function acquireRemoteArchive(url: string): Promise<AcquiredSource> {
     mkdirSync(outDir, { recursive: true });
     if (file.toLowerCase().endsWith('.zip')) await extractZip(file, outDir);
     else await extractTar(file, outDir);
-    const root = assertEntrySafeRoot(outDir, url);
+    const root = assertEntrySafeRoot(outDir, url, rootFile);
     assertNoSymlinks(root);
     return { dir: root, temporary: true, scratch };
   } catch (error) {

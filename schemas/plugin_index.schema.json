@@ -4,7 +4,7 @@
   "title": "plugin_index.yaml",
   "description": "插件登记、状态与配置的唯一事实源；逐字段对齐 docs/specification/plugin-format.md 第 4 章。",
   "type": "object",
-  "required": ["schema_version", "tool_version", "generated_at", "config", "plugins"],
+  "required": ["schema_version", "tool_version", "generated_at", "config", "plugins", "landings"],
   "additionalProperties": true,
   "properties": {
     "schema_version": {
@@ -33,6 +33,12 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/pluginRecord"
+      }
+    },
+    "landings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/landing"
       }
     }
   },
@@ -271,10 +277,63 @@
           "$ref": "#/$defs/time"
         }
       }
+    },
+    "landing": {
+      "type": "object",
+      "required": [
+        "plugin_id",
+        "skill_id",
+        "host_id",
+        "host_key",
+        "target_path",
+        "state",
+        "created_at",
+        "updated_at"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "plugin_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "skill_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "host_id": {
+          "type": "string",
+          "pattern": "^x-[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "host_key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "target_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "state": {
+          "type": "string",
+          "enum": ["active", "orphaned"]
+        },
+        "created_at": {
+          "$ref": "#/$defs/time"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/time"
+        }
+      }
     }
   },
   "x-write-permissions": {
     "plugins": "由内核在 install/uninstall/enable/disable/scan 时写入；插件索引是插件状态唯一事实源",
-    "config": "仅允许 plugin.<plugin_id>.<host_key>.root / .rules_root；不得写入 host.*"
+    "config": "仅允许 plugin.<plugin_id>.<host_key>.root / .rules_root；不得写入 host.*",
+    "landings": "记录插件宿主副本；插件卸载时置为 orphaned 并保留，供孤儿副本追踪"
   }
 }

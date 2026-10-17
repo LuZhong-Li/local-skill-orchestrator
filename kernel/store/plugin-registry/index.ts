@@ -10,7 +10,7 @@ import { atomicWriteFile } from '../atomic/index.ts';
 import { parseYaml, stringifyYaml } from '../yaml/index.ts';
 import { CODES, finding, type Finding } from '../contract.ts';
 import { KernelError } from '../errors.ts';
-import type { PluginIndex, PluginRecord } from '../../core/plugins/types.ts';
+import type { PluginIndex, PluginLanding, PluginRecord } from '../../core/plugins/types.ts';
 
 export interface LoadedPluginIndex {
   exists: boolean;
@@ -26,6 +26,7 @@ export function createInitialPluginIndex(generatedAt: string, toolVersion = '0.2
     generated_at: generatedAt,
     config: {},
     plugins: [],
+    landings: [],
   };
 }
 
@@ -97,6 +98,7 @@ export function loadPluginIndex(pluginIndexFile: string): LoadedPluginIndex {
     return { exists: true, index: null, findings };
   }
   const plugins: PluginRecord[] = [];
+  const landings: PluginLanding[] = [];
   if (!Array.isArray(raw['plugins'])) {
     findings.push(
       finding(CODES.FIELD_TYPE, {
@@ -148,6 +150,31 @@ export function loadPluginIndex(pluginIndexFile: string): LoadedPluginIndex {
       }
     }
   }
+  if (raw['landings'] !== undefined && !Array.isArray(raw['landings'])) {
+    findings.push(
+      finding(CODES.FIELD_TYPE, {
+        source: 'plugin-registry',
+        target: 'landings',
+        message: 'landings 必须是数组',
+        remedy: '修复插件落位账本；不要手工写入非数组值',
+      }),
+    );
+  } else if (Array.isArray(raw['landings'])) {
+    raw['landings'].forEach((item, index) => {
+      if (!isRecord(item)) {
+        findings.push(
+          finding(CODES.FIELD_TYPE, {
+            source: 'plugin-registry',
+            target: `landings[${index}]`,
+            message: '落位账本条目必须是对象',
+            remedy: '删除非法条目，或重新分发对应 Skill',
+          }),
+        );
+        return;
+      }
+      landings.push({ ...item } as unknown as PluginLanding);
+    });
+  }
   const index: PluginIndex = {
     ...raw,
     schema_version: '1',
@@ -155,19 +182,21 @@ export function loadPluginIndex(pluginIndexFile: string): LoadedPluginIndex {
     generated_at: String(raw['generated_at'] ?? ''),
     config,
     plugins,
+    landings,
   };
   return { exists: true, index, findings };
 }
 
 /** 原子写回插件索引；固定顶层顺序，未知字段原样保留。 */
 export function savePluginIndex(pluginIndexFile: string, index: PluginIndex): void {
-  const { config, plugins, ...rest } = index;
+  const { config, plugins, landings, ...rest } = index;
   const ordered: Record<string, unknown> = {
     schema_version: index.schema_version,
     tool_version: index.tool_version,
     generated_at: index.generated_at,
     config,
     plugins,
+    landings,
   };
   for (const [key, value] of Object.entries(rest)) {
     if (!(key in ordered)) ordered[key] = value;

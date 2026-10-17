@@ -31,6 +31,14 @@ export interface DiscoveryOutcome {
   findings: Finding[];
 }
 
+export interface PluginPackageInspection {
+  dir: string;
+  manifest_path: string;
+  manifest_hash: string;
+  manifest: PluginManifest | null;
+  findings: Finding[];
+}
+
 function add(
   findings: Finding[],
   code: string,
@@ -86,6 +94,105 @@ function inspectFiles(root: string, dir: string, findings: Finding[]): void {
       );
     }
   }
+}
+
+/** 检查任意来源目录中的插件包；不要求目录名等于 plugin_id（安装时从 manifest 取名）。 */
+export function inspectPluginPackage(
+  pluginDir: string,
+  toolVersion?: string,
+): PluginPackageInspection {
+  const findings: Finding[] = [];
+  const manifestPath = join(pluginDir, PLUGIN_MANIFEST_FILE);
+  let manifest: PluginManifest | null = null;
+  let manifestHash = '';
+  let info;
+  try {
+    info = lstatSync(pluginDir);
+  } catch (error) {
+    add(
+      findings,
+      CODES.PATH_INVALID,
+      pluginDir,
+      `插件来源目录不可用：${error instanceof Error ? error.message : String(error)}`,
+      '提供包含 plugin.json 的目录或归档',
+    );
+    return {
+      dir: pluginDir,
+      manifest_path: manifestPath,
+      manifest_hash: '',
+      manifest: null,
+      findings,
+    };
+  }
+  if (info.isSymbolicLink() || !info.isDirectory()) {
+    add(
+      findings,
+      CODES.PATH_INVALID,
+      pluginDir,
+      '插件来源必须是真实目录，不得为符号链接',
+      '使用普通目录来源',
+    );
+    return {
+      dir: pluginDir,
+      manifest_path: manifestPath,
+      manifest_hash: '',
+      manifest: null,
+      findings,
+    };
+  }
+  inspectFiles(pluginDir, pluginDir, findings);
+  if (!existsSync(manifestPath)) {
+    add(
+      findings,
+      CODES.FIELD_REQUIRED,
+      manifestPath,
+      '插件来源缺少 plugin.json',
+      '在来源根放置 plugin.json',
+    );
+    return {
+      dir: pluginDir,
+      manifest_path: manifestPath,
+      manifest_hash: '',
+      manifest: null,
+      findings,
+    };
+  }
+  try {
+    const bytes = readFileSync(manifestPath);
+    manifestHash = `sha256:${createHash('sha256').update(bytes).digest('hex')}`;
+    if (bytes.byteLength > PLUGIN_MANIFEST_MAX_BYTES) {
+      add(
+        findings,
+        CODES.FIELD_LENGTH,
+        manifestPath,
+        `manifest 超过 ${PLUGIN_MANIFEST_MAX_BYTES} 字节上限`,
+        '缩小 manifest',
+      );
+    } else {
+      const validation = validatePluginManifest(
+        JSON.parse(bytes.toString('utf8')) as unknown,
+        toolVersion === undefined ? {} : { toolVersion },
+      );
+      findings.push(...validation.findings);
+      manifest = validation.manifest;
+    }
+  } catch (error) {
+    add(
+      findings,
+      CODES.FIELD_TYPE,
+      manifestPath,
+      `plugin.json 无法解析：${error instanceof Error ? error.message : String(error)}`,
+      '提供合法 JSON 对象',
+    );
+  }
+  if (findings.some((item) => item.severity === 'error')) manifest = null;
+  return {
+    dir: pluginDir,
+    manifest_path: manifestPath,
+    manifest_hash: manifestHash,
+    manifest,
+    findings,
+  };
 }
 
 /**

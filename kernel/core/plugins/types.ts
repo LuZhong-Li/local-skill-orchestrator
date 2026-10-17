@@ -96,12 +96,26 @@ export interface PluginRecord {
   [key: string]: unknown;
 }
 
+/** 插件宿主副本账本：独立于插件记录留存，卸载后仍可追踪孤儿副本。 */
+export interface PluginLanding {
+  plugin_id: string;
+  skill_id: string;
+  host_id: string;
+  host_key: string;
+  /** 实际写入路径；工作区外为绝对路径，工作区内也统一记录为绝对路径。 */
+  target_path: string;
+  state: 'active' | 'orphaned';
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PluginIndex {
   schema_version: '1';
   tool_version: string;
   generated_at: string;
   config: Record<string, string>;
   plugins: PluginRecord[];
+  landings: PluginLanding[];
   [key: string]: unknown;
 }
 
