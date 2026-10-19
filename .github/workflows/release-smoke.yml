@@ -72,8 +72,8 @@ jobs:
       - name: 定位便携资产
         shell: pwsh
         run: |
-          $portable = Get-ChildItem assets -Recurse -Filter 'skill-manager-0.4.0-portable.exe' | Select-Object -First 1
-          if ($null -eq $portable) { throw '未找到 0.4.0 便携资产' }
+          $portable = Get-ChildItem assets -Recurse -Filter 'skill-manager-*-portable.exe' | Select-Object -First 1
+          if ($null -eq $portable) { throw '未找到便携资产' }
           "PORTABLE=$($portable.FullName)" >> $env:GITHUB_ENV
 
       - name: 生产 GUI 冒烟（生产 app.asar）

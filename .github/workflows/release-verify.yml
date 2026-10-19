@@ -7,7 +7,7 @@ on:
       tag:
         description: '已发布 tag'
         required: true
-        default: v0.4.0
+        default: v0.5.0
 
 permissions:
   contents: read
@@ -46,7 +46,7 @@ jobs:
           echo "latest=$tag draft=$draft prerelease=$pre"
 
   macos:
-    name: macOS 两架构 dmg 内核闭环
+    name: macOS 两架构 dmg 内核六动作闭环
     runs-on: macos-15
     timeout-minutes: 30
     strategy:
@@ -58,8 +58,11 @@ jobs:
     steps:
       - name: 检出
         uses: actions/checkout@v5
+
+      - name: 安装 Node（取自 .nvmrc）
+        uses: actions/setup-node@v5
         with:
-          ref: ${{ inputs.tag }}
+          node-version-file: .nvmrc
 
       - name: 回下载对应 dmg
         env:
@@ -69,7 +72,7 @@ jobs:
           gh release download "${{ inputs.tag }}" \
             -p "skill-manager-*-${{ matrix.arch }}.dmg" -D assets
 
-      - name: 挂载、内核版本、签名与 init → scan
+      - name: 挂载、内核版本、签名与六动作闭环
         shell: bash
         run: |
           set -euo pipefail
@@ -82,24 +85,21 @@ jobs:
           test -n "$app"
           kernel="$app/Contents/Resources/kernel/skill-manager.exe"
           test -f "$kernel"
+          expected="${{ inputs.tag }}"
+          expected="${expected#v}"
           version="$("$kernel" --version)"
-          test "$version" = "0.4.0"
+          test "$version" = "$expected"
           codesign -dv "$kernel" 2>&1 | tee codesign.log
-          workspace="$(mktemp -d)"
-          "$kernel" init --workspace "$workspace" > /dev/null
-          "$kernel" scan --workspace "$workspace" > /dev/null
-          "$kernel" list --workspace "$workspace" --json > /dev/null
+          node scripts/probe-production-kernel.mjs "$kernel" "$expected"
           echo "MACOS_RELEASE_RESULT=ok arch=${{ matrix.arch }} version=$version kernel=$kernel"
 
   windows:
-    name: Windows Release portable 盘点
+    name: Windows Release portable 六动作与 GUI
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - name: 检出
         uses: actions/checkout@v5
-        with:
-          ref: ${{ inputs.tag }}
 
       - name: 安装 Node（取自 .nvmrc）
         uses: actions/setup-node@v5
@@ -122,7 +122,7 @@ jobs:
       - name: 生产 GUI 冒烟（Release 资产）
         run: node scripts/gui-smoke.mjs --app "$env:PORTABLE"
 
-      - name: 解包 Release portable 并跑内核盘点
+      - name: 解包 Release portable 并跑内核六动作
         shell: pwsh
         run: |
           $seven = 'C:\Program Files\7-Zip\7z.exe'
@@ -143,4 +143,5 @@ jobs:
               Select-Object -First 1
           }
           if ($null -eq $kernel) { throw 'Release portable 中未找到 kernel' }
-          node scripts/probe-production-kernel.mjs $kernel.FullName
+          $expected = "${{ inputs.tag }}".TrimStart('v')
+          node scripts/probe-production-kernel.mjs $kernel.FullName $expected
