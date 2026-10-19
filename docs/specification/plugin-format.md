@@ -26,7 +26,7 @@
 | P-01 | 插件是能力扩展载体，不是被管理 Skill；插件记录不得写入 `skill_index.yaml`。 |
 | P-02 | 插件包只允许 manifest 与静态资源；禁止 JS、原生库、可执行文件与任何代码入口。 |
 | P-03 | 第三方宿主 canonical id 必须以 `x-` 开头，且与内置 7 个宿主 id 不相交。 |
-| P-04 | 内置宿主注册表、`FORM_BY_HOST`、`HostAdapter` 与 `host.*` 配置均为内核资产，插件不得覆盖、伪装或写入。 |
+| P-04 | 内置宿主注册表（含 `adapter_forms` 形态绑定）、`HostAdapter` 与 `host.*` 配置均为内核资产，插件不得覆盖、伪装或写入。 |
 | P-05 | 插件默认 `disabled`；安装/登记不等于启用。 |
 | P-06 | 第三方 manifest 不得声明安全控制字段；出现即整插件拒绝。 |
 | P-07 | 本规范不新增指令；插件能力通过既有指令的 `--kind plugin` 消费面承载。 |
@@ -304,7 +304,7 @@ landings: []
 | 路径 | 模板与插件目录均做 containment 校验；禁止绝对路径、`..`、符号链接与未知占位符 |
 | 来源 | 安装来源只由 CLI 参数决定；manifest `source` 仅审计，不触发网络 |
 | 资源 | manifest 256 KiB、8 个 profile、4 个 roots/profile；超出整插件拒绝 |
-| 隔离 | 插件失败只影响自身；内置注册表、`FORM_BY_HOST` 与其它插件不受影响 |
+| 隔离 | 插件失败只影响自身；内置注册表、宿主形态绑定与其它插件不受影响 |
 
 ---
 
@@ -404,4 +404,5 @@ landings: []
 |---|---|---|
 | 1 | 2026-10-17 | 建立第六份契约规范：定义声明式 host-profile 插件 manifest、独立 `plugin_index.yaml`、canonical `x-` 命名空间、生命周期、安全约束与问题码；新增 `schemas/plugin_manifest.schema.json` 与 `schemas/plugin_index.schema.json` |
 | 2 | 2026-10-18 | T1 补文：新增 `landings` 插件宿主副本账本（4.6 节）；明确 global 模板相对显式宿主根展开、插件停用/卸载后的孤儿副本保留与重新落位口径 |
+| 3 | 2026-10-19 | P1-a 对齐：内置宿主的形态绑定收敛为注册表 `adapter_forms`，删除 `FORM_BY_HOST` 第二定义；P-04 与隔离条款改指单一来源，第三方插件隔离边界不变 |
 

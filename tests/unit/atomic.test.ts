@@ -1,14 +1,14 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { atomicWriteFile } from '../../kernel/store/atomic/index.ts';
 import { KernelError } from '../../kernel/store/errors.ts';
 import { CODES } from '../../kernel/store/contract.ts';
 
 function tempDir(): string {
-  return mkdtempSync(join(tmpdir(), 'sm-atomic-'));
+  return makeTempDir('sm-atomic-');
 }
 
 test('S-03 正常写入产出目标文件', () => {

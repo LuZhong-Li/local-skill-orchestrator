@@ -1,5 +1,5 @@
 /**
- * K-13 宿主注册表的校验：宿主注册表规范第 5 章的 HR-01 至 HR-13。
+ * K-13 宿主注册表的校验：宿主注册表规范第 5 章的 HR-01 至 HR-15。
  *
  * 只读：不写入任何文件；输入为未知形态，先做结构判定再判语义，
  * 因此既能校验随内核交付的数据，也能用于反例测试与外部草稿校验。
@@ -23,6 +23,7 @@ import {
   type HostEntry,
   type HostRegistry,
 } from './types.ts';
+import { checkNoUnknownFields, validateRootModel } from './root-model-validate.ts';
 
 const SOURCE = 'host-registry';
 
@@ -86,37 +87,6 @@ function checkIdentity(entry: Record<string, unknown>, index: number, out: Findi
 }
 
 /** HR-03：注册表由内核维护，未登记字段判为不合规 */
-function checkNoUnknownFields(
-  entry: Record<string, unknown>,
-  target: string,
-  out: Finding[],
-): void {
-  const known = new Set([
-    'host_id',
-    'display_name',
-    'adapter_state',
-    'support_state',
-    'evidence',
-    'classification',
-    'roots',
-    'capability',
-    'render_policy',
-    'adapter_ref',
-    'open_items',
-  ]);
-  const unknown = Object.keys(entry).filter((key) => !known.has(key));
-  if (unknown.length > 0) {
-    out.push(
-      finding(CODES.FIELD_INVALID_VALUE, {
-        source: SOURCE,
-        target,
-        message: `出现未登记的字段：${unknown.join('、')}`,
-        remedy: '注册表由内核维护，不支持扩展字段；新增字段须先更新宿主注册表规范',
-      }),
-    );
-  }
-}
-
 /** HR-04：状态与证据绑定 */
 function checkStateAndEvidence(
   entry: Record<string, unknown>,
@@ -670,7 +640,7 @@ function checkExternalConsumers(
 }
 
 /**
- * 全量校验：HR-01 至 HR-13。
+ * 全量校验：HR-01 至 HR-15。
  *
  * HR-10（可落位性）与 HR-12（版本兼容）不单独产出问题条目：
  *   前者是查询语义（planned 宿主不进可落位集合），后者按「拒绝加载」处理（HR-01）。
@@ -707,6 +677,7 @@ export function validateHostRegistry(registry: unknown): Finding[] {
     const id = typeof entry['host_id'] === 'string' ? entry['host_id'] : `hosts[${String(index)}]`;
     checkIdentity(entry, index, out);
     checkNoUnknownFields(entry, id, out);
+    validateRootModel(entry, id, consumerIds, out);
     if (isNonEmptyString(entry['host_id'])) {
       if (seen.has(entry['host_id'])) {
         out.push(

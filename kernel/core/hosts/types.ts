@@ -2,11 +2,16 @@
  * K-13 宿主注册表的数据类型。
  *
  * 依据（第五份契约规范）：docs/specification/host-registry.spec.md
- *   第 3 章字段定义、第 4 章支持状态与证据等级、第 5 章校验规则 HR-01 至 HR-13。
+ *   第 3 章字段定义、第 4 章支持状态与证据等级、第 5 章校验规则 HR-01 至 HR-15。
  *
  * 取值域以联合类型表达，使「新增宿主 = 注册表条目 + 适配器」在类型层面成立（M5-R7）：
  * 新增宿主只扩充数据，不新增分支逻辑。
  */
+import type {
+  HostAdapterForm,
+  HostLandingRootDefinition,
+  InventoryRootDefinition,
+} from '@skill-manager/contract';
 
 /** 规范 3.1：注册表格式版本，当前为 1（HR-01） */
 export const REGISTRY_VERSION = '1';
@@ -105,6 +110,12 @@ export interface HostEntry {
   evidence: HostEvidence;
   classification: HostClassification;
   roots?: HostRoot[];
+  /** 适配器形态；单一来源，适配器 selector 不再维护宿主→形态映射 */
+  adapter_forms?: HostAdapterForm[];
+  /** 现有分发默认根；与盘点候选根分离，改变这里才会改变分发行为 */
+  landing_roots?: HostLandingRootDefinition[];
+  /** M4c 盘点候选根；不参与分发 */
+  inventory_roots?: InventoryRootDefinition[];
   capability: HostCapability;
   render_policy: HostRenderPolicy;
   adapter_ref?: string;

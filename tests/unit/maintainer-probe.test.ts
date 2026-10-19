@@ -1,8 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   findNeedleInTree,
@@ -18,7 +18,7 @@ function fixture(
   options: { withNeedle: boolean } | { copyNeedleElsewhere: boolean },
   name: string,
 ) {
-  const dir = mkdtempSync(join(tmpdir(), `sm-probe-${name}-`));
+  const dir = makeTempDir(`sm-probe-${name}-`);
   mkdirSync(join(dir, 'usr', 'share', 'applications'), { recursive: true });
   const withNeedle = 'withNeedle' in options ? options.withNeedle : true;
   writeFileSync(

@@ -1,8 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as tar from 'tar';
 import { installSkill, updateSkill } from '../../kernel/core/lifecycle/index.ts';
@@ -15,7 +15,7 @@ const NOW = '2026-10-15T00:00:00Z';
 const LATER = '2026-10-15T05:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-source-ws-'));
+  const root = makeTempDir('sm-source-ws-');
   ensureWorkspaceDirs(layoutOf(root));
   return root;
 }
@@ -63,7 +63,7 @@ function install(root: string, source: string) {
 
 /** 造一个本地 git 仓库；返回仓库路径 */
 function gitRepo(id: string, content: { location: string }): string {
-  const repo = mkdtempSync(join(tmpdir(), 'sm-source-repo-'));
+  const repo = makeTempDir('sm-source-repo-');
   skillContent(repo, id, { type: 'git', location: content.location });
   const git = (...args: string[]) =>
     spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', shell: false });
@@ -224,10 +224,10 @@ test('N-05：从本地 git 仓库刷新，仓库提交变更后内容随之更�
 test('N-05：从本地归档安装并刷新（tar.gz 与 zip 各一条路径）', async () => {
   for (const kind of ['tar.gz', 'zip'] as const) {
     const root = workspace();
-    const stage = mkdtempSync(join(tmpdir(), 'sm-source-stage-'));
+    const stage = makeTempDir('sm-source-stage-');
     const id = `archived-${kind.replace('.', '')}`;
     const archive = join(
-      mkdtempSync(join(tmpdir(), 'sm-source-arch-')),
+      makeTempDir('sm-source-arch-'),
       kind === 'zip' ? 'skill.zip' : 'skill.tar.gz',
     );
     // 先写出内容，把来源位置指回归档本身，再打包
@@ -266,12 +266,12 @@ test('N-05：从本地归档安装并刷新（tar.gz 与 zip 各一条路径）'
 
 test('N-05 安全：含上级目录跳转的归档被拒绝，且不在工作区外产生文件', async () => {
   const root = workspace();
-  const stage = mkdtempSync(join(tmpdir(), 'sm-source-evil-'));
+  const stage = makeTempDir('sm-source-evil-');
   skillContent(stage, 'evil', { type: 'archive', location: '' });
   // 手工构造含 ../ 条目的 tar：把 payload 写成 ../escaped.txt
   const payload = join(stage, 'payload.txt');
   writeFileSync(payload, 'escaped');
-  const evil = join(mkdtempSync(join(tmpdir(), 'sm-source-evilarch-')), 'evil.tar');
+  const evil = join(makeTempDir('sm-source-evilarch-'), 'evil.tar');
   await tar.c({ file: evil, cwd: stage, preservePaths: true }, ['./payload.txt']);
   const escapedPath = join(stage, '..', 'escaped.txt');
   rmSync(escapedPath, { force: true });
@@ -289,9 +289,9 @@ test('N-05 安全：含上级目录跳转的归档被拒绝，且不在工作区
 
 test('N-05 安全：zip 归档含绝对路径条目时被拒绝', async () => {
   const root = workspace();
-  const stage = mkdtempSync(join(tmpdir(), 'sm-source-abs-'));
+  const stage = makeTempDir('sm-source-abs-');
   skillContent(stage, 'abs', { type: 'archive', location: '' });
-  const archive = join(mkdtempSync(join(tmpdir(), 'sm-source-absarch-')), 'abs.zip');
+  const archive = join(makeTempDir('sm-source-absarch-'), 'abs.zip');
   writeZip(archive, [
     { name: 'skill_meta.yaml', data: readFileSync(join(stage, 'skill_meta.yaml')) },
     { name: 'C:/escaped.md', data: Buffer.from('escaped') },
@@ -311,7 +311,7 @@ test('N-05 安全：git 不可用时给出外部命令缺失错误与安装引�
   const repo = gitRepo('needs-git', { location: '' });
   skillContent(repo, 'needs-git', { type: 'git', location: repo });
   const originalPath = process.env['PATH'];
-  const emptyPath = mkdtempSync(join(tmpdir(), 'sm-source-nopath-'));
+  const emptyPath = makeTempDir('sm-source-nopath-');
   process.env['PATH'] = emptyPath;
   try {
     const outcome = await install(root, repo);
@@ -325,10 +325,10 @@ test('N-05 安全：git 不可用时给出外部命令缺失错误与安装引�
 
 test('N-05：归档内容根缺少元文件时给出获取失败错误', async () => {
   const root = workspace();
-  const stage = mkdtempSync(join(tmpdir(), 'sm-source-nometa-'));
+  const stage = makeTempDir('sm-source-nometa-');
   mkdirSync(join(stage, 'inner'), { recursive: true });
   writeFileSync(join(stage, 'inner', 'SKILL.md'), '# nested');
-  const archive = join(mkdtempSync(join(tmpdir(), 'sm-source-nometaarch-')), 'nested.tar.gz');
+  const archive = join(makeTempDir('sm-source-nometaarch-'), 'nested.tar.gz');
   await tar.c({ gzip: true, file: archive, cwd: stage }, ['.']);
   const outcome = await install(root, archive);
   assert.equal(outcome.findings[0]?.code, CODES.SRC_FETCH_FAILED);

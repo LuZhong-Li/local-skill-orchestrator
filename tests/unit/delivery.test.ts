@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { installSkill, uninstallSkill, updateSkill } from '../../kernel/core/lifecycle/index.ts';
 import { createInitialIndex } from '../../kernel/core/index/index.ts';
@@ -13,14 +13,14 @@ const NOW = '2026-10-15T00:00:00Z';
 const LATER = '2026-10-15T04:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-delivery-'));
+  const root = makeTempDir('sm-delivery-');
   ensureWorkspaceDirs(layoutOf(root));
   return root;
 }
 
 /** 造一份带 targets 声明的来源目录；targets 由调用方给出，便于覆盖各种落位场景 */
 function sourceSkill(id: string, targets: string[], files: Record<string, string> = {}): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-delivery-src-'));
+  const dir = makeTempDir('sm-delivery-src-');
   writeFileSync(join(dir, 'SKILL.md'), '# skill');
   for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, name), content);
   writeFileSync(
@@ -94,7 +94,7 @@ test('N-02：--scope 过滤目标，缺省时全部分发', async () => {
 
 test('N-03：提供 file_map 时只落位映射表列出的文件', async () => {
   const root = workspace();
-  const source = mkdtempSync(join(tmpdir(), 'sm-delivery-map-'));
+  const source = makeTempDir('sm-delivery-map-');
   writeFileSync(join(source, 'SKILL.md'), '# skill');
   writeFileSync(join(source, 'extra.md'), '# extra');
   writeFileSync(
@@ -141,7 +141,7 @@ test('N-03：提供 file_map 时只落位映射表列出的文件', async () => 
 
 test('N-03：缺省 file_map 时整目录复制', async () => {
   const root = workspace();
-  const source = mkdtempSync(join(tmpdir(), 'sm-delivery-plain-'));
+  const source = makeTempDir('sm-delivery-plain-');
   writeFileSync(join(source, 'SKILL.md'), '# skill');
   writeFileSync(join(source, 'reference.md'), '# ref');
   writeFileSync(

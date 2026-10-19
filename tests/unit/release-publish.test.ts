@@ -1,8 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   CHECKSUM_FILE,
@@ -17,7 +17,7 @@ const VERSION = '0.1.0';
 
 /** 造一个「打包产物目录」：5 个交付物 + 可选的额外文件 */
 function fixture(extra: string[] = []) {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-release-'));
+  const dir = makeTempDir('sm-release-');
   for (const name of [...expectedAssets(VERSION), ...extra]) {
     writeFileSync(join(dir, name), `content:${name}`);
   }

@@ -5,11 +5,7 @@
  * 也不把来源中的内嵌凭据传给子进程。执行器可注入，单测不依赖真实网络。
  */
 import { spawn } from 'node:child_process';
-import {
-  SOURCE_ERROR_CODES,
-  UPDATE_CHECK_MAX_OUTPUT_BYTES,
-  UPDATE_CHECK_TIMEOUT_MS,
-} from './constants.ts';
+import { CODES, SOURCE_MAX_OUTPUT_BYTES, SOURCE_TIMEOUT_MS } from '@skill-manager/contract';
 import { isNewerFormalVersion, normalizeFormalVersion, type FormalVersion } from './semver.ts';
 
 export interface RemoteTag {
@@ -119,7 +115,7 @@ export function probeFailureOf(result: CommandResult, url: string): ProbeOutcome
   if (result.tooLarge === true) {
     return {
       ok: false,
-      code: SOURCE_ERROR_CODES.tooLarge,
+      code: CODES.SRC_TOO_LARGE,
       message: `git ls-remote 输出超过 128 MiB：${url}`,
       remedy: '该仓库的标签数量异常，请改用更小的镜像或联系来源维护者',
     };
@@ -127,7 +123,7 @@ export function probeFailureOf(result: CommandResult, url: string): ProbeOutcome
   if (result.timedOut) {
     return {
       ok: false,
-      code: SOURCE_ERROR_CODES.timeout,
+      code: CODES.SRC_TIMEOUT,
       message: `git ls-remote 超时（上限 60 秒）：${url}`,
       remedy: '请检查网络连通性后重试；该失败不阻断其他条目的检查',
     };
@@ -135,7 +131,7 @@ export function probeFailureOf(result: CommandResult, url: string): ProbeOutcome
   if (result.errorCode === 'ENOENT') {
     return {
       ok: false,
-      code: SOURCE_ERROR_CODES.commandUnavailable,
+      code: CODES.SRC_COMMAND_UNAVAILABLE,
       message: '未找到 git 命令',
       remedy: '请先安装 git 并确保它在 PATH 中，或改用本地来源',
     };
@@ -143,14 +139,14 @@ export function probeFailureOf(result: CommandResult, url: string): ProbeOutcome
   if (authFailure(detail) || authFailure(url)) {
     return {
       ok: false,
-      code: SOURCE_ERROR_CODES.authRequired,
+      code: CODES.SRC_AUTH_REQUIRED,
       message: `远端需要认证或已限流：${detail || url}`,
       remedy: '请稍后重试；检查阶段只访问公开来源，不会提示或保存凭据',
     };
   }
   return {
     ok: false,
-    code: SOURCE_ERROR_CODES.remoteFailed,
+    code: CODES.SRC_DOWNLOAD_FAILED,
     message: `git ls-remote 失败：${detail || `退出码 ${String(result.code)}`}`,
     remedy: '请确认来源地址可达、引用存在且网络可用',
   };
@@ -181,7 +177,7 @@ export const defaultCommandRunner: CommandRunner = (command, args, env) =>
       if (tooLarge) return;
       if (target === 'stdout') stdout += chunk;
       else stderr += chunk;
-      if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > UPDATE_CHECK_MAX_OUTPUT_BYTES) {
+      if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) > SOURCE_MAX_OUTPUT_BYTES) {
         tooLarge = true;
         child.kill('SIGKILL');
       }
@@ -209,7 +205,7 @@ export const defaultCommandRunner: CommandRunner = (command, args, env) =>
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGKILL');
-    }, UPDATE_CHECK_TIMEOUT_MS);
+    }, SOURCE_TIMEOUT_MS);
   });
 
 /** 执行只读探测；含内嵌凭据的地址在启动子进程前拒绝。 */
@@ -220,7 +216,7 @@ export async function runGitLsRemote(
   if (!isAllowedProtocol(url)) {
     return {
       ok: false,
-      code: SOURCE_ERROR_CODES.protocolRejected,
+      code: CODES.SRC_PROTOCOL_REJECTED,
       message: `来源协议不被接受：${url}`,
       remedy: '检查阶段只允许 https、git，以及指向本机回环地址的 http',
     };
@@ -228,7 +224,7 @@ export async function runGitLsRemote(
   if (hasEmbeddedCredentials(url)) {
     return {
       ok: false,
-      code: SOURCE_ERROR_CODES.authRequired,
+      code: CODES.SRC_AUTH_REQUIRED,
       message: '来源地址内含凭据，检查已拒绝发起请求',
       remedy: '请移除 URL 中的用户名或口令；检查阶段不会提示、保存或发送凭据',
     };

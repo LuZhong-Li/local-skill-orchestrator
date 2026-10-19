@@ -1,0 +1,1043 @@
+{
+  "schema_version": "1",
+  "generated_at": "2026-10-19T02:09:36.731Z",
+  "complexity": {
+    "threshold": 10,
+    "entries": [
+      {
+        "id": "gui/main/plugins/hosts.ts#partitionPluginHosts#5dc9fdfd0761",
+        "file": "gui/main/plugins/hosts.ts",
+        "function": "partitionPluginHosts",
+        "scope": "partitionPluginHosts",
+        "signature": "export function partitionPluginHosts(data: unknown): HostPartition {",
+        "complexity": 33,
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "gui/main/update-check/check.ts#checkUpdates#3ede95683072",
+        "file": "gui/main/update-check/check.ts",
+        "function": "checkUpdates",
+        "scope": "checkUpdates",
+        "signature": "export async function checkUpdates(options: CheckUpdatesOptions): Promise<UpdateCheckReport> {",
+        "complexity": 15,
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "gui/main/update-check/classify.ts#classifyInspectItem#005d5851650c",
+        "file": "gui/main/update-check/classify.ts",
+        "function": "classifyInspectItem",
+        "scope": "classifyInspectItem",
+        "signature": "export function classifyInspectItem(",
+        "complexity": 19,
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "gui/main/update-check/ls-remote.ts#isAllowedProtocol#c2e4874f6882",
+        "file": "gui/main/update-check/ls-remote.ts",
+        "function": "isAllowedProtocol",
+        "scope": "isAllowedProtocol",
+        "signature": "function isAllowedProtocol(location: string): boolean {",
+        "complexity": 13,
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "gui/main/update-check/ls-remote.ts#parseLsRemote#320133984d5b",
+        "file": "gui/main/update-check/ls-remote.ts",
+        "function": "parseLsRemote",
+        "scope": "parseLsRemote",
+        "signature": "export function parseLsRemote(text: string): RemoteTag[] {",
+        "complexity": 12,
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "gui/main/update-check/ls-remote.ts#probeFailureOf#50987b369a35",
+        "file": "gui/main/update-check/ls-remote.ts",
+        "function": "probeFailureOf",
+        "scope": "probeFailureOf",
+        "signature": "export function probeFailureOf(result: CommandResult, url: string): ProbeOutcome {",
+        "complexity": 11,
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "gui/main/updates/coordinator.ts#<anonymous>#2adba48d68dd",
+        "file": "gui/main/updates/coordinator.ts",
+        "function": "<anonymous>",
+        "scope": "task",
+        "signature": "private async performCheck(reason: UpdateCheckReason): Promise<UpdateCheckReport> {",
+        "complexity": 13,
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "gui/renderer/src/App.vue#loadPlugins#3d3c70865449",
+        "file": "gui/renderer/src/App.vue",
+        "function": "loadPlugins",
+        "scope": "loadPlugins",
+        "signature": "async function loadPlugins(): Promise<void> {",
+        "complexity": 12,
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/adapters/land.ts#landPlan#6f038e8879eb",
+        "file": "kernel/core/adapters/land.ts",
+        "function": "landPlan",
+        "scope": "landPlan",
+        "signature": "export function landPlan(request: LandRequest): LandResult {",
+        "complexity": 15,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/adapters/roots.ts#resolveHostRoot#45fe687dc954",
+        "file": "kernel/core/adapters/roots.ts",
+        "function": "resolveHostRoot",
+        "scope": "resolveHostRoot",
+        "signature": "export function resolveHostRoot(input: {",
+        "complexity": 24,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/adapters/rules.ts#renderRuleFile#be73a79c7a25",
+        "file": "kernel/core/adapters/rules.ts",
+        "function": "renderRuleFile",
+        "scope": "renderRuleFile",
+        "signature": "export function renderRuleFile(hostId: string, source: RenderSource): RenderOutcome {",
+        "complexity": 11,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/backup/index.ts#<anonymous>#d6834cc35bfd",
+        "file": "kernel/core/backup/index.ts",
+        "function": "<anonymous>",
+        "scope": "seen",
+        "signature": "skills.forEach((item, position) => {",
+        "complexity": 21,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/backup/index.ts#exportIndex#7d8074d2999e",
+        "file": "kernel/core/backup/index.ts",
+        "function": "exportIndex",
+        "scope": "exportIndex",
+        "signature": "export function exportIndex(input: ExportInput): ExportOutcome {",
+        "complexity": 13,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/backup/index.ts#importIndex#61173484021d",
+        "file": "kernel/core/backup/index.ts",
+        "function": "importIndex",
+        "scope": "importIndex",
+        "signature": "export function importIndex(input: ImportInput): ImportOutcome {",
+        "complexity": 18,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/backup/index.ts#toImportedRecord#5356479c9245",
+        "file": "kernel/core/backup/index.ts",
+        "function": "toImportedRecord",
+        "scope": "toImportedRecord",
+        "signature": "function toImportedRecord(",
+        "complexity": 16,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/dependency/runtime.ts#probeRuntime#61448743988a",
+        "file": "kernel/core/dependency/runtime.ts",
+        "function": "probeRuntime",
+        "scope": "probeRuntime",
+        "signature": "export async function probeRuntime(",
+        "complexity": 15,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/discovery/index.ts#buildRecord#65ea51bb5fa3",
+        "file": "kernel/core/discovery/index.ts",
+        "function": "buildRecord",
+        "scope": "buildRecord",
+        "signature": "function buildRecord(",
+        "complexity": 47,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/discovery/index.ts#collectCandidates#0180b96a2772",
+        "file": "kernel/core/discovery/index.ts",
+        "function": "collectCandidates",
+        "scope": "collectCandidates",
+        "signature": "function collectCandidates(",
+        "complexity": 11,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/discovery/index.ts#scanWorkspace#354681fd2cd3",
+        "file": "kernel/core/discovery/index.ts",
+        "function": "scanWorkspace",
+        "scope": "scanWorkspace",
+        "signature": "export function scanWorkspace(input: ScanInput): ScanOutcome {",
+        "complexity": 25,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/hosts/index.ts#<anonymous>#7bb04482a343",
+        "file": "kernel/core/hosts/index.ts",
+        "function": "<anonymous>",
+        "scope": "registry",
+        "signature": "return registry.hosts.filter((entry) => {",
+        "complexity": 15,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/hosts/validate.ts#checkClassificationAndRoots#02caa77babd6",
+        "file": "kernel/core/hosts/validate.ts",
+        "function": "checkClassificationAndRoots",
+        "scope": "checkClassificationAndRoots",
+        "signature": "function checkClassificationAndRoots(",
+        "complexity": 26,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/hosts/validate.ts#checkExternalConsumers#5e11d971b660",
+        "file": "kernel/core/hosts/validate.ts",
+        "function": "checkExternalConsumers",
+        "scope": "checkExternalConsumers",
+        "signature": "function checkExternalConsumers(",
+        "complexity": 22,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/hosts/validate.ts#checkPolicy#d2bf5f5bc3c1",
+        "file": "kernel/core/hosts/validate.ts",
+        "function": "checkPolicy",
+        "scope": "checkPolicy",
+        "signature": "function checkPolicy(entry: Record<string, unknown>, target: string, out: Finding[]): void {",
+        "complexity": 27,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/hosts/validate.ts#checkSecurityControlFields#cb2a9732a5bd",
+        "file": "kernel/core/hosts/validate.ts",
+        "function": "checkSecurityControlFields",
+        "scope": "checkSecurityControlFields",
+        "signature": "function checkSecurityControlFields(",
+        "complexity": 13,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/hosts/validate.ts#validateHostRegistry#5175d3c5ad8b",
+        "file": "kernel/core/hosts/validate.ts",
+        "function": "validateHostRegistry",
+        "scope": "validateHostRegistry",
+        "signature": "export function validateHostRegistry(registry: unknown): Finding[] {",
+        "complexity": 16,
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "id": "kernel/core/index/index.ts#loadIndex#d3826224cf65",
+        "file": "kernel/core/index/index.ts",
+        "function": "loadIndex",
+        "scope": "loadIndex",
+        "signature": "export function loadIndex(indexFile: string): LoadedIndex {",
+        "complexity": 12,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/index/index.ts#setConfig#70cb41fcb1f4",
+        "file": "kernel/core/index/index.ts",
+        "function": "setConfig",
+        "scope": "setConfig",
+        "signature": "export function setConfig(input: {",
+        "complexity": 24,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/index/query.ts#inspectSkill#de0840ad7922",
+        "file": "kernel/core/index/query.ts",
+        "function": "inspectSkill",
+        "scope": "inspectSkill",
+        "signature": "export function inspectSkill(input: {",
+        "complexity": 11,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/integrity/index.ts#collectHashEntries#d047836fea68",
+        "file": "kernel/core/integrity/index.ts",
+        "function": "collectHashEntries",
+        "scope": "collectHashEntries",
+        "signature": "export function collectHashEntries(",
+        "complexity": 12,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/inventory/discover.ts#walkRuleFiles#be32dad2c8e5",
+        "file": "kernel/core/inventory/discover.ts",
+        "function": "walkRuleFiles",
+        "scope": "walkRuleFiles",
+        "signature": "function walkRuleFiles(",
+        "complexity": 12,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#disableSkill#39a64f21de27",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "disableSkill",
+        "scope": "disableSkill",
+        "signature": "export function disableSkill(input: ToggleInput): LifecycleOutcome {",
+        "complexity": 20,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#enableSkill#ec252eb6e69f",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "enableSkill",
+        "scope": "enableSkill",
+        "signature": "export function enableSkill(input: ToggleInput): LifecycleOutcome {",
+        "complexity": 27,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#installFromSource#06d43e4e084f",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "installFromSource",
+        "scope": "installFromSource",
+        "signature": "function installFromSource(input: InstallInput, sourceDir: string): LifecycleOutcome {",
+        "complexity": 34,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#projectRecord#846f184432f0",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "projectRecord",
+        "scope": "projectRecord",
+        "signature": "function projectRecord(",
+        "complexity": 23,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#rebuildRecord#4378202204e3",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "rebuildRecord",
+        "scope": "rebuildRecord",
+        "signature": "function rebuildRecord(",
+        "complexity": 11,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#restoreSkill#102e5f53e21b",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "restoreSkill",
+        "scope": "restoreSkill",
+        "signature": "export function restoreSkill(input: RestoreInput): LifecycleOutcome {",
+        "complexity": 37,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#targetsOfRecord#7addcf6ad871",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "targetsOfRecord",
+        "scope": "targetsOfRecord",
+        "signature": "function targetsOfRecord(input: {",
+        "complexity": 12,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#toIndexRecord#9055342bb47e",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "toIndexRecord",
+        "scope": "toIndexRecord",
+        "signature": "function toIndexRecord(",
+        "complexity": 12,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#uninstallSkill#be468555b4b8",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "uninstallSkill",
+        "scope": "uninstallSkill",
+        "signature": "export function uninstallSkill(input: UninstallInput): LifecycleOutcome {",
+        "complexity": 12,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#updateFromSource#de6f5191d015",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "updateFromSource",
+        "scope": "updateFromSource",
+        "signature": "function updateFromSource(input: UpdateInput, fetchedDir: string | null): LifecycleOutcome {",
+        "complexity": 21,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/index.ts#updateSkill#c55da023a0fb",
+        "file": "kernel/core/lifecycle/index.ts",
+        "function": "updateSkill",
+        "scope": "updateSkill",
+        "signature": "export async function updateSkill(input: UpdateInput): Promise<LifecycleOutcome> {",
+        "complexity": 13,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/source.ts#acquireFromPath#092e4357ea48",
+        "file": "kernel/core/lifecycle/source.ts",
+        "function": "acquireFromPath",
+        "scope": "acquireFromPath",
+        "signature": "export async function acquireFromPath(",
+        "complexity": 11,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/source.ts#acquireSource#d0c00b611bf2",
+        "file": "kernel/core/lifecycle/source.ts",
+        "function": "acquireSource",
+        "scope": "acquireSource",
+        "signature": "export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {",
+        "complexity": 16,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/source.ts#assertProtocolAllowed#5458c9a56159",
+        "file": "kernel/core/lifecycle/source.ts",
+        "function": "assertProtocolAllowed",
+        "scope": "assertProtocolAllowed",
+        "signature": "function assertProtocolAllowed(location: string): void {",
+        "complexity": 14,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/source.ts#fetchRemoteFile#664f7aa044ca",
+        "file": "kernel/core/lifecycle/source.ts",
+        "function": "fetchRemoteFile",
+        "scope": "fetchRemoteFile",
+        "signature": "async function fetchRemoteFile(url: string, destFile: string): Promise<void> {",
+        "complexity": 18,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/source.ts#normalizeSource#fdef23216cd1",
+        "file": "kernel/core/lifecycle/source.ts",
+        "function": "normalizeSource",
+        "scope": "normalizeSource",
+        "signature": "export function normalizeSource(",
+        "complexity": 12,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/metadata/validate.ts#validateDependencies#35be1af02f29",
+        "file": "kernel/core/metadata/validate.ts",
+        "function": "validateDependencies",
+        "scope": "validateDependencies",
+        "signature": "export function validateDependencies(metas: SkillMeta[], availability: AvailabilityMap): Finding[] {",
+        "complexity": 18,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/metadata/validate.ts#validateSource#c02cdd577fbd",
+        "file": "kernel/core/metadata/validate.ts",
+        "function": "validateSource",
+        "scope": "validateSource",
+        "signature": "export function validateSource(source: unknown, ctx: MetaContext): Finding[] {",
+        "complexity": 11,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/metadata/validate.ts#validateTargets#ec8d15d463dc",
+        "file": "kernel/core/metadata/validate.ts",
+        "function": "validateTargets",
+        "scope": "validateTargets",
+        "signature": "export function validateTargets(targets: unknown, ctx: MetaContext): Finding[] {",
+        "complexity": 15,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/plugins/catalog.ts#buildHostCatalog#af3e4f023154",
+        "file": "kernel/core/plugins/catalog.ts",
+        "function": "buildHostCatalog",
+        "scope": "buildHostCatalog",
+        "signature": "export function buildHostCatalog(input: {",
+        "complexity": 16,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/plugins/discovery.ts#discoverPluginPackages#301be75ce798",
+        "file": "kernel/core/plugins/discovery.ts",
+        "function": "discoverPluginPackages",
+        "scope": "discoverPluginPackages",
+        "signature": "export function discoverPluginPackages(pluginsDir: string): DiscoveryOutcome {",
+        "complexity": 24,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/plugins/discovery.ts#inspectPluginPackage#212f0dbce37c",
+        "file": "kernel/core/plugins/discovery.ts",
+        "function": "inspectPluginPackage",
+        "scope": "inspectPluginPackage",
+        "signature": "export function inspectPluginPackage(",
+        "complexity": 11,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/plugins/host.ts#buildPluginHostPlan#4c31f10496e2",
+        "file": "kernel/core/plugins/host.ts",
+        "function": "buildPluginHostPlan",
+        "scope": "buildPluginHostPlan",
+        "signature": "export function buildPluginHostPlan(input: {",
+        "complexity": 24,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/plugins/host.ts#readManifestForRecord#4bca8eada1a4",
+        "file": "kernel/core/plugins/host.ts",
+        "function": "readManifestForRecord",
+        "scope": "readManifestForRecord",
+        "signature": "function readManifestForRecord(",
+        "complexity": 11,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/plugins/manifest.ts#validateHost#e5c7804c8f38",
+        "file": "kernel/core/plugins/manifest.ts",
+        "function": "validateHost",
+        "scope": "validateHost",
+        "signature": "function validateHost(",
+        "complexity": 39,
+        "owner": "plugins-manifest",
+        "clearedBy": "P1-d"
+      },
+      {
+        "id": "kernel/core/plugins/manifest.ts#validatePluginManifest#67a2914e56b1",
+        "file": "kernel/core/plugins/manifest.ts",
+        "function": "validatePluginManifest",
+        "scope": "validatePluginManifest",
+        "signature": "export function validatePluginManifest(",
+        "complexity": 52,
+        "owner": "plugins-manifest",
+        "clearedBy": "P1-d"
+      },
+      {
+        "id": "kernel/core/plugins/manifest.ts#validateRoot#1d5ffeeb6407",
+        "file": "kernel/core/plugins/manifest.ts",
+        "function": "validateRoot",
+        "scope": "validateRoot",
+        "signature": "function validateRoot(",
+        "complexity": 30,
+        "owner": "plugins-manifest",
+        "clearedBy": "P1-d"
+      },
+      {
+        "id": "kernel/core/render/index.ts#renderWithPolicy#33a8dc8ca52e",
+        "file": "kernel/core/render/index.ts",
+        "function": "renderWithPolicy",
+        "scope": "renderWithPolicy",
+        "signature": "export function renderWithPolicy(",
+        "complexity": 12,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/validation/index.ts#validateConfig#bc94f4bc0b04",
+        "file": "kernel/core/validation/index.ts",
+        "function": "validateConfig",
+        "scope": "validateConfig",
+        "signature": "function validateConfig(layout: WorkspaceLayout, index: SkillIndex): Finding[] {",
+        "complexity": 18,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/validation/index.ts#validateRecord#d2804440b712",
+        "file": "kernel/core/validation/index.ts",
+        "function": "validateRecord",
+        "scope": "validateRecord",
+        "signature": "function validateRecord(",
+        "complexity": 19,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/validation/index.ts#validateWorkspace#567b893d8102",
+        "file": "kernel/core/validation/index.ts",
+        "function": "validateWorkspace",
+        "scope": "validateWorkspace",
+        "signature": "export function validateWorkspace(input: ValidateInput): ValidateOutcome {",
+        "complexity": 19,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/dispatch/parsers/index.ts#parseArgs#8c9c1f5ace94",
+        "file": "kernel/dispatch/parsers/index.ts",
+        "function": "parseArgs",
+        "scope": "parseArgs",
+        "signature": "export function parseArgs(argv: string[]): ParseOutcome {",
+        "complexity": 20,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#<anonymous>#3d8019de7d80",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "<anonymous>",
+        "scope": "result",
+        "signature": "const restoreHandler: CommandHandler = async ({ args, now, interaction }) => {",
+        "complexity": 19,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#<anonymous>#837462e01208",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "<anonymous>",
+        "scope": "toggleHandler",
+        "signature": "return async ({ args, now, interaction }) => {",
+        "complexity": 15,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#<anonymous>#83ef7643ef84",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "<anonymous>",
+        "scope": "outcome",
+        "signature": "const updateHandler: CommandHandler = async ({ args, now, interaction }) => {",
+        "complexity": 19,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#<anonymous>#aaea9cd1c0ed",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "<anonymous>",
+        "scope": "pluginLoaded",
+        "signature": "const depsHandler: CommandHandler = async ({ args }) => {",
+        "complexity": 11,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#<anonymous>#b5be101b40c3",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "<anonymous>",
+        "scope": "host",
+        "signature": "const importHandler: CommandHandler = async ({ args, now, interaction }) => {",
+        "complexity": 13,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#<anonymous>#cdd055beb7d5",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "<anonymous>",
+        "scope": "scope",
+        "signature": "return await withLock(layout.indexFile, async () => {",
+        "complexity": 20,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#<anonymous>#e8e93f8de1d2",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "<anonymous>",
+        "scope": "planOf",
+        "signature": "const installHandler: CommandHandler = async ({ args, now, interaction }) => {",
+        "complexity": 11,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#configSetPluginCommand#32ff77edf98f",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "configSetPluginCommand",
+        "scope": "configSetPluginCommand",
+        "signature": "function configSetPluginCommand(",
+        "complexity": 13,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#pluginInstallCommand#4e6653088db3",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "pluginInstallCommand",
+        "scope": "pluginInstallCommand",
+        "signature": "async function pluginInstallCommand(context: CommandContext): Promise<Result<unknown>> {",
+        "complexity": 20,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#pluginToggleCommand#a125d60bd22e",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "pluginToggleCommand",
+        "scope": "pluginToggleCommand",
+        "signature": "async function pluginToggleCommand(",
+        "complexity": 19,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#pluginUninstallCommand#da3d38144c9e",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "pluginUninstallCommand",
+        "scope": "pluginUninstallCommand",
+        "signature": "async function pluginUninstallCommand(context: CommandContext): Promise<Result<unknown>> {",
+        "complexity": 12,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/index.ts#runHostToggle#91c65e6c471a",
+        "file": "kernel/dispatch/registry/index.ts",
+        "function": "runHostToggle",
+        "scope": "runHostToggle",
+        "signature": "async function runHostToggle(input: {",
+        "complexity": 25,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/store/backup-fs/index.ts#listBackups#f987ed75d9f9",
+        "file": "kernel/store/backup-fs/index.ts",
+        "function": "listBackups",
+        "scope": "listBackups",
+        "signature": "export function listBackups(workspaceRoot: string, backupsDir: string, id: string): BackupEntry[] {",
+        "complexity": 11,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/store/plugin-registry/index.ts#loadPluginIndex#5407a82aa8cd",
+        "file": "kernel/store/plugin-registry/index.ts",
+        "function": "loadPluginIndex",
+        "scope": "loadPluginIndex",
+        "signature": "export function loadPluginIndex(pluginIndexFile: string): LoadedPluginIndex {",
+        "complexity": 17,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/fixture.mjs#planFixture#1ef6ed2ebeb5",
+        "file": "scripts/bench/fixture.mjs",
+        "function": "planFixture",
+        "scope": "planFixture",
+        "signature": "export function planFixture({ seed = DEFAULT_SEED, n = 1000 } = {}) {",
+        "complexity": 46,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/measure.mjs#scenarioArgv#27719e73785b",
+        "file": "scripts/bench/measure.mjs",
+        "function": "scenarioArgv",
+        "scope": "scenarioArgv",
+        "signature": "export function scenarioArgv(options) {",
+        "complexity": 11,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/rss.mjs#<anonymous>#68a4daa39ba8",
+        "file": "scripts/bench/rss.mjs",
+        "function": "<anonymous>",
+        "scope": "linuxPromise",
+        "signature": "async finish() {",
+        "complexity": 14,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/rss.mjs#createSamplerSession#1f3c49e66797",
+        "file": "scripts/bench/rss.mjs",
+        "function": "createSamplerSession",
+        "scope": "createSamplerSession",
+        "signature": "export function createSamplerSession(options = {}) {",
+        "complexity": 11,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/runner.mjs#main#b185a022a14e",
+        "file": "scripts/bench/runner.mjs",
+        "function": "main",
+        "scope": "main",
+        "signature": "async function main() {",
+        "complexity": 12,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/runner.mjs#measureForm#2a34475a010c",
+        "file": "scripts/bench/runner.mjs",
+        "function": "measureForm",
+        "scope": "measureForm",
+        "signature": "async function measureForm(options, form) {",
+        "complexity": 17,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/runner.mjs#measureScenario#de07abbfce2c",
+        "file": "scripts/bench/runner.mjs",
+        "function": "measureScenario",
+        "scope": "measureScenario",
+        "signature": "async function measureScenario(context, entry) {",
+        "complexity": 24,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/runner.mjs#parseArgs#b68877f2226d",
+        "file": "scripts/bench/runner.mjs",
+        "function": "parseArgs",
+        "scope": "parseArgs",
+        "signature": "export function parseArgs(argv) {",
+        "complexity": 21,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/bench/runner.mjs#runOnce#fa9a166f50d7",
+        "file": "scripts/bench/runner.mjs",
+        "function": "runOnce",
+        "scope": "runOnce",
+        "signature": "export async function runOnce(options) {",
+        "complexity": 18,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/gui-smoke.mjs#main#b185a022a14e",
+        "file": "scripts/gui-smoke.mjs",
+        "function": "main",
+        "scope": "main",
+        "signature": "async function main() {",
+        "complexity": 45,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/icon-icns.mjs#assembleIcns#ecc54d4613f6",
+        "file": "scripts/icon-icns.mjs",
+        "function": "assembleIcns",
+        "scope": "assembleIcns",
+        "signature": "export function assembleIcns({",
+        "complexity": 11,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "scripts/sea-signing.mjs#runCodesignAction#23c235df4bd4",
+        "file": "scripts/sea-signing.mjs",
+        "function": "runCodesignAction",
+        "scope": "runCodesignAction",
+        "signature": "export function runCodesignAction({",
+        "complexity": 13,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "tests/contract/plugin-schema.test.ts#propertyNames#cab92a480845",
+        "file": "tests/contract/plugin-schema.test.ts",
+        "function": "propertyNames",
+        "scope": "propertyNames",
+        "signature": "function propertyNames(",
+        "complexity": 23,
+        "owner": "tests",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "tests/contract/schema.test.ts#propertyNames#cab92a480845",
+        "file": "tests/contract/schema.test.ts",
+        "function": "propertyNames",
+        "scope": "propertyNames",
+        "signature": "function propertyNames(",
+        "complexity": 24,
+        "owner": "tests",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "tests/e2e/update-ref.test.ts#<anonymous>#b5ac71d875c3",
+        "file": "tests/e2e/update-ref.test.ts",
+        "function": "<anonymous>",
+        "scope": "libraryText",
+        "signature": "test('T3 全链路：update --ref 切换目标标签，持久化 declared.ref 后检查为最新', async () => {",
+        "complexity": 14,
+        "owner": "tests",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "tests/unit/drift.test.ts#<anonymous>#30c088bf6704",
+        "file": "tests/unit/drift.test.ts",
+        "function": "<anonymous>",
+        "scope": "located",
+        "signature": "test('验收二续：新增与删除的文件各成一条，含相对路径与两侧摘要', () => {",
+        "complexity": 11,
+        "owner": "tests",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "tests/unit/drift.test.ts#<anonymous>#5c82c180db76",
+        "file": "tests/unit/drift.test.ts",
+        "function": "<anonymous>",
+        "scope": "second",
+        "signature": "test('验收二：V-07 漂移报告定位到具体文件并给出新旧摘要', () => {",
+        "complexity": 14,
+        "owner": "tests",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "tests/unit/restore.test.ts#<anonymous>#d35fb2588adb",
+        "file": "tests/unit/restore.test.ts",
+        "function": "<anonymous>",
+        "scope": "key",
+        "signature": "test('验收一：缺省取最新备份，内容写回中心库、副本重分发、记录刷新', async () => {",
+        "complexity": 12,
+        "owner": "tests",
+        "clearedBy": "P2"
+      }
+    ]
+  },
+  "file_size": {
+    "thresholds": {
+      "core": 500,
+      "vue": 800,
+      "tests": 1000,
+      "scripts": 500
+    },
+    "entries": [
+      {
+        "file": "gui/renderer/src/App.vue",
+        "lines": 844,
+        "category": "vue",
+        "owner": "gui",
+        "clearedBy": "P2"
+      },
+      {
+        "file": "kernel/core/backup/index.ts",
+        "lines": 654,
+        "category": "core",
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "file": "kernel/core/hosts/validate.ts",
+        "lines": 730,
+        "category": "core",
+        "owner": "host",
+        "clearedBy": "P1-a"
+      },
+      {
+        "file": "kernel/core/lifecycle/index.ts",
+        "lines": 1738,
+        "category": "core",
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "file": "kernel/core/lifecycle/source.ts",
+        "lines": 722,
+        "category": "core",
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "file": "kernel/core/metadata/validate.ts",
+        "lines": 579,
+        "category": "core",
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "file": "kernel/core/plugins/manifest.ts",
+        "lines": 636,
+        "category": "core",
+        "owner": "plugins-manifest",
+        "clearedBy": "P1-d"
+      },
+      {
+        "file": "kernel/core/validation/index.ts",
+        "lines": 670,
+        "category": "core",
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "file": "kernel/dispatch/registry/index.ts",
+        "lines": 2172,
+        "category": "core",
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "file": "scripts/bench/runner.mjs",
+        "lines": 534,
+        "category": "scripts",
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "file": "scripts/gui-smoke.mjs",
+        "lines": 660,
+        "category": "scripts",
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
+        "file": "tests/e2e/cli.test.ts",
+        "lines": 1148,
+        "category": "tests",
+        "owner": "tests",
+        "clearedBy": "P2"
+      }
+    ]
+  }
+}

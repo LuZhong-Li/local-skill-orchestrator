@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   collectHashEntries,
@@ -13,7 +13,7 @@ import { META_FILE_NAME } from '../../kernel/core/metadata/constants.ts';
 import { CODES } from '../../kernel/store/contract.ts';
 
 function skillDir(files: Record<string, string>): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-hash-'));
+  const dir = makeTempDir('sm-hash-');
   for (const [relative, content] of Object.entries(files)) {
     const target = join(dir, relative);
     mkdirSync(join(target, '..'), { recursive: true });
@@ -73,7 +73,7 @@ test('S-07 无参与内容时判定为内容缺失', () => {
 });
 
 test('S-07 目录不存在时抛错，不得返回空内容哈希', () => {
-  const missing = join(mkdtempSync(join(tmpdir(), 'sm-hash-')), 'not-there');
+  const missing = join(makeTempDir('sm-hash-'), 'not-there');
   assert.throws(
     () => computeChecksum(missing),
     (error: unknown) => {
@@ -89,7 +89,7 @@ test('S-07 目录不存在时抛错，不得返回空内容哈希', () => {
 });
 
 test('S-07 目标不是目录时抛错', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-hash-'));
+  const dir = makeTempDir('sm-hash-');
   const file = join(dir, 'plain.txt');
   writeFileSync(file, 'x');
   assert.throws(

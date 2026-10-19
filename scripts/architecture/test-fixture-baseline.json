@@ -1,0 +1,5 @@
+{
+  "schema_version": "1",
+  "direct_mkdtemp": 0,
+  "note": "测试文件不得直接 mkdtemp；统一使用 tests/helpers/temp.ts"
+}

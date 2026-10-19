@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   disabledMarkerName,
@@ -13,7 +13,7 @@ import { KernelError } from '../../kernel/store/errors.ts';
 import { CODES } from '../../kernel/store/contract.ts';
 
 function copyDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-copy-'));
+  const dir = makeTempDir('sm-copy-');
   mkdirSync(join(dir, 'scripts'), { recursive: true });
   writeFileSync(join(dir, SKILL_MD_NAME), '# skill');
   writeFileSync(join(dir, 'scripts', 'run.sh'), 'echo hi');
@@ -60,7 +60,7 @@ test('S-08 禁用与启用往复后内容与目录结构不变', () => {
 });
 
 test('S-08 副本缺少技能元数据文件时报明确问题', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-copy-empty-'));
+  const dir = makeTempDir('sm-copy-empty-');
   assert.throws(
     () => setCopyVisibility(dir, true),
     (error: unknown) => error instanceof KernelError && error.code === CODES.PATH_INVALID,

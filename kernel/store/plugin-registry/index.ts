@@ -10,7 +10,7 @@ import { atomicWriteFile } from '../atomic/index.ts';
 import { parseYaml, stringifyYaml } from '../yaml/index.ts';
 import { CODES, finding, type Finding } from '../contract.ts';
 import { KernelError } from '../errors.ts';
-import type { PluginIndex, PluginLanding, PluginRecord } from '../../core/plugins/types.ts';
+import type { PluginIndex, PluginLanding, PluginRecord } from '@skill-manager/contract';
 
 export interface LoadedPluginIndex {
   exists: boolean;

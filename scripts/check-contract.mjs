@@ -6,7 +6,7 @@
  * 检查对象是 docs/specification 下的契约文档，而非源码；
  * 任何使指令清单或结果封装结构偏离基线契约的改动都会在此处失败。
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -47,6 +47,32 @@ const EXPECTED_ENVELOPE = [
 /** 退出码取值 */
 const EXPECTED_EXIT_CODES = ['0', '1', '2', '3', '4', '5', '6'];
 
+/** 契约规范清单：L-1 起为七份 */
+const EXPECTED_SPECS = [
+  'cli-contract.md',
+  'host-landings.spec.md',
+  'host-registry.spec.md',
+  'index-format.md',
+  'plugin-format.md',
+  'result-and-exit-codes.md',
+  'skill-meta-spec.md',
+];
+
+/** JSON Schema 清单：L-1 起为八份 */
+const EXPECTED_SCHEMAS = [
+  'backup.schema.json',
+  'host_landings.schema.json',
+  'host_registry.schema.json',
+  'plugin_index.schema.json',
+  'plugin_manifest.schema.json',
+  'result.schema.json',
+  'skill_index.schema.json',
+  'skill_meta.schema.json',
+];
+
+/** 宿主账本问题码：规范登记与 contract 常量必须同源 */
+const EXPECTED_LANDING_CODES = ['E-LANDING-001', 'E-LANDING-002'];
+
 const failures = [];
 
 function read(relativePath) {
@@ -79,6 +105,18 @@ function diff(label, expected, actual) {
   const extra = [...actual].filter((item) => !expected.includes(item));
   if (missing.length) failures.push(`${label} 缺少：${missing.join('、')}`);
   if (extra.length) failures.push(`${label} 多出：${extra.join('、')}`);
+}
+
+function filesIn(relativeDir, suffix) {
+  try {
+    return readdirSync(join(ROOT, relativeDir), { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith(suffix))
+      .map((entry) => entry.name)
+      .sort();
+  } catch (error) {
+    failures.push(`无法读取目录 ${relativeDir}：${error.message}`);
+    return [];
+  }
 }
 
 // 1. 指令清单
@@ -128,6 +166,30 @@ if (requirementCommands.size) {
   diff('需求文档与契约的指令清单', EXPECTED_COMMANDS, normalized);
 }
 
+// 5. 契约规范与 schema 份数
+const specs = filesIn('docs/specification', '.md');
+diff('契约规范清单', EXPECTED_SPECS, new Set(specs));
+if (specs.length !== EXPECTED_SPECS.length) {
+  failures.push(`契约规范数量期望 ${EXPECTED_SPECS.length} 份，实际 ${specs.length} 份`);
+}
+
+const schemas = filesIn('schemas', '.json');
+diff('JSON Schema 清单', EXPECTED_SCHEMAS, new Set(schemas));
+if (schemas.length !== EXPECTED_SCHEMAS.length) {
+  failures.push(`JSON Schema 数量期望 ${EXPECTED_SCHEMAS.length} 份，实际 ${schemas.length} 份`);
+}
+
+// 6. 宿主账本问题码：结果规范与 contract 常量同源
+const codesSource = read('contract/src/codes.ts');
+for (const code of EXPECTED_LANDING_CODES) {
+  if (!resultContract.includes(code)) {
+    failures.push(`结果规范未登记宿主账本问题码 ${code}`);
+  }
+  if (!codesSource.includes(`'${code}'`)) {
+    failures.push(`contract/src/codes.ts 缺少宿主账本问题码 ${code}`);
+  }
+}
+
 // 输出
 if (failures.length) {
   console.error('契约校验失败：');
@@ -137,5 +199,5 @@ if (failures.length) {
 }
 
 console.log(
-  `契约校验通过：指令 ${EXPECTED_COMMANDS.length} 条、结果封装字段 ${EXPECTED_ENVELOPE.length} 项、退出码 ${EXPECTED_EXIT_CODES.length} 个。`,
+  `契约校验通过：指令 ${EXPECTED_COMMANDS.length} 条、结果封装字段 ${EXPECTED_ENVELOPE.length} 项、退出码 ${EXPECTED_EXIT_CODES.length} 个、规范 ${EXPECTED_SPECS.length} 份、schema ${EXPECTED_SCHEMAS.length} 份、宿主账本问题码 ${EXPECTED_LANDING_CODES.length} 个。`,
 );

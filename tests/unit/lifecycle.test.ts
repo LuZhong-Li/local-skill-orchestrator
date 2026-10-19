@@ -1,15 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { installSkill, uninstallSkill } from '../../kernel/core/lifecycle/index.ts';
 import { createInitialIndex } from '../../kernel/core/index/index.ts';
@@ -22,7 +14,7 @@ const NOW = '2026-10-14T00:00:00Z';
 const LATER = '2026-10-14T02:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-life-'));
+  const root = makeTempDir('sm-life-');
   ensureWorkspaceDirs(layoutOf(root));
   return root;
 }
@@ -32,7 +24,7 @@ function sourceSkill(
   id: string,
   options: { extra?: string; content?: string; status?: string; targetPath?: string } = {},
 ): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-src-'));
+  const dir = makeTempDir('sm-src-');
   writeFileSync(join(dir, 'SKILL.md'), options.content ?? '# skill');
   writeFileSync(
     join(dir, 'skill_meta.yaml'),
@@ -162,7 +154,7 @@ test('验收三之二：被依赖对象校验不通过时拒绝安装，返回 E
 
 test('验收四：不合格元数据被拒绝，问题码清单完整可见', async () => {
   const root = workspace();
-  const source = mkdtempSync(join(tmpdir(), 'sm-src-bad-'));
+  const source = makeTempDir('sm-src-bad-');
   writeFileSync(join(source, 'SKILL.md'), '# x');
   writeFileSync(join(source, 'skill_meta.yaml'), 'id: bad-one\nstatus: paused\n');
   const outcome = await installSkill({
@@ -237,7 +229,7 @@ test('验收六：卸载不存在的标识返回输入类错误', async () => {
 
 test('冲突：逐文件映射把两个来源写到同一目标时拒绝安装', async () => {
   const root = workspace();
-  const source = mkdtempSync(join(tmpdir(), 'sm-src-dup-'));
+  const source = makeTempDir('sm-src-dup-');
   writeFileSync(join(source, 'SKILL.md'), '# x');
   writeFileSync(join(source, 'extra.md'), '# y');
   writeFileSync(
@@ -300,7 +292,7 @@ test('冲突：目标位置已被同名目录占用时拒绝安装', async () =>
 
 test('来源缺少元文件时返回路径类错误', async () => {
   const root = workspace();
-  const source = mkdtempSync(join(tmpdir(), 'sm-src-none-'));
+  const source = makeTempDir('sm-src-none-');
   const outcome = await installSkill({
     layout: layoutOf(root),
     index: emptyIndex(),

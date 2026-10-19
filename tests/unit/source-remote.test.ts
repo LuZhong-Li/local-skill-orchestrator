@@ -1,9 +1,9 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createReadStream } from 'node:fs';
 import { extname, join } from 'node:path';
 import * as tar from 'tar';
@@ -22,7 +22,7 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-remote-ws-'));
+  const root = makeTempDir('sm-remote-ws-');
   ensureWorkspaceDirs(layoutOf(root));
   return root;
 }
@@ -105,10 +105,10 @@ async function startServer(rootDir: string): Promise<{ server: Server; base: str
 }
 
 test('N-05：远程归档 URL 安装（含单层自动下钻）', async () => {
-  const served = mkdtempSync(join(tmpdir(), 'sm-remote-arch-'));
+  const served = makeTempDir('sm-remote-arch-');
   const { server, base } = await startServer(served);
   try {
-    const stage = mkdtempSync(join(tmpdir(), 'sm-remote-stage-'));
+    const stage = makeTempDir('sm-remote-stage-');
     // 外层套一层目录：验证单层自动下钻
     const inner = join(stage, 'remote-archive');
     skillContent(inner, 'remote-archive', [
@@ -130,8 +130,8 @@ test('N-05：远程归档 URL 安装（含单层自动下钻）', async () => {
 });
 
 test('N-05：远程归档的 zip slip 仍被拒绝', async () => {
-  const served = mkdtempSync(join(tmpdir(), 'sm-remote-evil-'));
-  const stage = mkdtempSync(join(tmpdir(), 'sm-remote-evil-stage-'));
+  const served = makeTempDir('sm-remote-evil-');
+  const stage = makeTempDir('sm-remote-evil-stage-');
   skillContent(stage, 'evil', ['  type: archive']);
   writeFileSync(join(stage, 'payload.txt'), 'escaped');
   const archive = join(served, 'evil.tar');
@@ -172,11 +172,11 @@ test('N-05：远程归档的 zip slip 仍被拒绝', async () => {
 });
 
 test('N-05：远程 git 仓库安装与刷新（dumb HTTP 模拟）', async () => {
-  const served = mkdtempSync(join(tmpdir(), 'sm-remote-git-'));
+  const served = makeTempDir('sm-remote-git-');
   const { server, base } = await startServer(served);
   try {
     const url = `${base}/source.git`;
-    const work = mkdtempSync(join(tmpdir(), 'sm-remote-work-'));
+    const work = makeTempDir('sm-remote-work-');
     git(['init', '--quiet', '-b', 'main'], work);
     git(['config', 'user.email', 'test@example.com'], work);
     git(['config', 'user.name', 'test'], work);
@@ -232,7 +232,7 @@ test('N-05：协议不在白名单内时按来源类问题拒绝', async () => {
 });
 
 test('N-05：远端 404、体积超限、超时各归明确问题码', async () => {
-  const served = mkdtempSync(join(tmpdir(), 'sm-remote-errors-'));
+  const served = makeTempDir('sm-remote-errors-');
   const { server, base } = await startServer(served);
   try {
     const root = workspace();
@@ -257,7 +257,7 @@ test('N-05：远端 404、体积超限、超时各归明确问题码', async () 
 });
 
 test('N-05：私有仓库无凭据时归认证类问题并给出引导', async () => {
-  const served = mkdtempSync(join(tmpdir(), 'sm-remote-auth-'));
+  const served = makeTempDir('sm-remote-auth-');
   const { server, base } = await startServer(served);
   try {
     const root = workspace();

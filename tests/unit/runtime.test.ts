@@ -1,7 +1,6 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import semver from 'semver';
@@ -172,7 +171,7 @@ test('验收三：无效约束与版本无法解析各归明确问题码，不�
 });
 
 test('验收四：注入的 PATH 决定命令解析结果，探测结论取自假命令的输出', async () => {
-  const fakeDir = join(mkdtempSync(join(tmpdir(), 'sm-runtime-')), 'fakebin');
+  const fakeDir = join(makeTempDir('sm-runtime-'), 'fakebin');
   mkdirSync(fakeDir, { recursive: true });
   const { runner, calls } = recordingRunner((command) =>
     command === 'where' ? ok(join(fakeDir, 'faketool.exe')) : ok('faketool version 3.4.5'),
@@ -196,7 +195,7 @@ test('验收四：注入的 PATH 决定命令解析结果，探测结论取自�
 });
 
 test('验收四续：真实探测路径——缺失、可用与 PATH 注入各一条断言', async () => {
-  const emptyDir = join(mkdtempSync(join(tmpdir(), 'sm-runtime-empty-')), 'empty');
+  const emptyDir = join(makeTempDir('sm-runtime-empty-'), 'empty');
   mkdirSync(emptyDir, { recursive: true });
 
   // 注入的 PATH 会一并发给子进程，连探测命令自身都解析不到时按探测失败上报

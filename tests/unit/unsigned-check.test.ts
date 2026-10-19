@@ -1,6 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -11,7 +12,7 @@ import {
 
 /** 造一个「看起来像 .app」的路径，供存在性检查通过 */
 function fakeApp(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-unsigned-'));
+  const dir = makeTempDir('sm-unsigned-');
   const app = join(dir, 'skill-manager.app');
   writeFileSync(app, 'placeholder');
   return app;

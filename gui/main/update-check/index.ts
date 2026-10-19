@@ -1,10 +1,4 @@
 export {
-  SOURCE_ERROR_CODES,
-  UPDATE_CHECK_BACKUP_NOTICE,
-  UPDATE_CHECK_MAX_OUTPUT_BYTES,
-  UPDATE_CHECK_TIMEOUT_MS,
-} from './constants.ts';
-export {
   defaultCommandRunner,
   parseLsRemote,
   probeFailureOf,

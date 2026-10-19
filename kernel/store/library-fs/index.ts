@@ -12,7 +12,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSyn
 import { join } from 'node:path';
 import { KernelError } from '../errors.ts';
 import { CODES } from '../contract.ts';
-import { DISABLED_SUFFIX, SKILL_MD_NAME } from '../../core/metadata/constants.ts';
+import { DISABLED_SUFFIX, SKILL_MD_NAME } from '@skill-manager/contract';
 
 /** 副本内被改名的文件：技能元数据文件本身 */
 export function copyMarkerName(): string {

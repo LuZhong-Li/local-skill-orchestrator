@@ -110,3 +110,34 @@ jobs:
           path: |
             build/**
             gui/out/**
+
+  # M4c-7：全机盘点 fixture 探针。独立 job 的原因：
+  #   - 主 verify 矩阵沿用既有 Windows/Linux 全量门禁，不把 macOS 全量构建塞进每次提交；
+  #   - 探针只跑 CLI 与临时 fixture，轻量且三平台口径完全一致；
+  #   - fail-fast: false 与 pack.yml 的矩阵策略一致，一个平台失败不掩盖其他平台结论。
+  inventory-probe:
+    name: 全机盘点 fixture 探针（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - windows-latest
+          - macos-15
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+
+      - name: 安装 Node（取自 .nvmrc）
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 三平台全机盘点探针
+        run: npm run probe:inventory

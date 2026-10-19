@@ -3,19 +3,21 @@
  *
  * 依据：宿主注册表规范 docs/specification/host-registry.spec.md（第五份契约规范，含 2026-10-16
  *      修订：HR-07 放宽、HR-09 改为「安全控制字段按宿主语义证据准入」、新增 HR-13 与
- *      `external_consumers` / `security_control_evidence`）；
+ *      `external_consumers` / `security_control_evidence`；P1-a 新增 HR-14 / HR-15 与
+ *      `adapter_forms` / `landing_roots` / `inventory_roots`）；
  *      事实来源 docs/research/host-mechanisms.md（各宿主机制调研，含证据等级与逐处引文）；
  *      设计决策 docs/design/m5-host-adapter.md（DP-03 载体、DP-04 透传白名单、9.6 裁决执行）。
  *
  * 数据与规范的一致性由 tests/contract/host-registry.test.ts 双重守住：
  *   一、整份数据通过 schemas/host_registry.schema.json 校验；
- *   二、加载时的 HR-01 ~ HR-13 校验全部通过。
+ *   二、加载时的 HR-01 ~ HR-15 校验全部通过。
  *
  * 适配器实现状态（adapter_state）：T4 落地适配器后，六个有适配器的宿主置为 implemented，
  * 可落位集合随之开放（HR-10）；`deepseek` 为「不适用 / 模型提供方」，保持 planned 且
  * 不产出适配器（其登记依赖 not_applicable 豁免）。
  */
 import type { HostRegistry } from './types.ts';
+import { HOST_ROOT_MODELS } from './host-root-models.ts';
 
 /**
  * 允许透传的非标准字段（Codex）：本机实测 27 种 frontmatter 字段，
@@ -126,6 +128,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
             '个人级技能根位于用户主目录（~/.claude/skills），不在工作区内；工作区内的落位使用可推导布局',
         },
       ],
+      ...HOST_ROOT_MODELS['claude'],
       capability: {
         auto_discovery: true,
         progressive_loading: true,
@@ -191,6 +194,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
             '用户级技能根依官方文档为 $HOME/.agents/skills（REPO 侧对应 <仓库根>/.agents/skills）；该根同时被 Cursor 与 dsh 读取，一次落位多宿主可见。旧版 ~/.codex/skills 降为遗留兼容根：需要时用 config set host.codex.root 覆盖，默认不双写',
         },
       ],
+      ...HOST_ROOT_MODELS['codex'],
       capability: {
         auto_discovery: true,
         progressive_loading: true,
@@ -260,6 +264,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
           platform_notes: '仅 .mdc 被规则系统识别，.md 被忽略；纯 Markdown 场景改用 AGENTS.md',
         },
       ],
+      ...HOST_ROOT_MODELS['cursor'],
       capability: {
         auto_discovery: true,
         progressive_loading: true,
@@ -301,6 +306,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
             '平台自有根 .skills/ 由平台维护并会刷新，禁止写入；.agents/skills 是否为第三根待确认（HD-07）',
         },
       ],
+      ...HOST_ROOT_MODELS['doubao'],
       capability: {
         auto_discovery: true,
         strict_filename: true,
@@ -345,6 +351,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
           platform_notes: '不绑定具体宿主；仅在调用方给出目标根时产出并落位',
         },
       ],
+      ...HOST_ROOT_MODELS['agentskills'],
       capability: {
         auto_discovery: true,
         progressive_loading: true,
@@ -391,6 +398,7 @@ export const HOST_REGISTRY_DATA: HostRegistry = {
             '写入宿主既有文件前必须具备合并策略；策略未定稿前只产出待合并片段、不落盘',
         },
       ],
+      ...HOST_ROOT_MODELS['agents-md'],
       capability: {},
       render_policy: {
         field_mode: 'standard6',

@@ -213,9 +213,9 @@
 
 **用途**：发现当前环境中的 Skill 并刷新索引记录；当索引缺失或损坏时，本指令同时承担索引重建职责。
 
-**语法**：`skill-manager scan [--kind <skill|plugin>] [--root <路径>...] [--dry-run]`
+**语法**：`skill-manager scan [--kind <skill|plugin>] [--root <路径>...] [--dry-run] [--inventory]`
 
-**前置条件**：工作区已初始化；待扫描的根目录可达。索引文件缺失或损坏不影响本指令执行，本指令不要求索引可被读取。
+**前置条件**：workspace 模式要求工作区已初始化；待扫描的根目录可达。`--inventory` 模式允许工作区未初始化，不要求索引存在或可读。
 
 **行为**：
 
@@ -243,6 +243,18 @@
 **退出码语义**：本指令只要完成扫描即视为执行成功；但当扫描过程发现错误级问题时，**按第 5.2 节的派生规则返回对应的派生档位**（例如依赖环属 `DEP` 类 → `6`、字段类 → `1`），含义是**「扫描完成，但环境中存在不合格项」**，而不是「指令执行失败」。合格记录仍会被正常写入索引，调用方应依据结果封装中的问题列表判断具体问题，不得仅凭退出码断定扫描未执行。**第 5.2 节的派生规则是退出码的唯一权威**，本小节不另设「固定返回 1」的口径。
 
 **预演与确认**：无需确认；支持预演。
+
+**`--inventory` 盘点模式**：
+
+1. 与 `--kind`、`--root`、`--dry-run` 互斥，且不接受位置参数；参数错误按 `E-INPUT` 类问题返回。允许 `--workspace` 与通用输出选项（`--json` / `--machine` / `--no-color` / `--verbose`）。
+2. 只展开内置宿主和已启用第三方 `x-` 宿主的候选根，不读取宿主目录、不发现技能、不做对账。
+3. 不调用工作区锁，不写 `last_scan_at`，不写索引或任何工作区文件；工作区不存在索引时仍成功返回，并标记 `workspace.state = uninitialized`。
+4. `data.mode` 固定为 `inventory`；`data.workspace` 给出工作区根与状态；`data.roots[]` 每项包含 `root_id`、`host_id`、`host_group`、`root_role`、`kind`、`path`、`recursive`、`origin`、`is_x_host`、`consumed_by`、`configured`，无法展开的根另带 `reason`。
+5. 共享物理根按宿主各列一条，`consumed_by` 标注消费宿主；平台/系统/遗留根通过 `root_role` 与 `origin` 区分。
+6. `data.roots[]` 另带 `state`（`ok` / `empty` / `missing` / `unconfigured` / `unreadable` / `not_applicable`）、`readable`、`copy_count` 与 `corrupt_count`；`data.copies[]` 给出有效物理副本（含 path / host_id / root_id / root_role / format / visibility / skill_id / version / content_digest / recursive / consumed_by / root_ids / sources），损坏或不可读副本单列于 `data.corrupt[]`；`data.summary` 给出根状态计数、去重前后副本数与重复数。`content_digest` 使用 `computeLandingChecksum`，不输出对账分类。
+7. M4c-3 起，`data.copies[]` 与 `data.corrupt[]` 每条增加 `reconciliation`（classification / ledger_source / managed-content-source 三轴 evidence / reasons / drift_reasons / authority）；账本 active 记录在磁盘未观察到时进入 `data.missing[]`，并带 host/root_role/format/consumed_by 与同一 reconciliation 形状。`data.degradation` 给出 host / plugin 账本状态。插件 content/source 不得标 authoritative；主计数与最终分类聚合仍不在本模式输出。
+8. M4c-4 起，`data.summary.main` 给出 `{total_copies, unique_skills}`（仅 `root_role=user` 的有效去重副本）；`data.summary.roles.{user,system,platform,project}` 各自给出 total_copies / unique_skills / by_classification / corrupt_count / groups；`data.summary.classification_groups` 聚合 managed、drift、missing、untracked、undetermined、unreadable、not_distributed、orphaned（含工作区在/不在）。新增 `data.hosts[]` 的 `hosts → roots → copies/corrupt/missing` 层级；扁平 copies 仍是去重下钻源。人类可读输出首行突出 user 主计数；默认不展开副本明细，`--verbose` 才展开。
+9. 只读验证：盘点源码静态守卫只允许只读 fs API，禁止写文件、目录、锁、索引、落位与账本提交；动态验证对工作区与全部宿主根做递归文件清单、mtime 与内容哈希快照，前后必须一致。损坏账本、缺失 / 不可读根、未初始化工作区和大规模副本均纳入验证。
 
 ### 4.5 `list`
 
@@ -840,6 +852,11 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 | 37 | 2026-10-17 | 第 4.11 节 `update` 的远端来源表述纠偏：删除「远端拉取属二期 / 返回 `E-SRC-001`」的占位说明，改为「远端来源与本地来源共用同一重新获取路径」（克隆/下载口径、超时与体积上限、失败不写索引）；**本地来源的语法、参数、行为与输出契约保持不变的声明显式保留**；该改动只把文本与既有实现对齐，不改变调用方式 |
 | 38 | 2026-10-17 | 第 4.11 节新增远端专用 `--ref <tag>`：按用户确认的目标标签获取，成功后持久化中心库元文件的 `source.ref`；本地来源、`--check --ref` 与非法 ref 按参数类错误拒绝，目标不存在按来源类错误返回且不写状态。无 `--ref` 时既有语义不变。依据：M4a 检查能识别目标版本，但原来的 update 只能按旧 ref 刷新，无法完成「确认后更新到目标版本」 |
 | 39 | 2026-10-18 | 第 2.2 节新增对象类型入口 `--kind skill / plugin`：仅 `scan` / `list` / `inspect` / `install` / `uninstall` / `enable` / `disable` 七条既有指令接受；省略为 `skill`，插件操作必须显式 `--kind plugin`，重复给出按 `E-INPUT-002` 拒绝，其他指令不接受。指令总数仍为 16；插件字段与状态见第六份规范 `plugin-format.md` |
+| 40 | 2026-10-19 | 第 4.4 节新增 `scan --inventory` 只读盘点模式：与 `--kind` / `--root` / `--dry-run` 互斥，允许未初始化工作区；只展开内置与已启用 `x-` 宿主候选根，不读宿主目录、不发现技能、不写索引或 `last_scan_at`。`data.mode` 固定为 `inventory`，并给出 `workspace` 状态与统一根清单字段。指令总数仍为 16，属选项与输出扩展 |
+| 41 | 2026-10-19 | 第 4.4 节扩展 inventory 输出：根增加 state/readable/copy_count/corrupt_count；新增 copies/corrupt/summary。direct/recursive、rules、SKILL.md 识别、`.disabled`、realpath 去重与 corrupt 隔离按 M4c-2 实现；仍不输出对账分类 |
+| 42 | 2026-10-19 | 第 4.4 节接入 M4c-3 对账：copies/corrupt 增加 reconciliation；active 两账本反查 missing；degradation 显式给出账本状态；插件 content/source 保持 inferred/undetermined，不输出 M4c-4 聚合 |
+| 43 | 2026-10-19 | 第 4.4 节新增 M4c-4 聚合：summary.main / roles / classification_groups、hosts 层级与人类可读摘要；明确 user 主计数、unique_skills、共享根去重、corrupt 不计有效计数、missing 不计有效副本 |
+| 44 | 2026-10-19 | 第 4.4 节新增只读验证条款：静态 fs/写模块守卫与工作区、宿主根递归快照（文件清单、mtime、内容哈希）前后一致；覆盖未初始化、损坏账本、缺失/不可读根与大规模副本 |
 
 ---
 

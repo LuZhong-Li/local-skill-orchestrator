@@ -1,3 +1,4 @@
+import { makeTempDir } from '../helpers/temp.ts';
 /**
  * 三项内核缺陷修复的**独立进程**端到端断言（2026-10-17 内核核查批次）。
  *
@@ -8,8 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const CLI = join(
@@ -47,7 +47,7 @@ const meta = (id: string, deps: string[] = []) =>
   ].join('\n');
 
 function workspaceOf(skills: Array<{ dir: string; meta: string }>) {
-  const root = mkdtempSync(join(tmpdir(), 'kernel-findings-'));
+  const root = makeTempDir('kernel-findings-');
   for (const skill of skills) {
     const dir = join(root, 'skills', skill.dir);
     mkdirSync(dir, { recursive: true });

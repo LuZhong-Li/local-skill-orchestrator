@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KernelBridge } from '../../gui/bridge/commands.ts';
 import { checkUpdates } from '../../gui/main/update-check/index.ts';
@@ -23,7 +23,7 @@ function snapshot(root: string): Map<string, string> {
 }
 
 test('T1 只读：经 inspect --json 取来源后检查，索引与工作区文件逐字节不变', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'sm-update-check-'));
+  const root = makeTempDir('sm-update-check-');
   const skillDir = join(root, 'skills', 'remote-review');
   mkdirSync(skillDir, { recursive: true });
   writeFileSync(join(skillDir, 'SKILL.md'), '# remote review\n');

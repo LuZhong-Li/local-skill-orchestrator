@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  UPDATE_CHECK_BACKUP_NOTICE,
   checkUpdates,
   classifyInspectItem,
   compareFormalVersions,
@@ -11,6 +10,7 @@ import {
   type CommandResult,
   type ProbeOutcome,
 } from '../../gui/main/update-check/index.ts';
+import { BACKUP_NOTICE } from '../../contract/src/index.ts';
 
 const NOW = '2026-10-17T08:00:00Z';
 
@@ -106,7 +106,7 @@ test('T1 四态：远端最高正式版高于基线 → update-available（目�
     ref: 'v1.2.0',
     checked_at: NOW,
   });
-  assert.equal(item.backup_notice, UPDATE_CHECK_BACKUP_NOTICE);
+  assert.equal(item.backup_notice, BACKUP_NOTICE);
 });
 
 test('T1 四态：相同/更低/仅预发布 → up-to-date', () => {

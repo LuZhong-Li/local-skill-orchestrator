@@ -1,8 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { allAdapters } from '../../kernel/core/adapters/index.ts';
 import { loadHostRegistry } from '../../kernel/core/hosts/index.ts';
@@ -13,7 +13,7 @@ const repoRoot = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-
 const cliEntry = join(repoRoot, 'kernel', 'entry', 'cli.ts');
 
 function temp(prefix: string): string {
-  return mkdtempSync(join(tmpdir(), prefix));
+  return makeTempDir(prefix);
 }
 
 function runCli(root: string, argv: string[]): { code: number; result: Record<string, unknown> } {

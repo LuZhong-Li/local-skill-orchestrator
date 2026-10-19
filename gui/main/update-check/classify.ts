@@ -1,4 +1,4 @@
-import { UPDATE_CHECK_BACKUP_NOTICE } from './constants.ts';
+import { BACKUP_NOTICE } from '@skill-manager/contract';
 import {
   looksRemoteLocation,
   selectLatestFormalTag,
@@ -110,7 +110,7 @@ function notCheckable(
     state: 'not-checkable',
     summary,
     provenance: provenanceOf(data, checkedAt),
-    backup_notice: UPDATE_CHECK_BACKUP_NOTICE,
+    backup_notice: BACKUP_NOTICE,
     reason,
     ...(checksum === undefined ? {} : { checksum }),
   };
@@ -218,7 +218,7 @@ export function classifyInspectItem(
       state: 'failed',
       summary: `检查失败：${probe.message}`,
       provenance: provenanceOf(data, checkedAt),
-      backup_notice: UPDATE_CHECK_BACKUP_NOTICE,
+      backup_notice: BACKUP_NOTICE,
       code: probe.code,
       remedy: probe.remedy,
       ...(checksum === undefined ? {} : { checksum }),
@@ -264,7 +264,7 @@ export function classifyInspectItem(
         ? `来源标签 ${latest.tag.tag} 高于当前基线 ${baseline.version}`
         : `远端最高正式版 ${latest.tag.tag} 不高于当前基线 ${baseline.version}`,
     provenance: provenanceOf(data, checkedAt),
-    backup_notice: UPDATE_CHECK_BACKUP_NOTICE,
+    backup_notice: BACKUP_NOTICE,
     baseline_version: baseline.version,
     ...(available === undefined ? {} : { available }),
     latest: { ref: latest.tag.tag, commit: latest.tag.commit },

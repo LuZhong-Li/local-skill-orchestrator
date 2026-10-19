@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-manager.local/schemas/host_landings.schema.json",
+  "title": "host_landings.yaml",
+  "description": "内置宿主分发副本的唯一权威账本；逐字段对齐 docs/specification/host-landings.spec.md。插件宿主仍使用 plugin_index.yaml 的 landings，读取层双源合并。",
+  "type": "object",
+  "required": ["schema_version", "tool_version", "generated_at", "landings"],
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "tool_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+"
+    },
+    "generated_at": {
+      "$ref": "#/$defs/time"
+    },
+    "landings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/landing"
+      }
+    }
+  },
+  "$defs": {
+    "time": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "landing": {
+      "type": "object",
+      "required": [
+        "skill_id",
+        "host_id",
+        "target_path",
+        "format",
+        "visibility",
+        "state",
+        "origin",
+        "source_checksum",
+        "content_digest",
+        "adapter_ref",
+        "registry_version",
+        "created_at",
+        "updated_at"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "skill_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "source_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "host_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^(?!x-)[a-z0-9]+(?:-[a-z0-9]+)*$"
+        },
+        "target_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096,
+          "pattern": "^(?:[A-Za-z]:[\\\\/]|/|\\\\\\\\)"
+        },
+        "format": {
+          "type": "string",
+          "enum": ["skill", "rules"]
+        },
+        "visibility": {
+          "type": "string",
+          "enum": ["visible", "disabled"]
+        },
+        "state": {
+          "type": "string",
+          "enum": ["active", "orphaned"]
+        },
+        "origin": {
+          "type": "string",
+          "enum": ["distributed", "adopted"]
+        },
+        "source_checksum": {
+          "$ref": "#/$defs/digest"
+        },
+        "content_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "adapter_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "registry_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "created_at": {
+          "$ref": "#/$defs/time"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/time"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format": {
+                "const": "rules"
+              }
+            },
+            "required": ["format"]
+          },
+          "then": {
+            "properties": {
+              "visibility": {
+                "const": "visible"
+              }
+            }
+          }
+        }
+      ],
+      "not": {
+        "anyOf": [
+          { "required": ["root_role"] },
+          { "required": ["root_id"] },
+          { "required": ["host_key"] },
+          { "required": ["plugin_id"] }
+        ]
+      }
+    }
+  },
+  "x-unique-key": ["skill_id", "host_id", "target_path"],
+  "x-shared-path-invariants": [
+    "同一 target_path 只能对应一个 skill_id",
+    "同一 target_path 的全部 active 记录必须具有相同的 content_digest 与 visibility"
+  ],
+  "x-write-permissions": {
+    "landings": "仅由内核在 install/update/enable/disable/uninstall --host 成功路径写入；scan --inventory 只读",
+    "root_role": "不写入账本；由注册表与配置在读取时判定",
+    "unknown_fields": "读取时保留，重写时不得丢弃"
+  }
+}

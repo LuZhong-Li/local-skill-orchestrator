@@ -1,20 +1,13 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { makePluginManifest } from '../helpers/plugin.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { run } from '../../kernel/entry/cli.ts';
 import {
   PLUGIN_API_VERSION,
-  PLUGIN_MANIFEST_VERSION,
   canonicalHostId,
   validatePluginManifest,
   type PluginManifest,
@@ -42,39 +35,11 @@ import { setConfig } from '../../kernel/core/index/index.ts';
 const NOW = '2026-10-17T00:00:00Z';
 
 function tempDir(): string {
-  return mkdtempSync(join(tmpdir(), 'sm-plugin-'));
+  return makeTempDir('sm-plugin-');
 }
 
 function manifest(patch: Record<string, unknown> = {}): PluginManifest {
-  return {
-    manifest_version: PLUGIN_MANIFEST_VERSION,
-    plugin_id: 'acme-tools',
-    name: 'Acme Tools',
-    version: '1.0.0',
-    compatibility: {
-      skill_manager: '>=0.2.0 <1.0.0',
-      plugin_api: PLUGIN_API_VERSION,
-    },
-    capabilities: ['host_profile'],
-    hosts: [
-      {
-        host_key: 'zed',
-        display_name: 'Zed',
-        form: 'rules',
-        roots: [
-          {
-            kind: 'rules',
-            path_template: '.zed/rules/<skill_id>.md',
-            scope: 'project',
-          },
-        ],
-        render_policy: {
-          field_mode: 'standard6',
-        },
-      },
-    ],
-    ...patch,
-  } as PluginManifest;
+  return makePluginManifest(patch as Partial<PluginManifest>);
 }
 
 function hostRecord(patch: Partial<PluginHostRecord> = {}): PluginHostRecord {
@@ -343,13 +308,13 @@ test('T0 合并：六条机械保证逐条成立', () => {
   assert.equal(disabledView.pluginHosts.length, 0, 'disabled 插件不加载');
   assert.equal(JSON.stringify(loadHostRegistry()), builtinBefore, '内置注册表不得变化');
 
-  // 2. FORM_BY_HOST 键集合不变
+  // 2. 内置宿主适配器键集合不变
   assert.deepEqual(
     allAdapters()
       .map((adapter) => adapter.host_id)
       .sort(),
     formBefore,
-    'FORM_BY_HOST 键集合不得变化',
+    '内置宿主适配器键集合不得变化',
   );
 
   // 3. canonical 冲突整插件拒绝

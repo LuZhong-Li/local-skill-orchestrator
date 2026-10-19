@@ -2,7 +2,7 @@
  * K-16 插件宿主合并纯函数。
  *
  * 输入是内置注册表快照与已校验的插件条目；输出只读视图。
- * 不读盘、不写盘、不修改内置对象、不把插件写入 FORM_BY_HOST。
+ * 不读盘、不写盘、不修改内置对象、不把插件写入内置宿主形态绑定。
  */
 import { CODES, finding, type Finding } from '../../store/contract.ts';
 import type { HostEntry } from '../hosts/types.ts';

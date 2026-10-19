@@ -65,7 +65,7 @@ function loadFailure(findings: readonly Finding[]): KernelError {
 }
 
 /**
- * 加载注册表：校验 HR-01 至 HR-13，全部通过才返回。
+ * 加载注册表：校验 HR-01 至 HR-15，全部通过才返回。
  * 结果被冻结并缓存：注册表是只读事实源，调用方不得就地修改。
  */
 export function loadHostRegistry(): HostRegistry {

@@ -15,6 +15,7 @@ import { CODES, finding, type Finding } from '../../store/contract.ts';
 import { isDirectory, pathExists } from '../../store/library-fs/index.ts';
 import { hostById } from '../hosts/index.ts';
 import type { RootKind } from '../hosts/types.ts';
+import type { HostLandingRootDefinition } from '@skill-manager/contract';
 
 const SOURCE = 'host-roots';
 
@@ -23,43 +24,29 @@ export function rootConfigKey(hostId: string, rootKind: RootKind): string {
   return rootKind === 'rules' ? `host.${hostId}.rules_root` : `host.${hostId}.root`;
 }
 
-/** 默认路径表：仅列出有证据的组合；未列出的组合要求配置覆盖 */
+/** 默认分发根从注册表的 landing_roots 派生；未登记的组合要求配置覆盖。 */
 export function defaultRootFor(
   hostId: string,
   rootKind: RootKind,
   context: { home: string; platform: NodeJS.Platform; env: NodeJS.ProcessEnv },
 ): string | undefined {
-  const home = context.home;
-  if (rootKind === 'skill' || rootKind === 'external') {
-    if (hostId === 'claude') return join(home, '.claude', 'skills');
-    // Codex 用户级技能根：官方文档给出 $HOME/.agents/skills（该根同时被 Cursor 与 dsh 读取）；
-    // 旧版 ~/.codex/skills 降为遗留兼容根，需要时用 config set host.codex.root 覆盖
-    if (hostId === 'codex') return join(home, '.agents', 'skills');
-    if (hostId === 'cursor') return join(home, '.cursor', 'skills');
-    if (hostId === 'doubao') {
-      // 豆包技能根位于客户端 agent 模式工作区；仅 Windows 有实测证据
-      if (context.platform !== 'win32') return undefined;
-      const localAppData = context.env['LOCALAPPDATA'];
-      if (localAppData === undefined || localAppData === '') return undefined;
-      return join(
-        localAppData,
-        'Doubao',
-        'User Data',
-        'Default',
-        '.doubao',
-        'agent_mode',
-        'workspace',
-        '.user_skills',
-      );
-    }
-    // agentskills 是通用标准目标，不绑定具体宿主目录；agents-md 无技能根
-    return undefined;
-  }
-  if (rootKind === 'rules') {
-    if (hostId === 'cursor') return join(home, '.cursor', 'rules');
-    return undefined;
-  }
-  return undefined;
+  const root = hostById(hostId)?.landing_roots?.find(
+    (item) => item.kind === rootKind && platformMatches(item, context.platform),
+  );
+  return root === undefined ? undefined : expandLandingRoot(root, context);
+}
+
+function platformMatches(root: HostLandingRootDefinition, platform: string): boolean {
+  return root.platform === undefined || root.platform === 'any' || root.platform === platform;
+}
+
+function expandLandingRoot(
+  root: HostLandingRootDefinition,
+  context: { home: string; platform: NodeJS.Platform; env: NodeJS.ProcessEnv },
+): string | undefined {
+  const base = root.base === 'home' ? context.home : context.env[root.env_var ?? ''];
+  if (base === undefined || base === '') return undefined;
+  return join(base, ...root.path_template.split('/'));
 }
 
 /** 宿主根解析结果 */

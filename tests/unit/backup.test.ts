@@ -1,15 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BACKUP_CONTENT_DIR_NAME,
@@ -30,7 +22,7 @@ const SAME_SECOND = '2026-10-14T00:00:00Z';
 const LATER = '2026-10-14T01:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-backup-'));
+  const root = makeTempDir('sm-backup-');
   mkdirSync(join(root, 'skills'), { recursive: true });
   mkdirSync(join(root, 'backups'), { recursive: true });
   return root;

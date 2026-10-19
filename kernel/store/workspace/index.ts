@@ -20,6 +20,7 @@ export const LOCKS_DIR_NAME = 'locks';
 export const LOGS_DIR_NAME = 'logs';
 export const PLUGINS_DIR_NAME = 'plugins';
 export const PLUGIN_INDEX_FILE_NAME = 'plugin_index.yaml';
+export const HOST_LANDINGS_FILE_NAME = 'host_landings.yaml';
 
 /** 环境变量用于覆盖工作区根目录，便于测试与多工作区场景 */
 export const WORKSPACE_ENV = 'SKILL_MANAGER_HOME';
@@ -33,6 +34,7 @@ export interface WorkspaceLayout {
   locksDir: string;
   logsDir: string;
   pluginIndexFile: string;
+  hostLandingsFile: string;
 }
 
 /** 解析工作区根目录：优先取环境变量，其次取用户主目录下的约定目录 */
@@ -54,6 +56,7 @@ export function layoutOf(root: string): WorkspaceLayout {
     locksDir: join(root, LOCKS_DIR_NAME),
     logsDir: join(root, LOGS_DIR_NAME),
     pluginIndexFile: join(root, PLUGIN_INDEX_FILE_NAME),
+    hostLandingsFile: join(root, HOST_LANDINGS_FILE_NAME),
   };
 }
 

@@ -15,8 +15,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// 夹具用真实的 S-08 实现产出备份载体，避免在冒烟脚本里重写一份载体摘要算法
-import { createBackup } from '../kernel/store/backup-fs/index.ts';
+import { prepareHostFixture, prepareWorkspace, remoteMeta } from './gui-smoke-fixtures.mjs';
+import {
+  runEmptyWorkspaceInventoryChecks,
+  runThirdPartyInventoryCheck,
+} from './gui-smoke-inventory.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GUI = join(ROOT, 'gui');
@@ -100,113 +103,6 @@ if (appIndex >= 0 && (appArgument === undefined || appArgument.startsWith('--'))
  */
 const packagedApp = appArgument === undefined ? undefined : resolve(appArgument);
 
-function remoteMeta(url, ref, version) {
-  return [
-    'id: smoke-skill',
-    'name: smoke-skill',
-    'description: smoke skill',
-    `version: ${version}`,
-    'status: enabled',
-    'path: ./skills/smoke-skill',
-    'source:',
-    '  type: git',
-    `  url: ${url}`,
-    `  ref: ${ref}`,
-    'targets:',
-    '  - target: claude',
-    '    scope: global',
-    '    path: .claude/skills/smoke-skill',
-    '    mode: copy',
-    '    enabled: true',
-    '    file_map:',
-    '      SKILL.md: SKILL.md',
-    '',
-  ].join('\n');
-}
-
-function prepareWorkspace(url) {
-  const root = mkdtempSync(join(tmpdir(), 'sm-gui-smoke-'));
-  const skill = join(root, 'skills', 'smoke-skill');
-  mkdirSync(skill, { recursive: true });
-  writeFileSync(join(skill, 'SKILL.md'), '# smoke');
-  writeFileSync(join(skill, 'skill_meta.yaml'), remoteMeta(url, 'v1.0.0', '1.0.0'));
-
-  const localSkill = join(root, 'skills', 'local-skill');
-  mkdirSync(localSkill, { recursive: true });
-  writeFileSync(join(localSkill, 'SKILL.md'), '# local');
-  writeFileSync(
-    join(localSkill, 'skill_meta.yaml'),
-    [
-      'id: local-skill',
-      'name: local-skill',
-      'version: 1.0.0',
-      'status: enabled',
-      'path: ./skills/local-skill',
-      'source:',
-      '  type: local',
-      'targets:',
-      '  - target: claude',
-      '    scope: global',
-      '    path: .claude/skills/local-skill',
-      '    mode: copy',
-      '    enabled: true',
-      '    file_map:',
-      '      SKILL.md: SKILL.md',
-      '',
-    ].join('\n'),
-  );
-
-  // M4b T2：声明式插件夹具（project 作用域，不写主目录；来源在 workspace 内但不在 plugins/）
-  const pluginSource = join(root, 'plugin-source');
-  mkdirSync(pluginSource, { recursive: true });
-  writeFileSync(
-    join(pluginSource, 'plugin.json'),
-    JSON.stringify(
-      {
-        manifest_version: '1',
-        plugin_id: 'smoke-tools',
-        name: 'Smoke Tools',
-        version: '1.0.0',
-        compatibility: { skill_manager: '>=0.2.0 <1.0.0', plugin_api: '1' },
-        capabilities: ['host_profile'],
-        hosts: [
-          {
-            host_key: 'zed',
-            display_name: 'Zed',
-            form: 'rules',
-            roots: [
-              {
-                kind: 'rules',
-                path_template: '.zed/rules/<skill_id>.md',
-                scope: 'project',
-              },
-            ],
-            render_policy: { field_mode: 'standard6' },
-          },
-        ],
-      },
-      null,
-      2,
-    ),
-  );
-
-  // 预置一份备份载体（夹具经 S-08 真实产出，界面侧只能经 restore --list 看到它）：
-  // 这样「备份管理页渲染真实备份」与「恢复弹窗展示预演」两项检查才有可用的真实数据
-  mkdirSync(join(root, 'backups'), { recursive: true });
-  createBackup({
-    workspaceRoot: root,
-    backupsDir: join(root, 'backups'),
-    id: 'smoke-skill',
-    sourceDir: skill,
-    now: '2026-01-01T00:00:00Z',
-    checksum: '',
-  });
-  // 备份造好之后改动原件：恢复若真的执行，磁盘上的内容必须回到备份里的取值——
-  // 这是「界面点恢复 → 预览 → 确认 → 真的写回」这条链路唯一无法伪装的证据
-  writeFileSync(join(skill, 'SKILL.md'), '# tampered after backup');
-  return root;
-}
-
 async function waitForTarget(port, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -276,6 +172,9 @@ async function main() {
   const gitDaemon = await startGitDaemon(gitServed, gitPort);
 
   const workspace = prepareWorkspace(gitUrl);
+  const hostHome = mkdtempSync(join(tmpdir(), 'sm-gui-home-'));
+  const hostLocal = mkdtempSync(join(tmpdir(), 'sm-gui-local-'));
+  prepareHostFixture(hostHome, hostLocal);
   const userData = mkdtempSync(join(tmpdir(), 'sm-gui-user-data-'));
   const electron =
     packagedApp ??
@@ -291,6 +190,9 @@ async function main() {
       cwd: GUI,
       env: {
         ...process.env,
+        HOME: hostHome,
+        USERPROFILE: hostHome,
+        LOCALAPPDATA: hostLocal,
         SKILL_MANAGER_WORKSPACE: workspace,
         SKILL_MANAGER_USER_DATA_DIR: userData,
       },
@@ -365,6 +267,14 @@ async function main() {
       '未初始化时显示引导而非错误',
       await waitFor("document.body.innerText.includes('工作区尚未初始化')"),
     );
+
+    await runEmptyWorkspaceInventoryChecks({
+      evaluate,
+      waitFor,
+      check,
+      workspace,
+      userData,
+    });
 
     await evaluate(
       "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('初始化工作区'))?.click()",
@@ -500,6 +410,7 @@ async function main() {
       hostBefore.includes('claude') && hostBefore.includes('内置宿主'),
       hostBefore.slice(0, 160),
     );
+    await runThirdPartyInventoryCheck({ evaluate, waitFor, check });
     await evaluate('document.querySelector(\'[data-plugin-id="smoke-tools"] button\')?.click()');
     await waitFor("document.querySelector('.dialog')?.innerText.includes('landings') === true", 60);
     check(
@@ -755,6 +666,8 @@ async function main() {
     killTree(gitDaemon);
     await new Promise((resolve) => setTimeout(resolve, 500));
     rmSync(workspace, { recursive: true, force: true });
+    rmSync(hostHome, { recursive: true, force: true });
+    rmSync(hostLocal, { recursive: true, force: true });
     rmSync(userData, { recursive: true, force: true });
     rmSync(gitRoot, { recursive: true, force: true });
   }

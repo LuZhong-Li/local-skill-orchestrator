@@ -1,47 +1,12 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { makeHostRoot } from '../helpers/host.ts';
+import { makeSkillSource } from '../helpers/skill.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { run } from '../../kernel/entry/cli.ts';
-
-/** 工作区（含标准目录由 init 建立） */
-function tempWorkspace(): string {
-  return mkdtempSync(join(tmpdir(), 'sm-wire-ws-'));
-}
-
-/** 宿主真实根：测试用配置覆盖指向临时目录，绝不触碰真实宿主目录 */
-function tempHostRoot(): string {
-  return mkdtempSync(join(tmpdir(), 'sm-wire-host-'));
-}
-
-/** 造一个可安装的 Skill 来源目录 */
-function makeSource(id: string, description = '演示用技能'): string {
-  const dir = mkdtempSync(join(tmpdir(), `sm-src-${id}-`));
-  writeFileSync(join(dir, 'SKILL.md'), `---\nname: ${id}\n---\n\n# ${id}\n\n正文。\n`);
-  writeFileSync(
-    join(dir, 'skill_meta.yaml'),
-    [
-      `id: ${id}`,
-      `name: ${id}`,
-      `description: ${description}`,
-      'status: enabled',
-      `path: ./skills/${id}`,
-      'source:',
-      '  type: local',
-      `  location: ${dir}`,
-      'targets:',
-      '  - target: claude',
-      '    scope: global',
-      `    path: .claude/skills/${id}`,
-      '    mode: copy',
-      '    enabled: true',
-      '',
-    ].join('\n'),
-  );
-  return dir;
-}
 
 /** 捕获一次调用的 JSON 输出与退出码 */
 async function callJson(
@@ -68,8 +33,8 @@ async function call(argv: string[]): Promise<number> {
 }
 
 test('契约：install --host 分发到宿主真实根；无 --host 时行为与一期一致', async () => {
-  const ws = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const ws = makeTempDir('sm-wire-ws-');
+  const hostRoot = makeHostRoot('sm-wire-host-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
   assert.equal(
     await call(['config', 'set', 'host.claude.root', hostRoot, '--workspace', ws]),
@@ -77,7 +42,7 @@ test('契约：install --host 分发到宿主真实根；无 --host 时行为与
     '宿主真实根配置应可设置（测试用覆盖根）',
   );
 
-  const withHost = makeSource('skill-with-host');
+  const withHost = makeSkillSource('skill-with-host', { description: '演示用技能' });
   assert.equal(
     await call(['install', withHost, '--workspace', ws, '--host', 'claude', '--yes']),
     0,
@@ -96,7 +61,7 @@ test('契约：install --host 分发到宿主真实根；无 --host 时行为与
   );
 
   // 回归：无 --host 时不触碰宿主真实根
-  const withoutHost = makeSource('skill-without-host');
+  const withoutHost = makeSkillSource('skill-without-host', { description: '演示用技能' });
   assert.equal(await call(['install', withoutHost, '--workspace', ws, '--yes']), 0);
   assert.equal(
     existsSync(join(hostRoot, 'skill-without-host')),
@@ -106,11 +71,11 @@ test('契约：install --host 分发到宿主真实根；无 --host 时行为与
 });
 
 test('契约：enable / disable --host 在宿主根内改名，目录不动、索引状态不变', async () => {
-  const ws = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const ws = makeTempDir('sm-wire-ws-');
+  const hostRoot = makeHostRoot('sm-wire-host-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
   assert.equal(await call(['config', 'set', 'host.claude.root', hostRoot, '--workspace', ws]), 0);
-  const source = makeSource('toggle-skill');
+  const source = makeSkillSource('toggle-skill', { description: '演示用技能' });
   assert.equal(await call(['install', source, '--workspace', ws, '--host', 'claude', '--yes']), 0);
 
   const copyDir = join(hostRoot, 'toggle-skill');
@@ -146,11 +111,11 @@ test('契约：enable / disable --host 在宿主根内改名，目录不动、�
 });
 
 test('契约：update --host 刷新后重分发到宿主真实根', async () => {
-  const ws = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const ws = makeTempDir('sm-wire-ws-');
+  const hostRoot = makeHostRoot('sm-wire-host-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
   assert.equal(await call(['config', 'set', 'host.claude.root', hostRoot, '--workspace', ws]), 0);
-  const source = makeSource('update-skill', '第一版描述');
+  const source = makeSkillSource('update-skill', { description: '第一版描述' });
   assert.equal(await call(['install', source, '--workspace', ws, '--host', 'claude', '--yes']), 0);
 
   // 本地目录来源的刷新语义是「按磁盘现状刷新记录，不重新获取内容」，
@@ -169,9 +134,9 @@ test('契约：update --host 刷新后重分发到宿主真实根', async () => 
 });
 
 test('契约：--host 非法取值报错并列出可用取值；非终端缺 --yes 被拒', async () => {
-  const ws = tempWorkspace();
+  const ws = makeTempDir('sm-wire-ws-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
-  const source = makeSource('invalid-host-skill');
+  const source = makeSkillSource('invalid-host-skill', { description: '演示用技能' });
 
   const invalid = await callJson([
     'install',
@@ -190,7 +155,7 @@ test('契约：--host 非法取值报错并列出可用取值；非终端缺 --y
   );
 
   // 非终端且未给 --yes：宿主分发写工作区之外，必须显式跳过确认
-  const hostRoot = tempHostRoot();
+  const hostRoot = makeHostRoot('sm-wire-host-');
   assert.equal(await call(['config', 'set', 'host.claude.root', hostRoot, '--workspace', ws]), 0);
   const refused = await call(['install', source, '--workspace', ws, '--host', 'claude']);
   assert.notEqual(refused, 0, '非终端缺 --yes 时应拒绝执行');
@@ -198,12 +163,12 @@ test('契约：--host 非法取值报错并列出可用取值；非终端缺 --y
 });
 
 test('契约：--dry-run 预览工作区外目标且不落盘；--host 与 --target 正交', async () => {
-  const ws = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const ws = makeTempDir('sm-wire-ws-');
+  const hostRoot = makeHostRoot('sm-wire-host-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
   assert.equal(await call(['config', 'set', 'host.claude.root', hostRoot, '--workspace', ws]), 0);
 
-  const preview = makeSource('preview-skill');
+  const preview = makeSkillSource('preview-skill', { description: '演示用技能' });
   const dry = await callJson([
     'install',
     preview,
@@ -222,7 +187,7 @@ test('契约：--dry-run 预览工作区外目标且不落盘；--host 与 --tar
   );
 
   // 正交：--target 落工作区目标，--host 落宿主真实根，两者各自生效
-  const both = makeSource('orthogonal-skill');
+  const both = makeSkillSource('orthogonal-skill', { description: '演示用技能' });
   assert.equal(
     await call([
       'install',

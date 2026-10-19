@@ -1,14 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { makeHostRoot } from '../helpers/host.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { adapterFor } from '../../kernel/core/adapters/index.ts';
 import { rebasePlan } from '../../kernel/core/adapters/plan.ts';
@@ -37,16 +31,11 @@ function sample(overrides: Partial<RenderSource> = {}): RenderSource {
   };
 }
 
-/** 临时工作区（含标准目录） */
+/** 特殊构造：落位测试需要标准目录，保留 ensureWorkspaceDirs 包装。 */
 function tempWorkspace(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-land-'));
+  const dir = makeTempDir('sm-land-');
   ensureWorkspaceDirs(layoutOf(dir));
   return dir;
-}
-
-/** 临时宿主根（测试用配置覆盖，绝不触碰真实宿主目录） */
-function tempHostRoot(): string {
-  return mkdtempSync(join(tmpdir(), 'sm-host-'));
 }
 
 test('契约：外部根解析——默认值平台展开与配置覆盖', () => {
@@ -99,7 +88,7 @@ test('契约：外部根解析——默认值平台展开与配置覆盖', () =>
   );
 
   // 配置覆盖生效，且工作区外的根标记为 external
-  const hostRoot = tempHostRoot();
+  const hostRoot = makeHostRoot('sm-host-');
   const overridden = resolveHostRoot({
     hostId: 'claude',
     workspaceRoot,
@@ -202,7 +191,7 @@ test('契约：Codex 落位计划重定基到官方 agents 根，遗留根仅经
 
 test('契约：落位写盘到宿主真实根（技能形态），原子写无残留', () => {
   const workspaceRoot = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const hostRoot = makeHostRoot('sm-host-');
   const layout = layoutOf(workspaceRoot);
   const source = sample();
   const plan = adapterFor('claude')!.plan(source);
@@ -251,7 +240,7 @@ test('契约：落位写盘到宿主真实根（技能形态），原子写无�
 
 test('契约：备份先行——写前备份既有内容，备份失败即中止且不改动环境', () => {
   const workspaceRoot = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const hostRoot = makeHostRoot('sm-host-');
   const layout = layoutOf(workspaceRoot);
   const source = sample();
 
@@ -278,7 +267,7 @@ test('契约：备份先行——写前备份既有内容，备份失败即中�
   assert.equal(result.changes[0]!.action, 'modify');
 
   // 备份失败中止：既有落位内容不是目录（技能形态需要目录型备份载体）
-  const brokenRoot = tempHostRoot();
+  const brokenRoot = makeHostRoot('sm-host-');
   const brokenTarget = join(brokenRoot, source.id, 'SKILL.md');
   mkdirSync(join(brokenRoot, source.id), { recursive: true });
   writeFileSync(brokenTarget, '旧内容');
@@ -297,7 +286,7 @@ test('契约：备份先行——写前备份既有内容，备份失败即中�
 });
 
 test('契约：启用 / 禁用在宿主根内改名，目录不动（Q-06）', () => {
-  const hostRoot = tempHostRoot();
+  const hostRoot = makeHostRoot('sm-host-');
   const skillId = 'demo-skill';
   const dir = join(hostRoot, skillId);
   mkdirSync(dir, { recursive: true });
@@ -334,7 +323,7 @@ test('契约：指令文件载体不落盘、预演不触碰磁盘', () => {
   assert.equal(result.backups.length, 0);
 
   // 预演：产出将执行的变更清单但不落盘
-  const hostRoot = tempHostRoot();
+  const hostRoot = makeHostRoot('sm-host-');
   const plan = adapterFor('claude')!.plan(source);
   plan.entries[0]!.root_path = join(hostRoot, source.id);
   plan.entries[0]!.target_path = join(hostRoot, source.id, 'SKILL.md');
@@ -346,7 +335,7 @@ test('契约：指令文件载体不落盘、预演不触碰磁盘', () => {
   assert.deepEqual(preview.backups, []);
 
   // 同时给出中心库原件时，资产按逐文件映射落位
-  const libraryDir = mkdtempSync(join(tmpdir(), 'sm-lib-'));
+  const libraryDir = makeTempDir('sm-lib-');
   writeFileSync(join(libraryDir, 'SKILL.md'), '中心库原件');
   writeFileSync(join(libraryDir, 'asset.txt'), '资产');
   const withAssets = adapterFor('claude')!.plan(source);

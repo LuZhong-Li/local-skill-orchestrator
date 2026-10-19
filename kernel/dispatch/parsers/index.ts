@@ -26,6 +26,7 @@ export const BOOLEAN_OPTIONS = new Set([
   'no-secrets',
   'tree',
   'list',
+  'inventory',
 ]);
 
 /**

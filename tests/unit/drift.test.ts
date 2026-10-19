@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { computeChecksum, computeDigests } from '../../kernel/core/integrity/index.ts';
 import { scanWorkspace } from '../../kernel/core/discovery/index.ts';
@@ -20,7 +20,7 @@ const NOW = '2026-10-15T00:00:00Z';
 const LATER = '2026-10-15T02:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-drift-'));
+  const root = makeTempDir('sm-drift-');
   mkdirSync(join(root, 'skills'), { recursive: true });
   mkdirSync(join(root, 'backups'), { recursive: true });
   return root;
@@ -202,7 +202,7 @@ test('验收三：旧索引缺逐文件基准时只给聚合级报告，扫描�
 
 test('验收五：安装与刷新都会写入与刷新逐文件摘要', async () => {
   const root = workspace();
-  const source = mkdtempSync(join(tmpdir(), 'sm-drift-src-'));
+  const source = makeTempDir('sm-drift-src-');
   writeFileSync(join(source, 'SKILL.md'), '# skill');
   mkdirSync(join(source, 'assets'), { recursive: true });
   writeFileSync(join(source, 'assets', 'data.txt'), 'one');

@@ -6,7 +6,7 @@
  * 「预览 → 确认 → 执行」的统一流程。这里不推导业务状态，也不读写工作区文件。
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import SkillCard from './components/SkillCard.vue';
+import DashboardView from './components/DashboardView.vue';
 import DetailDialog from './components/DetailDialog.vue';
 import InstallDialog from './components/InstallDialog.vue';
 import ValidationDialog from './components/ValidationDialog.vue';
@@ -15,6 +15,7 @@ import UpdateCheckDialog from './components/UpdateCheckDialog.vue';
 import PluginPanel from './components/PluginPanel.vue';
 import PluginInstallDialog from './components/PluginInstallDialog.vue';
 import PluginDetailDialog from './components/PluginDetailDialog.vue';
+import HostInventoryView from './components/HostInventoryView.vue';
 import { useKernel } from './composables/useKernel.ts';
 import { runSequentialUpdates, type UpdateRunResult } from './update-runner.ts';
 import { pluginInstallNotice } from './plugin-presentation.ts';
@@ -30,7 +31,7 @@ import {
   type UpdateSettings,
 } from './types.ts';
 
-type View = 'dashboard' | 'validation' | 'backup' | 'plugins' | 'settings';
+type View = 'dashboard' | 'inventory' | 'validation' | 'backup' | 'plugins' | 'settings';
 
 const kernel = useKernel();
 const view = ref<View>('dashboard');
@@ -403,6 +404,13 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
         <button data-nav="plugins" :class="{ active: view === 'plugins' }" @click="openPlugins">
           插件（扩展）
         </button>
+        <button
+          data-nav="inventory"
+          :class="{ active: view === 'inventory' }"
+          @click="view = 'inventory'"
+        >
+          全机盘点
+        </button>
         <button :class="{ active: view === 'settings' }" @click="view = 'settings'">设置</button>
       </nav>
       <dl class="counts">
@@ -422,7 +430,7 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
     </aside>
 
     <main>
-      <header class="toolbar">
+      <header v-if="view !== 'inventory'" class="toolbar">
         <button class="primary" :disabled="kernel.busy.value" @click="showInstall = true">
           安装 Skill
         </button>
@@ -449,31 +457,23 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
           <option value="invalid">仅失效</option>
         </select>
       </header>
+      <header v-else class="toolbar">
+        <strong>全机盘点</strong>
+        <span class="muted">只读：不写工作区、不写设置、不安装或卸载</span>
+        <span class="spacer" />
+      </header>
 
-      <section v-if="view === 'dashboard'" class="content">
-        <div v-if="!kernel.initialized.value" class="empty">
-          <h2>工作区尚未初始化</h2>
-          <p class="muted">先在当前工作区建立索引与标准目录，然后扫描已有的 Skill。</p>
-          <button class="primary" @click="kernel.run(['init']).then(kernel.refresh)">
-            初始化工作区
-          </button>
-        </div>
-        <div v-else-if="visibleRecords.length === 0" class="empty">
-          <h2>还没有已管理的 Skill</h2>
-          <p class="muted">执行一次扫描，把工作区里已有的 Skill 登记进来。</p>
-          <button class="primary" @click="kernel.run(['scan']).then(kernel.refresh)">
-            立即扫描
-          </button>
-        </div>
-        <div v-else class="grid">
-          <SkillCard
-            v-for="record in visibleRecords"
-            :key="record.id"
-            :record="record"
-            @open="openDetail(record)"
-          />
-        </div>
-      </section>
+      <DashboardView
+        v-if="view === 'dashboard'"
+        :initialized="kernel.initialized.value"
+        :records="visibleRecords"
+        @init="kernel.run(['init']).then(kernel.refresh)"
+        @scan="kernel.run(['scan']).then(kernel.refresh)"
+        @inventory="view = 'inventory'"
+        @open="openDetail"
+      />
+
+      <HostInventoryView v-else-if="view === 'inventory'" :run="kernel.run" />
 
       <section v-else-if="view === 'validation'" class="content">
         <p class="muted">
@@ -821,21 +821,6 @@ main {
   display: flex;
   flex-direction: column;
   gap: calc(var(--space) * 4);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
-  gap: calc(var(--space) * 4);
-}
-
-.empty {
-  margin: auto;
-  text-align: center;
-  display: grid;
-  gap: calc(var(--space) * 3);
-  justify-items: center;
-  max-width: 420px;
 }
 
 .panel {

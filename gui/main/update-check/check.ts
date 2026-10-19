@@ -1,6 +1,6 @@
 import type { UpdateCheckItem } from './classify.ts';
 import { classifyInspectItem, probeTargetOf } from './classify.ts';
-import { UPDATE_CHECK_BACKUP_NOTICE } from './constants.ts';
+import { BACKUP_NOTICE, CODES } from '@skill-manager/contract';
 import { runGitLsRemote, type ProbeOutcome } from './ls-remote.ts';
 
 export interface CheckFinding {
@@ -43,13 +43,13 @@ export interface CheckUpdatesOptions {
 
 function inspectFailure(id: string, result: InspectLikeResult, checkedAt: string): UpdateCheckItem {
   const first = result.findings?.find((item) => item.code !== undefined);
-  const code = first?.code ?? 'E-CHANNEL-001';
+  const code = first?.code ?? CODES.CHANNEL_FAILED;
   return {
     id,
     state: 'failed',
     summary: `检查失败：${first?.message ?? 'inspect 未返回可用结果'}`,
     provenance: { url: null, ref: null, checked_at: checkedAt },
-    backup_notice: UPDATE_CHECK_BACKUP_NOTICE,
+    backup_notice: BACKUP_NOTICE,
     code,
     remedy: first?.remedy ?? '请确认工作区可读，或重新执行 scan 后再试',
   };
@@ -74,7 +74,7 @@ export async function checkUpdates(options: CheckUpdatesOptions): Promise<Update
         ok: false,
         findings: [
           {
-            code: 'E-CHANNEL-001',
+            code: CODES.CHANNEL_FAILED,
             message: error instanceof Error ? error.message : String(error),
             remedy: '请确认内核可执行且工作区可读',
           },
@@ -96,7 +96,7 @@ export async function checkUpdates(options: CheckUpdatesOptions): Promise<Update
         } catch (error) {
           outcome = {
             ok: false,
-            code: 'E-SRC-007',
+            code: CODES.SRC_DOWNLOAD_FAILED,
             message: `git ls-remote 失败：${error instanceof Error ? error.message : String(error)}`,
             remedy: '请确认来源地址可达、引用存在且网络可用',
           };

@@ -68,7 +68,9 @@ export async function run(
   }
 
   const result = await dispatch({ args, now: utcNow(), interaction });
-  process.stdout.write(`${render(result, { json, machine, color })}\n`);
+  process.stdout.write(
+    `${render(result, { json, machine, color, verbose: flag(args, 'verbose') })}\n`,
+  );
   return result.exit_code;
 }
 
@@ -95,8 +97,10 @@ function helpText(): string {
     '',
     '通用选项：',
     '  --workspace <路径>      指定工作区根目录，覆盖环境变量',
+    '  --kind <skill|plugin>   对象类型入口；scan 默认扫描 Skill',
     '  --root <路径>           覆盖索引中声明的 Skill 根目录，可重复',
     '  --dry-run               预演，返回将要发生的变更，不写入任何文件',
+    '  --inventory             只读列出宿主盘点根；scan 专用，不扫描目录',
     '  --hard                  卸载时连同中心库原件一并删除',
     '  --keep-library          卸载时保留中心库原件（默认行为，供显式声明）',
     '  --library-only          安装时只写入中心库与登记记录，不分发到目标位置',

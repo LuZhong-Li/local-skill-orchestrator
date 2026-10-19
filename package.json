@@ -6,7 +6,8 @@
   "type": "module",
   "workspaces": [
     "kernel",
-    "gui"
+    "gui",
+    "contract"
   ],
   "engines": {
     "node": ">=22"
@@ -17,15 +18,21 @@
     "build:icon": "node scripts/build-icon.mjs",
     "build:icon:icns": "node scripts/build-icon-icns.mjs",
     "build:desktop": "node scripts/build-desktop.mjs",
-    "check": "npm run check:contract && npm run check:layer",
+    "check": "npm run check:contract && npm run check:layer && npm run check:complexity && npm run check:test-fixtures",
     "check:contract": "node scripts/check-contract.mjs",
     "check:layer": "node scripts/check-layer.mjs",
-    "typecheck": "npm run typecheck:kernel && npm run typecheck:gui",
+    "check:arch": "node scripts/check-layer.mjs",
+    "check:complexity": "node scripts/check-complexity.mjs",
+    "check:test-fixtures": "node scripts/check-test-fixtures.mjs",
+    "arch:baseline": "node scripts/check-complexity.mjs --write",
+    "typecheck": "npm run typecheck:contract && npm run typecheck:kernel && npm run typecheck:gui",
+    "typecheck:contract": "tsc --noEmit -p contract/tsconfig.json",
     "typecheck:kernel": "tsc --build kernel/tsconfig.json",
     "typecheck:gui": "npm run typecheck -w @skill-manager/gui",
     "test": "node --test tests/unit/*.test.ts tests/contract/*.test.ts tests/e2e/*.test.ts",
     "smoke:gui": "node scripts/gui-smoke.mjs",
     "smoke:kernel": "node scripts/smoke-kernel.mjs",
+    "probe:inventory": "node scripts/probe-host-inventory.mjs",
     "bench:fixture": "node scripts/bench/fixture-cli.mjs",
     "bench": "node scripts/bench/runner.mjs",
     "check:node": "node scripts/check-node-version.mjs",

@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   ICONSET_ENTRIES,
@@ -105,8 +105,8 @@ test('图标：确定性——重复生成逐字节一致', () => {
 });
 
 test('图标：落盘清单完整，重复写入到不同目录哈希一致', () => {
-  const dirA = mkdtempSync(join(tmpdir(), 'sm-icon-a-'));
-  const dirB = mkdtempSync(join(tmpdir(), 'sm-icon-b-'));
+  const dirA = makeTempDir('sm-icon-a-');
+  const dirB = makeTempDir('sm-icon-b-');
 
   const listA = writeIconArtifacts(dirA);
   const listB = writeIconArtifacts(dirB);

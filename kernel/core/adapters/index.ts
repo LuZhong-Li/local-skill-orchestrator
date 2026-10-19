@@ -14,7 +14,7 @@
  */
 import { CODES, finding, type Finding } from '../../store/contract.ts';
 import { parse as parseYamlText } from 'yaml';
-import { hostById } from '../hosts/index.ts';
+import { hostById, hostIds } from '../hosts/index.ts';
 import { renderEntry, renderSkill } from '../render/index.ts';
 import { renderRuleFile } from './rules.ts';
 import { assemblePlan } from './plan.ts';
@@ -73,62 +73,57 @@ const ENTRY_FORM: FormImplementation = {
   },
 };
 
-/**
- * Cursor 形态实现：技能形态 + 规则路径形态。
- * 这是本批唯一新增的形态——其余宿主复用既有形态，无需任何宿主专有代码。
- */
-const CURSOR_FORM: FormImplementation = {
-  forms: ['skill', 'rules'],
-  render(hostId, source, form) {
-    if (form === 'rules') return renderRuleFile(hostId, source);
-    return renderSkill(hostId, source);
+/** 规则路径形态实现 */
+const RULE_FORM: FormImplementation = {
+  forms: ['rules'],
+  render(hostId, source) {
+    return renderRuleFile(hostId, source);
   },
   verify(hostId, outcome) {
-    const findings: Finding[] = verifySkillArtifacts(hostId, outcome);
-    for (const file of outcome.files) {
-      if (file.kind === 'rule_file') {
-        if (!file.path.endsWith('.mdc')) {
-          findings.push(
-            finding(CODES.FIELD_INVALID_VALUE, {
-              source: SOURCE,
-              target: `${hostId}:${file.path}`,
-              message: '规则文件必须以 .mdc 结尾（.md 会被规则系统忽略）',
-              remedy: '按 Cursor 规则文档修正扩展名',
-            }),
-          );
-        }
-        if (!file.content.includes('alwaysApply:')) {
-          findings.push(
-            finding(CODES.FIELD_REQUIRED, {
-              source: SOURCE,
-              target: `${hostId}:${file.path}`,
-              message: '规则文件缺少 alwaysApply 前置元数据',
-              remedy: '规则文件的 frontmatter 必须给出 description 与 alwaysApply',
-            }),
-          );
-        }
-      }
-    }
-    return findings;
+    return verifyRuleArtifacts(hostId, outcome);
   },
 };
 
-/** 宿主标识 → 形态实现。新增宿主若复用既有形态，只需在此登记一行并补注册表条目 */
-const FORM_BY_HOST: Record<string, FormImplementation> = {
-  claude: SKILL_FORM,
-  codex: SKILL_FORM,
-  doubao: SKILL_FORM,
-  agentskills: SKILL_FORM,
-  cursor: CURSOR_FORM,
-  'agents-md': ENTRY_FORM,
+const SINGLE_FORMS: Record<AdapterForm, FormImplementation> = {
+  skill: SKILL_FORM,
+  rules: RULE_FORM,
+  entry: ENTRY_FORM,
 };
+
+const COMPOSITES = new Map<string, FormImplementation>();
+
+/** 由注册表的 adapter_forms 组合形态实现；复用形态的宿主共享同一对象。 */
+function implementationForForms(forms: readonly AdapterForm[]): FormImplementation | undefined {
+  const key = [...forms].sort().join('+');
+  const cached = COMPOSITES.get(key);
+  if (cached !== undefined) return cached;
+  const implementations = forms.map((form) => SINGLE_FORMS[form]);
+  if (implementations.length === 0 || implementations.some((item) => item === undefined)) {
+    return undefined;
+  }
+  const composite =
+    implementations.length === 1
+      ? (implementations[0] as FormImplementation)
+      : ({
+          forms,
+          render(hostId, source, form) {
+            return (SINGLE_FORMS[form] as FormImplementation).render(hostId, source, form);
+          },
+          verify(hostId, outcome) {
+            return implementations.flatMap((item) => item.verify(hostId, outcome));
+          },
+        } satisfies FormImplementation);
+  COMPOSITES.set(key, composite);
+  return composite;
+}
 
 /**
  * 取宿主的形态实现；未登记（含不适用宿主）返回 undefined。
  * 该函数暴露给审计与测试：同一实现对象说明这些宿主没有宿主专有代码。
  */
 export function formImplementationOf(hostId: string): FormImplementation | undefined {
-  return FORM_BY_HOST[hostId];
+  const forms = hostById(hostId)?.adapter_forms;
+  return forms === undefined ? undefined : implementationForForms(forms as AdapterForm[]);
 }
 
 /** 绑定宿主标识与形态实现，得到适配器 */
@@ -162,13 +157,20 @@ function bind(hostId: string, implementation: FormImplementation): HostAdapter {
 
 /** 取宿主适配器；不适用宿主（deepseek）没有适配器，返回 undefined */
 export function adapterFor(hostId: string): HostAdapter | undefined {
-  const implementation = FORM_BY_HOST[hostId];
+  const implementation = formImplementationOf(hostId);
   return implementation === undefined ? undefined : bind(hostId, implementation);
 }
 
 /** 全部可用适配器（按宿主标识排序），供 T5 与验收使用 */
 export function allAdapters(): HostAdapter[] {
-  return Object.keys(FORM_BY_HOST)
+  return hostIds()
+    .filter((hostId) => {
+      const entry = hostById(hostId);
+      return (
+        entry?.adapter_forms !== undefined &&
+        (entry.adapter_state === 'implemented' || entry.adapter_state === 'degrade_only')
+      );
+    })
     .sort()
     .map((hostId) => adapterFor(hostId) as HostAdapter);
 }
@@ -177,6 +179,34 @@ export function allAdapters(): HostAdapter[] {
  * 技能形态产物的结构合规校验（只读）：
  * 前置元数据必须可解析、必填字段齐全、字段集不得超过「标准六字段 + 宿主白名单」。
  */
+function verifyRuleArtifacts(hostId: string, outcome: RenderOutcome): Finding[] {
+  const findings: Finding[] = [];
+  for (const file of outcome.files) {
+    if (file.kind !== 'rule_file') continue;
+    if (!file.path.endsWith('.mdc')) {
+      findings.push(
+        finding(CODES.FIELD_INVALID_VALUE, {
+          source: SOURCE,
+          target: `${hostId}:${file.path}`,
+          message: '规则文件必须以 .mdc 结尾（.md 会被规则系统忽略）',
+          remedy: '按 Cursor 规则文档修正扩展名',
+        }),
+      );
+    }
+    if (!file.content.includes('alwaysApply:')) {
+      findings.push(
+        finding(CODES.FIELD_REQUIRED, {
+          source: SOURCE,
+          target: `${hostId}:${file.path}`,
+          message: '规则文件缺少 alwaysApply 前置元数据',
+          remedy: '规则文件的 frontmatter 必须给出 description 与 alwaysApply',
+        }),
+      );
+    }
+  }
+  return findings;
+}
+
 function verifySkillArtifacts(hostId: string, outcome: RenderOutcome): Finding[] {
   const findings: Finding[] = [];
   const entry = hostById(hostId);

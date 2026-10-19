@@ -37,6 +37,7 @@ import { META_FILE_NAME, SOURCE_TYPE_VALUES } from '../metadata/constants.ts';
 import { CODES } from '../../store/contract.ts';
 import { KernelError } from '../../store/errors.ts';
 import { parseYaml } from '../../store/yaml/index.ts';
+import { SOURCE_MAX_OUTPUT_BYTES, SOURCE_TIMEOUT_MS } from '@skill-manager/contract';
 
 export type SourceType = (typeof SOURCE_TYPE_VALUES)[number];
 
@@ -68,9 +69,10 @@ export function looksRemote(location: string): boolean {
 }
 
 /** 远端获取的时间与体积上限：超时防挂起，体积上限防无限下载；两者都可用环境变量调整 */
-const REMOTE_TIMEOUT_MS = Number(process.env['SKILL_MANAGER_SOURCE_TIMEOUT_MS'] ?? '') || 60_000;
+const REMOTE_TIMEOUT_MS =
+  Number(process.env['SKILL_MANAGER_SOURCE_TIMEOUT_MS'] ?? '') || SOURCE_TIMEOUT_MS;
 const REMOTE_MAX_BYTES =
-  Number(process.env['SKILL_MANAGER_SOURCE_MAX_BYTES'] ?? '') || 128 * 1024 * 1024;
+  Number(process.env['SKILL_MANAGER_SOURCE_MAX_BYTES'] ?? '') || SOURCE_MAX_OUTPUT_BYTES;
 
 /** 协议白名单：https 与 git 用于远端；http 仅允许指向本机回环地址（本地测试与自建镜像） */
 function assertProtocolAllowed(location: string): void {

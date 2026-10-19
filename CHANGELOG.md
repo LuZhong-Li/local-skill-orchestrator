@@ -1,5 +1,168 @@
 # 变更记录
 
+## 0.4.0 开发记录
+
+> 状态：开发中，未发布。范围见 [`docs/plan/m4c-host-inventory.md`](docs/plan/m4c-host-inventory.md)。
+
+### L-1：第七份规范与第八份 schema（2026-10-18）
+
+- **需求**：9.3.7 增补账本前置与 `uninstall --host <宿主|all>` 分发生命周期；指令总数仍 16，`--host` 是选项扩展。
+- **规范**：新增 `docs/specification/host-landings.spec.md`，定义 `<workspace>/host_landings.yaml` 作为内置宿主分发副本的唯一权威账本；`skill_index.targets[]` 仍只是工作区目标，插件宿主继续使用 `plugin_index.landings`。
+- **Schema**：新增 `schemas/host_landings.schema.json`，覆盖顶层字段、落位记录、绝对路径、摘要格式、`skill` / `rules` 形态与 `visible` / `disabled` 可见性；字段表与 schema 由契约测试逐项比对。
+- **摘要口径**：`content_digest` 复用 `kernel/core/integrity` 的 `collectHashEntries` / `computeChecksum`：相对路径 UTF-8 字节序、`路径 + NUL + 文件字节` 单次 SHA-256；禁用标记规范化，可见性切换不改变摘要；不引入第二套哈希。
+- **共享根**：同一物理路径按 `host_id` 各记一条，账本不去重；读取层按真实路径去重。共享副本的可见性 / 重渲染同步全部活跃记录；单宿主卸载遇其他活跃消费方拒绝 `E-LANDING-001`，`--host all` 一次清理。
+- **状态机**：`uninstall --host` 与 `--host all` 把记录标为 `orphaned` 并保留审计；原件卸载在无 active 记录后物理清除该 Skill 的 `orphaned` 记录；`E-LANDING-002` 同时检查 `host_landings` 与 `plugin_index.landings`。
+- **问题码**：`result-and-exit-codes.md` 新增 `LANDING` 类别与 `E-LANDING-001` / `E-LANDING-002`；`contract/src/codes.ts` 同步常量；`check:contract` 锁定 **7 份规范 / 8 份 schema** 与两码同源。
+- **兼容**：v0.3.0 及更早工作区缺少账本时按空账本读取，不自动创建、不批量回填；首次 `--host` 写入时创建；历史副本只走 inferred。
+- **技术债 TD-01**：双源账本（`host_landings` + `plugin_index.landings`）是 v0.4.0 过渡态；触发 plugin_index v2 或下一次分发契约变更时统一为单账本，升级路径保留。
+- **测试**：新增 4 项契约测试；常规套件 569 → **573 项**（单元 371、契约 116、端到端 86；572 通过 + 1 项平台条件跳过）；typecheck / lint / format:check / check / build 全绿，`smoke:kernel` 通过，`smoke:gui` 28/28，慢测试 1 项通过。
+- **边界**：本批只落规范、schema、问题码与契约测试；落账、卸载、init 建空文件由 L-2 / L-3 实现。
+
+### L-2：内置宿主账本写路径（2026-10-18）
+
+- **Store**：新增 `kernel/store/host-landings/`，负责 `host_landings.yaml` 的原子读写、主键 CRUD、共享物理路径同步与结构校验；损坏、主键重复、坏枚举统一返回 `E-LANDING-001`。
+- **初始化**：`init` 幂等创建空 `host_landings.yaml`，与 `skill_index.yaml` / `plugin_index.yaml` 同级；已有账本不覆盖。
+- **四命令落账**：`install` / `update --host` 在物理落位成功后写 active 记录；`enable` / `disable --host` 改名后更新 visibility；账本写入失败时恢复副本或反向改名，不留半截状态。
+- **摘要同源**：新增 `computeLandingChecksum`，复用 `collectHashEntries` / `computeChecksum` 的「相对路径 + NUL + 文件字节」单次 SHA-256；`.disabled` 规范化；单测断言可见副本摘要与 `computeChecksum` 完全相同。
+- **共享根**：同一物理路径按宿主各记一条；codex/cursor 同路径 e2e 验证一次写盘、多记录同步；enable/disable/update 不只改一条。
+- **adopted**：历史副本 enable/disable 时以 `origin: adopted` 入账，结果数据可见 `adopted: true`，不误记为 distributed。
+- **形态边界**：entry 不产生物理副本与账本记录；rules 只允许 visible，规则形态 enable/disable 返回参数类错误。
+- **回滚矩阵**：单测覆盖已有技能副本恢复、首次落位删除、规则文件恢复/删除、既有账本字节不变、共享根两记录整体回滚；e2e 覆盖损坏账本前置中止与目标路径冲突。
+- **结构**：宿主通道从 `dispatch/registry` 拆到 `dispatch/host/`（channel / landing-result / index）；复杂函数基线 99 → **96**，`dispatch/registry` 2621 → **2419** 行，新文件均低于 500 行。
+- **测试**：新增 18 项（11 unit + 7 e2e）；常规套件 573 → **591 项**（单元 382、契约 116、端到端 93；590 通过 + 1 项平台条件跳过）；check / typecheck / lint / format:check / build / smoke:kernel / smoke:gui 28/28 / 慢测试 1 项均通过。
+- **边界**：本批不实现 `uninstall --host`、`--host all` 与原件卸载闭环，不实现 `scan --inventory`；不带 `--host` 的既有行为保持不变。
+
+### L-3：宿主副本卸载与原件闭环（2026-10-18）
+
+- **单宿主卸载**：`uninstall <id> --host <host>` 路由内置宿主到 `host_landings`、`x-` 宿主到 `plugin_index.landings`；物理副本删除后账本标 `orphaned`，不创建 Skill 备份。
+- **共享根保护**：同一 `target_path` 仍被其他 active 宿主消费时拒绝 `E-LANDING-001` 并引导 `--host all`，不破坏其余宿主。
+- **全宿主清理**：`uninstall <id> --host all` 按物理副本分组，共享副本只删一次；两账本相关记录一起转 orphaned，插件包与插件安装状态不动。
+- **原子性与部分失败**：每组先临时移走副本，再写两账本，再删除；账本失败恢复副本与账本，删除失败恢复副本并保留 orphaned。多组逐组提交，结果列出每个宿主的 `removed` / `missing` / `unchanged` / `failed`。
+- **原件卸载闭环**：`uninstall` / `--hard` 前检查两账本 active，命中 `E-LANDING-002` 并列出 host / path / ledger_source 与逐宿主 / `--host all` 引导；成功后清除 `host_landings` 孤儿记录，`plugin_index.landings` 孤儿按 M4b 保留。
+- **互斥与再激活**：`--host` 与 `--hard` / `--kind plugin` 互斥；非法宿主 / 无记录不误删；orphaned 后 `update --host` 复用同主键回到 active。
+- **测试**：新增 12 项（6 unit + 6 e2e）；常规套件 591 → **603 项**（单元 388、契约 116、端到端 99；602 通过 + 1 项平台条件跳过）；共享根、双宿主、x- 宿主、原件阻断、dry-run、再激活与部分失败均有用例。
+- **结构**：`dispatch/host/uninstall*` 拆为 options / types / plan / execute 四文件，均低于 500 行；复杂函数基线 96 → **95**，`dispatch/registry` 保持 2419 行；`check:arch` 139 文件 / 407 边 / 0 循环。
+- **边界**：本批不实现 `scan --inventory`、历史副本 inferred / export 边界（L-4）与旧工作区兼容（L-5）；现有插件包卸载行为保持不变。
+
+### L-4：对账纯函数与 export 边界（2026-10-18）
+
+- **契约类型**：新增 `contract/src/host-reconciliation.ts`，定义观察副本、host/plugin 账本记录、工作区基线、三轴证据与分类输出。
+- **纯函数**：新增 `reconcileHostCopy`，只消费调用方已枚举/读取的事实，不访问文件系统；按 host active、plugin active、orphaned、无账本四条路径分类。
+- **host 判定**：active 一致 / 内容漂移 / 可见性漂移 / 来源漂移 / 版本漂移 / 缺失 / 不可读；渲染基线变化不判漂移，content 降 inferred。
+- **无账本**：inferred_consistent / inferred_drift / untracked / not_distributed；任何无账本场景不判 missing；无工作区或根不可读只出 undetermined。
+- **orphaned**：副本残留且工作区有记录时保留 `orphaned` 分类并标 content/source inferred，区分推断一致 / 漂移；工作区无记录时 all insufficient + `untracked_candidate`；副本不存在时 `copy_present:false`。
+- **插件证据**：managed / missing 权威；content 与 source 最多 inferred；无重渲染基线时 undetermined，反向断言禁止出现 authoritative content/source。
+- **降级**：`ledger_state: missing|unreadable` 安全降级到无账本推断，带 `ledger_unavailable_degraded`，不抛崩、不伪造权威。
+- **export / restore**：`host_landings` 属本机派生状态，不进入 export 包；restore 不恢复账本。契约测试断言导出文档无 `host_landings`/`landings`，restore 前后账本字节一致；恢复后的历史副本继续走 inferred。
+- **测试**：新增 13 项（12 unit / 1 contract）；常规套件 603 → **616 项**（单元 400、契约 117、端到端 99；615 通过 + 1 项平台条件跳过）。
+- **结构**：complexity 基线保持 **95**；`reconcile.ts` ≤ 500 行；`check:arch` 141 文件 / 408 边 / 0 循环。
+- **边界**：本批不做宿主扫描 IO（M4c）、不做旧工作区迁移（L-5）。
+
+### L-5：v0.3.0 旧工作区兼容（2026-10-18）
+
+- **缺失视为空**：无 `host_landings.yaml` 的旧工作区按空账本读取，`exists:false` / `index:null` / 无 findings，不报错、不归类损坏。
+- **损坏才报错**：文件存在但 YAML / schema / 版本不合规返回 `E-LANDING-001`，不静默重置或覆盖损坏字节。
+- **懒初始化**：install/update/enable/disable 首次遇到缺失账本时幂等补建空文件；dry-run 与被拒确认不写。补建发生在物理副本操作之前。
+- **不批量迁移**：升级不扫描宿主、不批量写 `host_landing` 记录；只读路径保持文件缺失，历史副本继续走 inferred，不伪造 distributed。
+- **adopted / distributed**：首次 `disable --host` 以 `origin: adopted` 入账；首次 `update/install --host` 正常 `distributed`。
+- **字节不变**：只读 / enable-disable 前后 `skill_index.yaml`、`plugin_index.yaml` 字节一致；update 只改 skill 索引，插件索引字节不变。
+- **版本**：新账本 `schema_version: "1"`、`tool_version` 取当前工具版本；后续演进按 schema 版本递增。
+- **测试**：新增 5 项 e2e；常规套件 616 → **621 项**（单元 400、契约 117、端到端 104；620 通过 + 1 项平台条件跳过）。
+- **结构**：complexity 基线保持 **95**；`dispatch/registry` 保持 2419 行；`check:arch` 141 文件 / 408 边 / 0 循环。
+- **收口**：L-1 ~ L-5 账本批次全部完成；下一阶段 P1-a 宿主三处合一 + `inventory_roots`。
+
+### P1-a：宿主三处合一与盘点根（2026-10-19）
+
+- **单一来源**：新增 `kernel/core/hosts/host-root-models.ts`，每个内置宿主只引用一份 `adapter_forms` / `landing_roots` / `inventory_roots` 数据；`registry-data.ts` 不再复制形态与默认根。
+- **形态 selector**：删除 `FORM_BY_HOST`；`formImplementationOf` 从注册表 `adapter_forms` 派生并复用通用形态实现，新增宿主不再需要 selector 分支。
+- **默认根**：`defaultRootFor` 改为展开 `landing_roots`；六宿主默认分发根保持等价。Codex 仍分发到 `~/.agents/skills`，豆包仍为 `.user_skills`。
+- **盘点根**：新增 `inventoryRootsForHost` / `inventoryRootsForAll`；Codex 覆盖 agents user、`.codex/skills` legacy user、`.system` system 与 project；豆包按 `.user_skills` user / `.skills` platform；Cursor 技能根递归、规则根顶层。
+- **配置与插件**：`host.<id>.root` / `.rules_root` 作为额外 `origin: config` 的 user 根；已启用插件 catalog 的 `x-` 根输出同一 `InventoryRootView`，未配置 global 根时显式 `configured:false`。
+- **契约**：`host-registry.spec.md` 新增 3.5.1 ~ 3.5.3 与 HR-14 / HR-15；schema 要求非 `not_applicable` 宿主提供三组字段、`not_applicable` 宿主不得提供，`base: env` 必须给出 `env_var`。`plugin-format.md` 的 P-04 与隔离条款改指 `adapter_forms` 单一来源。规范仍 7 份 / schema 8 份。
+- **证据边界**：macOS / Linux 候选根标 `pending_verification`，由 M4c-7 CI fixture 探针验证；Codex / 豆包分发根差异继续待官方口径与多版本证据，本批不修改。
+- **测试**：新增 6 项契约测试；常规套件 621 → **627 项**（单元 400、契约 123、端到端 104；626 通过 + 1 项平台条件跳过）。
+- **结构**：complexity 基线 95 → **94**；`registry-data.ts` 428 行、`host-root-models.ts` 204 行、`hosts/inventory.ts` 117 行；`check:arch` 146 文件 / 416 边 / 0 循环。
+- **边界**：本批不读取宿主目录、不实现 `scan --inventory`；分发输出、退出码与落位路径保持等价。
+
+### P1-b：dispatch scan 段拆分（2026-10-19）
+
+- **模块拆分**：新增 `kernel/dispatch/scan/`（`index` / `types` / `options` / `workspace` / `plugin` / `result`）；Skill 扫描的索引检查、加锁、discovery、索引写入与插件扫描的无锁刷新均移出 registry。
+- **共享辅助**：工作区定位与插件选项拒绝进入 `dispatch/shared/options.ts`；插件索引读取状态进入 `dispatch/plugins/state.ts`，由 registry 与 scan 共用，避免第二套实现。
+- **registry 收口**：`dispatch/registry/index.ts` 只保留 `scanHandler` 导入与注册；规模 2419 → **2172** 行，其他指令实现未改写。
+- **M4c 分流点**：`scan/index.ts` 在索引存在性检查前形成扫描计划，并明确 inventory 未来分支不锁、不写 `last_scan_at`、允许未初始化；本批不注册 `--inventory` 占位参数。
+- **行为等价**：现有 scan 输出、索引更新、`last_scan_at`、退出码与锁行为不变；Skill / 插件 scan 全量用例通过。
+- **测试**：新增 2 项结构测试；常规套件 627 → **629 项**（单元 400、契约 125、端到端 104；628 通过 + 1 项平台条件跳过）。
+- **结构**：complexity 保持 **94**；`dispatch/scan` 最大文件 121 行；`check:arch` 154 文件 / 462 边 / 0 循环。
+- **收口**：P0 + L-1 ~ L-5 + P1-a/P1-b 全部完成；下一批 M4c-1。
+
+### M4c-1：`scan --inventory` 命令骨架（2026-10-19）
+
+- **参数**：新增 `--inventory` 布尔选项；与 `--kind`、`--root`、`--dry-run` 及位置参数互斥，统一 `E-INPUT-002`。允许 `--workspace` 与 `--json` / `--machine` / `--no-color` / `--verbose`。
+- **只读分流**：`scanPlanOf` 后、workspace 索引检查前进入 `inventoryScanCommand`；不加锁、不写 `last_scan_at`、不调用 `scanWorkspace`，未初始化工作区 exit 0。
+- **根清单**：输出 `data.mode = inventory`、`data.workspace` 与 `data.roots[]`；内置根与已启用 `x-` 宿主根统一为 root_role / recursive / origin / is_x_host / consumed_by / configured 字段，无法展开的根带 reason。
+- **配置与插件**：`host.<id>.root` / `.rules_root` 覆盖根展开；未启用插件不进入清单；共享根的消费宿主由 `consumed_by` 标注。
+- **契约**：`cli-contract.md` 第 4.4 节登记 inventory 语法、互斥、允许项与输出字段；指令仍 16，规范 / schema 仍 7 / 8。
+- **测试**：新增 5 项（2 unit / 3 e2e）；常规 629 → **634 项**（单元 402、契约 125、端到端 107；633 通过 + 1 平台条件跳过）。
+- **结构**：`inventory.ts` 低于 500 行；complexity 保持 **94**；`check:arch` 155 文件 / 474 边 / 0 循环。
+- **边界**：本批不读宿主目录、不发现技能、不做对账；M4c-2 / M4c-3 分别承接。
+
+### M4c-2：宿主目录发现与物理去重（2026-10-19）
+
+- **发现**：新增 `kernel/core/inventory/discover.ts`；direct 只枚举一级子目录，recursive 任意深度查找；references/examples 等无 SKILL.md 目录不计独立技能。
+- **识别**：skill 要求 SKILL.md frontmatter 的 name/description；`.disabled` 为 disabled；bad YAML / 缺字段 / 可见性冲突进入 corrupt；rules 只识别 `.mdc`；agents-md entry 根为 not_applicable。
+- **观察**：`copies[]` 输出根、宿主、role、format、visibility、recursive、skill_id/version、content_digest、可读性与消费方；digest 复用 `computeLandingChecksum`。
+- **去重**：realpath + Windows casefold；共享根和父子根重叠合并，`consumed_by` / `root_ids` / `sources` 聚合；同一 skill_id 的不同物理根分别保留。
+- **输出**：`roots[]` 增加 state / readable / copy_count / corrupt_count；新增 `copies[]`、`corrupt[]`、`summary`（去重前后与重复数）。不做 M4c-3 对账分类。
+- **只读与性能**：未初始化工作区照常发现；宿主与工作区字节不变。200 技能 × 10 references 文件（2200 文件）Windows 本机 **214 ms**，无缓存。
+- **测试**：新增 5 项（4 unit / 1 e2e）；常规 634 → **639 项**（单元 406、契约 125、端到端 108；638 通过 + 1 平台条件跳过）。
+- **结构**：complexity 保持 **94**；`discover.ts` 457 行；`check:arch` 157 文件 / 480 边 / 0 循环。
+- **收口**：M4c-1/M4c-2 完成；下一批 M4c-3。
+
+### M4c-3：双源双向对账（2026-10-19）
+
+- **正向对账**：`kernel/dispatch/scan/reconcile.ts` 将 M4c-2 的 copies/corrupt 接入 L-4 `reconcileHostCopy`；输出 classification、ledger_source、evidence、reasons、drift_reasons。
+- **反向 missing**：遍历 `host_landings` 与 `plugin_index.landings` 的 active 记录，规范化 target_path 不在 observed 集合时列出 `missing[]`；orphaned 不反查。
+- **工作区基线**：只读 `skill_index` 与工作区源文件，构造 checksum/version/source_ref/expected_content_digest/expected_visibility；未初始化、索引不可读、根不可读进入降级标记。
+- **插件**：managed / missing 权威；content/source 通过现有 profile 与渲染核心重渲染为 inferred，无基线时 undetermined；测试断言不得出现 authoritative content/source。
+- **共享根**：一个物理副本可匹配多条 active 记录；副本删除时按宿主账本逐条进入 missing。
+- **测试**：新增 5 项（2 unit / 3 e2e）；常规 639 → **644 项**（单元 408、契约 125、端到端 111；643 通过 + 1 平台条件跳过）。
+- **结构**：`reconcile.ts` 474 行；complexity 保持 **94**；`check:arch` 158 文件 / 496 边 / 0 循环。
+- **边界**：只读，不写任何文件；主计数与最终分组归 M4c-4。
+
+### M4c-4：结构化聚合与最终统计（2026-10-19）
+
+- **主计数**：`summary.main` 输出 `user` role 的去重有效副本数与 `unique_skills`；system/platform/project 独立分组，不污染主计数。
+- **分类聚合**：`by_classification` 保留 L-4 原分类，`groups` 将 managed/drift 聚合并保留 authoritative/inferred；missing、untracked、undetermined、unreadable、not_distributed、orphaned 单列，orphaned 区分工作区在/不在。
+- **层级**：新增 `hosts → roots → copies/corrupt/missing`；扁平 copies/missing/corrupt 保留可下钻证据。
+- **人类输出**：默认突出 user 主计数与 role/分类/宿主摘要；`--verbose` 展示副本明细，`--json` 保留完整结构。
+- **计数边界**：共享根只算一份；corrupt 只入 corrupt_count；missing 不增加有效副本；同 skill_id 多物理根分别计副本、合并计 `unique_skills`。
+- **测试**：新增 3 项（2 unit / 1 e2e）；常规 644 → **647 项**（单元 410、契约 125、端到端 112；646 通过 + 1 平台条件跳过）。
+- **结构**：complexity 94 → **93**；`aggregate.ts` 253 行；`check:arch` 159 文件 / 498 边 / 0 循环。
+- **收口**：M4c-4 完成；下一批 M4c-5 只读系统化。
+
+### M4c-5：只读保证系统化（2026-10-19）
+
+- **静态守卫**：`scripts/check-layer.mjs` 新增盘点只读审计，只允许只读 fs API，拒绝写调用、锁、索引写入、落位与账本提交；synthetic `writeFileSync` / `saveIndex` 反例可捕获。
+- **动态快照**：新增 `tests/helpers/snapshot.ts`，递归记录路径、类型、mtime、大小与 SHA-256；工作区与全部宿主根盘点前后逐项比较。
+- **场景覆盖**：多宿主/共享根/x- 宿主、未初始化工作区、损坏 `host_landings`、缺失/非目录根、100 副本规模；损坏账本字节不变，无锁/临时/缓存残留。
+- **契约**：CLI 第 4.4 节增加只读验证条款；9.3.7 M4c-R5 验收补齐静态守卫与动态快照。
+- **测试**：新增 5 项（1 contract / 4 e2e）；常规 647 → **652 项**（单元 410、契约 126、端到端 116；651 通过 + 1 平台条件跳过）。
+- **结构**：`check:arch` 159 文件 / 498 边 / 0 循环；complexity 保持 **93**。
+- **收口**：M4c-5 完成；下一批 M4c-6 GUI 盘点视图。
+
+### M4c-6：GUI 全机盘点视图（2026-10-19）
+
+- **入口**：侧边导航新增「全机盘点」；空工作区与已初始化空列表均提供「盘点这台电脑上已安装的 Skill」，未初始化即可运行。
+- **只读通道**：复用通用 `kernel:invoke` 调用 `scan --inventory`；不新增 IPC、不走预览/确认，不写工作区、settings 或账本。
+- **主计数与分组**：user「安装副本 / 不同技能」置顶；system/platform/project 默认折叠并标注平台/系统内置；内置宿主与第三方 `x-` 宿主分区，共享根标注 `consumed_by`。
+- **分类与下钻**：managed/drift 保留 authoritative/inferred；missing/untracked/undetermined/unreadable/not_distributed/orphaned 分项；副本表展示 id、版本、路径、可见性、分类、账本来源与判定依据；损坏、缺失、未纳管各自可查看。
+- **只读边界**：视图无安装/卸载/启用/更新/导入/修复执行入口；二期动作仅禁用占位；冒烟断言盘点前后工作区与 settings 字节一致。
+- **发现修正**：插件 rules 根兼容 `.md`，内置 Cursor 规则仍只识别 `.mdc`；修复 x- 宿主副本在盘点中显示为 0。
+- **组件与规模**：新增 `HostInventoryView` 与 3 个盘点子组件、纯展示映射；`App.vue` 858 → **844** 行，新组件均低于 800 行；`scripts/gui-smoke.mjs` 743 → **660** 行。
+- **测试**：新增 6 项（2 unit / 4 contract）；常规套件 652 → **658 项**（单元 412、契约 130、端到端 116；657 通过 + 1 项平台条件跳过）；`smoke:gui` 28 → **40/40**。
+- **结构**：`check:arch` 167 文件 / 511 边 / 0 循环 / 0 allowlist；complexity 保持 **94**。
+- **收口**：M4c-6 完成；下一批 M4c-7 三平台 CI fixture 探针。
+
 ## 0.3.0
 
 M4b 声明式插件生态。未签名交付口径不变。

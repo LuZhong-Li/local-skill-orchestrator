@@ -1,8 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ICNS_PLATFORM_MESSAGE, assembleIcns, iconutilArgs } from '../../scripts/icon-icns.mjs';
 
@@ -68,7 +68,7 @@ test('契约：iconutil 参数拼装与非 macOS 平台准入', () => {
 });
 
 test('契约：iconutil 封装在 macOS 分支按参数调用并校验产出', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-icns-'));
+  const dir = makeTempDir('sm-icns-');
   const iconsetDir = join(dir, 'icon.iconset');
   mkdirSync(iconsetDir);
   const outPath = join(dir, 'icon.icns');

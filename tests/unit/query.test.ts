@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   inspectSkill,
@@ -18,7 +18,7 @@ import type { SkillIndex } from '../../kernel/core/metadata/types.ts';
 const NOW = '2026-10-14T00:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-query-'));
+  const root = makeTempDir('sm-query-');
   mkdirSync(join(root, 'skills'), { recursive: true });
   return root;
 }

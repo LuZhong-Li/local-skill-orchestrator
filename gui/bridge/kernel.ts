@@ -9,37 +9,11 @@
  * 参数以数组传递、不经 shell，因此不存在命令注入面；内核自身负责参数与领域校验。
  */
 import { spawn } from 'node:child_process';
+import { CODES, type Change, type Finding, type Result } from '@skill-manager/contract';
 
-/** 问题条目：与结果规范 2.4 节一致 */
-export interface Finding {
-  code: string;
-  severity: 'error' | 'warning';
-  source: string;
-  target: string;
-  message: string;
-  remedy: string;
-}
-
-/** 变更条目：与结果规范 2.5 节一致 */
-export interface Change {
-  action: 'add' | 'modify' | 'remove';
-  kind: string;
-  path: string;
-  detail?: string;
-}
-
-/** 结果封装：与结果规范 2.1 节一致 */
-export interface KernelResult {
-  ok: boolean;
-  command: string;
-  id?: string;
-  findings: Finding[];
-  changes: Change[];
-  exit_code: number;
-  data?: Record<string, unknown>;
-  preview?: boolean;
-  request_id?: string;
-}
+/** 结果封装：与结果规范 2.1 节一致；单一来源在 contract/。 */
+export type KernelResult = Result<Record<string, unknown>>;
+export type { Change, Finding };
 
 export interface KernelOptions {
   /** 内核启动命令，开发模式为 node，打包后为随包分发的可执行文件 */
@@ -55,7 +29,7 @@ export interface KernelOptions {
 /** 合成一条问题条目，供传输层自身的失败路径使用 */
 function channelFinding(message: string, remedy: string): Finding {
   return {
-    code: 'E-CHANNEL-001',
+    code: CODES.CHANNEL_FAILED,
     severity: 'error',
     source: 'bridge',
     target: 'kernel',

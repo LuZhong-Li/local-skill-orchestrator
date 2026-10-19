@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KernelBridge } from '../../gui/bridge/commands.ts';
 import { isConfirmationRefusal, summarize } from '../../gui/bridge/kernel.ts';
@@ -19,7 +19,7 @@ function bridgeFor(workspace: string, entry = ['kernel/entry/cli.ts']): KernelBr
 }
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-bridge-'));
+  const root = makeTempDir('sm-bridge-');
   mkdirSync(join(root, 'skills'), { recursive: true });
   mkdirSync(join(root, 'backups'), { recursive: true });
   return root;
@@ -76,7 +76,7 @@ test('G-02 桥接：写操作先预览再执行，取消时不发写请求', asy
   await bridge.init();
 
   // 来源放在工作区之外：工作区内的同名目录就是中心库位置，装到自己身上没有意义
-  const source = mkdtempSync(join(tmpdir(), 'sm-bridge-src-'));
+  const source = makeTempDir('sm-bridge-src-');
   mkdirSync(source, { recursive: true });
   writeFileSync(join(source, 'SKILL.md'), '# beta');
   writeFileSync(
@@ -270,7 +270,7 @@ test('G-02 桥接：通道失败映射为宿主通道问题码，不吞诊断信
 });
 
 test('G-02 桥接：内核的业务失败按结果封装返回，不当成通道异常', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'sm-bridge-empty-'));
+  const root = makeTempDir('sm-bridge-empty-');
   const bridge = bridgeFor(root);
   const result = await bridge.list();
   assert.equal(result.ok, true, '未初始化时 list 返回引导性结果');

@@ -8,6 +8,8 @@ export { dispatch, register, REGISTERED_COMMANDS } from './dispatch/registry/ind
 export { buildResult, exitCodeFor } from './dispatch/result/index.ts';
 export { parseArgs, flag, option, optionList } from './dispatch/parsers/index.ts';
 export { render } from './dispatch/render/index.ts';
+/** 供 GUI 冒烟 / 工具构造真实备份载体；不属于 CLI 契约。 */
+export { createBackup } from './store/backup-fs/index.ts';
 
 export type { CommandContext, CommandHandler } from './dispatch/registry/index.ts';
 export type { ParsedArgs } from './dispatch/parsers/index.ts';

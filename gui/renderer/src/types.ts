@@ -1,31 +1,8 @@
-/** 视图层使用的类型：与内核结果封装的形状一一对应，不引入任何业务推导 */
+/** 视图层使用的类型：结果契约直接复用 contract，不引入第二份定义。 */
+import type { Change, Finding, Result } from '@skill-manager/contract';
 
-export interface Finding {
-  code: string;
-  severity: 'error' | 'warning';
-  source: string;
-  target: string;
-  message: string;
-  remedy: string;
-}
-
-export interface Change {
-  action: 'add' | 'modify' | 'remove';
-  kind: string;
-  path: string;
-  detail?: string;
-}
-
-export interface KernelResult {
-  ok: boolean;
-  command: string;
-  id?: string;
-  findings: Finding[];
-  changes: Change[];
-  exit_code: number;
-  data?: Record<string, unknown>;
-  preview?: boolean;
-}
+export type KernelResult = Result<Record<string, unknown>>;
+export type { Change, Finding };
 
 /** 列表条目：内核 list 载荷中的记录投影 */
 export interface SkillSummary {

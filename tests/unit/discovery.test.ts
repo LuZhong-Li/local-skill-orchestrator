@@ -1,7 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { validMeta } from '../helpers/skill.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { scanWorkspace } from '../../kernel/core/discovery/index.ts';
 import { createInitialIndex } from '../../kernel/core/index/index.ts';
@@ -12,7 +13,7 @@ const NOW = '2026-10-14T00:00:00Z';
 const LATER = '2026-10-14T01:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-scan-'));
+  const root = makeTempDir('sm-scan-');
   mkdirSync(join(root, 'skills'), { recursive: true });
   return root;
 }
@@ -23,25 +24,6 @@ function putSkill(root: string, dir: string, meta: string | null, content = '# s
   if (content !== '') writeFileSync(join(target, 'SKILL.md'), content);
   if (meta !== null) writeFileSync(join(target, 'skill_meta.yaml'), meta);
 }
-
-const validMeta = (id: string): string =>
-  [
-    `id: ${id}`,
-    `name: ${id}`,
-    'status: enabled',
-    `path: ./skills/${id}`,
-    'source:',
-    '  type: local',
-    'targets:',
-    '  - target: claude',
-    '    scope: global',
-    '    path: .claude/skills/' + id,
-    '    mode: copy',
-    '    enabled: true',
-    '    file_map:',
-    '      SKILL.md: SKILL.md',
-    '',
-  ].join('\n');
 
 function scan(root: string, now = NOW) {
   const layout = layoutOf(root);
@@ -57,6 +39,7 @@ test('K-02 合格 Skill 生成校验通过的记录', () => {
   assert.equal(outcome.summary.invalid, 0);
   assert.equal(record?.validation.status, 'ok');
   assert.deepEqual(record?.validation.errors, []);
+  assert.equal(record?.validation.last_scan_at, NOW);
   assert.equal(record?.source_type, 'local');
   assert.deepEqual(record?.targets, [{ target: 'claude', scope: 'global', enabled: true }]);
   assert.ok(record?.checksum.startsWith('sha256:'));

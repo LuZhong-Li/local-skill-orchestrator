@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 // 契约 schema 声明的是 2020-12 草案，需用对应的 Ajv 入口
 import Ajv from 'ajv/dist/2020.js';
@@ -136,7 +136,7 @@ function tableFields(
 }
 
 function workspace(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-schema-'));
+  const dir = makeTempDir('sm-schema-');
   mkdirSync(join(dir, 'skills', 'alpha'), { recursive: true });
   mkdirSync(join(dir, 'backups'), { recursive: true });
   writeFileSync(join(dir, 'skills', 'alpha', 'SKILL.md'), '# alpha');
@@ -208,6 +208,19 @@ function registryFixture(): Record<string, unknown> {
           max_description_chars: 1024,
         },
         render_policy: { field_mode: 'standard6', allowed_extensions: [], degrade_form: 'none' },
+        adapter_forms: ['skill'],
+        landing_roots: [{ kind: 'skill', base: 'home', path_template: '.claude/skills' }],
+        inventory_roots: [
+          {
+            root_id: 'claude/user',
+            role: 'user',
+            kind: 'skill',
+            base: 'home',
+            path_template: '.claude/skills',
+            depth: 'direct',
+            origin: 'default',
+          },
+        ],
         adapter_ref: 'claude',
       },
       {
@@ -220,6 +233,9 @@ function registryFixture(): Record<string, unknown> {
         roots: [{ kind: 'rules', path_template: 'AGENTS.md' }],
         capability: {},
         render_policy: { field_mode: 'standard6', degrade_form: 'entry' },
+        adapter_forms: ['entry'],
+        landing_roots: [],
+        inventory_roots: [],
         adapter_ref: 'agents-md',
       },
     ],
@@ -566,6 +582,45 @@ test('契约：宿主注册表 schema 接受最小合法注册表，拒绝状态
       hosts: [{ ...(notApplicable.hosts[0] as Record<string, unknown>), roots: [] }],
     },
     '不适用宿主允许空落位根',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    {
+      ...notApplicable,
+      hosts: [
+        {
+          ...(notApplicable.hosts[0] as Record<string, unknown>),
+          adapter_forms: [],
+          landing_roots: [],
+          inventory_roots: [],
+        },
+      ],
+    },
+    '不适用宿主不得声明适配器或根模型',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    withEntry({
+      landing_roots: [{ kind: 'external', base: 'env', path_template: 'skills' }],
+    }),
+    'env 基址缺少环境变量名',
+  );
+  assertInvalid(
+    'host_registry.schema.json',
+    withEntry({
+      inventory_roots: [
+        {
+          root_id: 'claude/config',
+          role: 'user',
+          kind: 'skill',
+          base: 'home',
+          path_template: '.claude/skills',
+          depth: 'direct',
+          origin: 'config',
+        },
+      ],
+    }),
+    '静态盘点根不得声明 config 来源',
   );
   // 非 not_applicable 宿主缺少适配器引用应被拒（条件必填）
   const withoutAdapterRef = { ...entry };

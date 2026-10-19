@@ -1,8 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   DEFAULT_SEED,
@@ -33,7 +33,7 @@ function countFiles(dir: string): number {
 }
 
 function withFixture<T>(n: number, body: (root: string, plan: Plan) => T, seed = DEFAULT_SEED): T {
-  const root = mkdtempSync(join(tmpdir(), `bench-fixture-${String(n)}-`));
+  const root = makeTempDir(`bench-fixture-${String(n)}-`);
   try {
     const plan = planFixture({ seed, n });
     writeFixture(plan, root);
@@ -265,7 +265,7 @@ test('T0 夹具：命令行入口的失败路径可定位（独立进程断言�
   }
 
   // 正常路径：显式 --root 落盘，且不在仓库内
-  const target = mkdtempSync(join(tmpdir(), 'bench-cli-'));
+  const target = makeTempDir('bench-cli-');
   try {
     const result = spawnSync(process.execPath, [cli, '--n', '50', '--root', target], {
       encoding: 'utf8',

@@ -11,8 +11,8 @@
  * 四、`landable = false` 的落位项（指令文件载体）只登记不落盘；
  * 五、`dryRun` 只产出将执行的变更清单，不触碰磁盘。
  */
-import { mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { copyFileSync, mkdirSync, rmdirSync, rmSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
 import { KernelError } from '../../store/errors.ts';
 import { atomicWriteFile } from '../../store/atomic/index.ts';
@@ -22,12 +22,15 @@ import {
   isCopyDisabled,
   isDirectory,
   pathExists,
+  removeTree,
+  replaceTree,
   setCopyVisibility,
   type DeliveryPlanEntry,
 } from '../../store/library-fs/index.ts';
 import { computeChecksum } from '../integrity/index.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { PlacementPlan } from './types.ts';
+import type { ArtifactKind } from '../render/types.ts';
 
 const SOURCE = 'land';
 
@@ -55,7 +58,19 @@ export interface LandResult {
   skipped: Array<{ target_path: string; reason: string }>;
   /** 本次产生的备份目录（可移植路径） */
   backups: string[];
+  /** 本次实际写入的落位；供账本写入失败时精确回滚 */
+  writes: LandWrite[];
   findings: Finding[];
+}
+
+export interface LandWrite {
+  target_path: string;
+  root_path: string;
+  artifact_kind: ArtifactKind;
+  existed_before: boolean;
+  root_existed_before: boolean;
+  parent_existed_before: boolean;
+  backup_dir: string | undefined;
 }
 
 /**
@@ -70,7 +85,7 @@ function backupBeforeWrite(input: {
   /** 被备份的既有内容：技能形态为宿主副本目录，规则形态为规则文件所在目录 */
   backupSource: string;
   now: string;
-}): string | undefined {
+}): ReturnType<typeof createBackup> | undefined {
   const existingSource = input.backupSource;
   if (!pathExists(existingSource)) return undefined;
   if (!isDirectory(existingSource)) {
@@ -90,7 +105,7 @@ function backupBeforeWrite(input: {
     now: input.now,
     checksum: computeChecksum(existingSource),
   });
-  return result.portableDir;
+  return result;
 }
 
 /**
@@ -105,6 +120,7 @@ export function landPlan(request: LandRequest): LandResult {
   const changes: Change[] = [];
   const skipped: Array<{ target_path: string; reason: string }> = [];
   const backups: string[] = [];
+  const writes: LandWrite[] = [];
   const findings: Finding[] = [];
   const written = new Set<string>();
 
@@ -131,14 +147,17 @@ export function landPlan(request: LandRequest): LandResult {
 
     const directoryTarget = entry.artifact_kind === 'skill_md';
     const existedBefore = pathExists(entry.target_path);
+    const rootExistedBefore = pathExists(entry.root_path);
+    const parentExistedBefore = pathExists(dirname(entry.target_path));
+    let backup: ReturnType<typeof createBackup> | undefined;
     if (!dryRun) {
-      const backup = backupBeforeWrite({
+      backup = backupBeforeWrite({
         workspace,
         skillId: plan.skill_id,
         backupSource: directoryTarget ? entry.root_path : dirname(entry.target_path),
         now,
       });
-      if (backup !== undefined) backups.push(backup);
+      if (backup !== undefined) backups.push(backup.portableDir);
 
       if (directoryTarget) {
         const targetDir = entry.root_path;
@@ -163,6 +182,15 @@ export function landPlan(request: LandRequest): LandResult {
           ? `技能形态落位（消费宿主：${entry.consumed_by.join('、') || '自身'}）`
           : '规则文件落位',
     });
+    recordWrite(writes, dryRun, {
+      target_path: entry.target_path,
+      root_path: entry.root_path,
+      artifact_kind: entry.artifact_kind,
+      existed_before: existedBefore,
+      root_existed_before: rootExistedBefore,
+      parent_existed_before: parentExistedBefore,
+      backup_dir: backupDirOf(backup),
+    });
   }
 
   return {
@@ -173,8 +201,64 @@ export function landPlan(request: LandRequest): LandResult {
     changes,
     skipped,
     backups,
+    writes,
     findings,
   };
+}
+
+function recordWrite(writes: LandWrite[], dryRun: boolean, write: LandWrite): void {
+  if (!dryRun) writes.push(write);
+}
+
+function backupDirOf(backup: ReturnType<typeof createBackup> | undefined): string | undefined {
+  return backup === undefined ? undefined : backup.dir;
+}
+
+/**
+ * 把一次落位回滚到写前状态。
+ *
+ * 账本写入失败时由调用方触发；按写入逆序恢复，技能形态恢复整个副本目录，
+ * 规则形态只恢复目标文件，避免误删同一规则目录中的其他文件。
+ */
+export function rollbackLandWrites(writes: readonly LandWrite[]): void {
+  for (const write of [...writes].reverse()) {
+    if (write.artifact_kind === 'skill_md') {
+      restoreSkillWrite(write);
+    } else {
+      restoreFileWrite(write);
+    }
+  }
+}
+
+function restoreSkillWrite(write: LandWrite): void {
+  if (write.backup_dir !== undefined) {
+    replaceTree(join(write.backup_dir, 'content'), write.root_path);
+    return;
+  }
+  if (write.root_existed_before) {
+    rmSync(write.target_path, { force: true });
+    return;
+  }
+  removeTree(write.root_path);
+}
+
+function restoreFileWrite(write: LandWrite): void {
+  const saved =
+    write.backup_dir === undefined
+      ? undefined
+      : join(write.backup_dir, 'content', basename(write.target_path));
+  if (saved !== undefined && write.existed_before) {
+    copyFileSync(saved, write.target_path);
+    return;
+  }
+  rmSync(write.target_path, { force: true });
+  if (!write.parent_existed_before) {
+    try {
+      rmdirSync(dirname(write.target_path));
+    } catch {
+      // 目录非空说明写入期间还有其他文件，保留目录，不扩大回滚范围。
+    }
+  }
 }
 
 /**

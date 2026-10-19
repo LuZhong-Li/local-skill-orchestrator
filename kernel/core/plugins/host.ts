@@ -2,7 +2,7 @@
  * K-17 插件宿主视图与落位计划。
  *
  * 插件宿主只在启用并校验通过后进入合并视图；渲染复用共用渲染核心的
- * skill / rules / entry 三种形态，不写 FORM_BY_HOST，不执行第三方代码。
+ * skill / rules / entry 三种形态，不写内置宿主形态绑定，不执行第三方代码。
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';

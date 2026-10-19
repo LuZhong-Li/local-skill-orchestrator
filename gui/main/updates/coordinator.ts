@@ -1,6 +1,7 @@
 import type { KernelResult } from '../../bridge/kernel.ts';
 import { checkUpdates, type ProbeOutcome, type UpdateCheckReport } from '../update-check/index.ts';
 import type { UpdateSettings, UpdateSettingsStore } from './settings.ts';
+import { CODES } from '@skill-manager/contract';
 
 export const PERIODIC_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
@@ -29,7 +30,7 @@ export interface UpdateCoordinatorOptions {
 function failedReport(
   message: string,
   checkedAt: string,
-  code = 'E-CHANNEL-001',
+  code: string = CODES.CHANNEL_FAILED,
 ): UpdateCheckReport {
   return {
     command: 'update-check',

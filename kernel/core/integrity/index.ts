@@ -9,10 +9,11 @@
  */
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { META_FILE_NAME } from '../metadata/constants.ts';
 import { CODES } from '../../store/contract.ts';
 import { KernelError } from '../../store/errors.ts';
+import { DISABLED_SUFFIX, SKILL_MD_NAME } from '@skill-manager/contract';
 
 const EXCLUDED_DIRS = new Set(['.git', 'node_modules']);
 const EXCLUDED_FILE = /(^\.|\.tmp$|\.bak$|~$)/;
@@ -61,6 +62,69 @@ export function computeChecksum(skillDir: string): string {
     hash.update(readFileSync(join(skillDir, rel)));
   }
   return `sha256:${hash.digest('hex')}`;
+}
+
+/**
+ * 计算宿主落位副本的内容摘要（L-1 的 content_digest 口径）。
+ *
+ * 与 computeChecksum 共用 collectHashEntries、排序与「相对路径 + NUL + 文件字节」
+ * 的单次 SHA-256 累加；唯一差异是把禁用标记还原为可见文件名，使 enable/disable
+ * 不改变摘要。技能形态传副本目录（也接受 SKILL.md / SKILL.md.disabled 文件路径），
+ * 规则形态传规则文件路径。
+ */
+export function computeLandingChecksum(input: {
+  targetPath: string;
+  format: 'skill' | 'rules';
+}): string {
+  if (input.format === 'rules') return computeNormalizedFileChecksum(input.targetPath);
+  const name = basename(input.targetPath);
+  const dir =
+    name === SKILL_MD_NAME || name === `${SKILL_MD_NAME}${DISABLED_SUFFIX}`
+      ? dirname(input.targetPath)
+      : input.targetPath;
+  return computeNormalizedDirectoryChecksum(dir);
+}
+
+function computeNormalizedDirectoryChecksum(dir: string): string {
+  assertDirectory(dir);
+  const entries = collectHashEntries(dir).map((rel) => ({
+    rel: normalizeDisabledName(rel),
+    source: rel,
+  }));
+  entries.sort((a, b) => Buffer.compare(Buffer.from(a.rel, 'utf8'), Buffer.from(b.rel, 'utf8')));
+  assertNoNormalizedDuplicates(entries.map((entry) => entry.rel));
+  const hash = createHash('sha256');
+  for (const entry of entries) {
+    hash.update(Buffer.from(entry.rel, 'utf8'));
+    hash.update(Buffer.from([0]));
+    hash.update(readFileSync(join(dir, entry.source)));
+  }
+  return `sha256:${hash.digest('hex')}`;
+}
+
+function computeNormalizedFileChecksum(file: string): string {
+  assertFile(file);
+  const rel = normalizeDisabledName(basename(file));
+  const hash = createHash('sha256');
+  hash.update(Buffer.from(rel, 'utf8'));
+  hash.update(Buffer.from([0]));
+  hash.update(readFileSync(file));
+  return `sha256:${hash.digest('hex')}`;
+}
+
+function normalizeDisabledName(name: string): string {
+  return name.endsWith(DISABLED_SUFFIX) ? name.slice(0, -DISABLED_SUFFIX.length) : name;
+}
+
+function assertNoNormalizedDuplicates(names: string[]): void {
+  if (new Set(names).size === names.length) return;
+  throw new KernelError({
+    code: CODES.LANDING_LEDGER_INVALID,
+    message: '宿主副本的可见性标记冲突：同一文件同时存在可见与禁用形态',
+    source: 'integrity',
+    target: names.find((name, index) => names.indexOf(name) !== index) ?? '',
+    remedy: '保留 SKILL.md 与 SKILL.md.disabled 中的一个后重试',
+  });
 }
 
 /**
@@ -125,6 +189,31 @@ function assertDirectory(skillDir: string): void {
       source: 'integrity',
       target: skillDir,
       remedy: '请指向一个 Skill 目录',
+    });
+  }
+}
+
+function assertFile(file: string): void {
+  let stats;
+  try {
+    stats = lstatSync(file);
+  } catch (error) {
+    throw new KernelError({
+      code: CODES.PATH_INVALID,
+      message: `指纹计算目标不存在：${file}`,
+      source: 'integrity',
+      target: file,
+      remedy: '请确认该规则文件是否存在；不存在时不应计算指纹',
+      cause: error,
+    });
+  }
+  if (!stats.isFile()) {
+    throw new KernelError({
+      code: CODES.PATH_INVALID,
+      message: `指纹计算目标不是文件：${file}`,
+      source: 'integrity',
+      target: file,
+      remedy: '请指向一个规则文件',
     });
   }
 }

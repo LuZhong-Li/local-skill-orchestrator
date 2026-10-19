@@ -1,15 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { validMeta } from '../helpers/skill.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { run } from '../../kernel/entry/cli.ts';
 import { TOOL_VERSION } from '../../kernel/core/index/index.ts';
@@ -25,7 +18,7 @@ const rootPackageVersion = () => packageVersionOf('package.json');
 import { spawnSync } from 'node:child_process';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-cli-'));
+  const root = makeTempDir('sm-cli-');
   mkdirSync(join(root, 'skills'), { recursive: true });
   return root;
 }
@@ -98,25 +91,6 @@ function skill(root: string, dir: string, meta: string, content = '# skill'): vo
   writeFileSync(join(target, 'skill_meta.yaml'), meta);
 }
 
-const validMeta = (id: string): string =>
-  [
-    `id: ${id}`,
-    `name: ${id}`,
-    'status: enabled',
-    `path: ./skills/${id}`,
-    'source:',
-    '  type: local',
-    'targets:',
-    '  - target: claude',
-    '    scope: global',
-    `    path: .claude/skills/${id}`,
-    '    mode: copy',
-    '    enabled: true',
-    '    file_map:',
-    '      SKILL.md: SKILL.md',
-    '',
-  ].join('\n');
-
 test('验收一：init 建立工作区与初始索引，重复执行幂等', async () => {
   const root = workspace();
   assert.equal(await run(['init', '--workspace', root]), 0);
@@ -180,7 +154,7 @@ test('--version 输出版本号并返回 0（版本号与 TOOL_VERSION / package
 
 /** 造一份可安装的来源目录 */
 function sourceSkill(id: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-cli-src-'));
+  const dir = makeTempDir('sm-cli-src-');
   writeFileSync(join(dir, 'SKILL.md'), '# skill');
   writeFileSync(
     join(dir, 'skill_meta.yaml'),

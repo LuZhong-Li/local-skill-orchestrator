@@ -104,7 +104,7 @@ M5 设计第 8 章原文：
 
 - 让插件写入 `kernel/core/hosts/registry-data.ts`；
 - 把 `HostAdapter` 接口发布为第三方 API；
-- 让插件覆盖 `FORM_BY_HOST`、内置 `host_id` 或 `host_registry.schema`；
+- 让插件覆盖内置宿主形态绑定（`adapter_forms`）、内置 `host_id` 或 `host_registry.schema`；
 - 让插件使用 `host.<id>.root` 的内置配置命名空间。
 
 ### 1.3 与 M4a 的边界
@@ -154,9 +154,9 @@ M5 设计第 8 章原文：
 
 [源码] `kernel/core/adapters/index.ts`：
 
-- `FORM_BY_HOST` 是宿主 → 形态实现的代码映射；
-- 6 个有适配器的宿主复用 `SKILL_FORM` / `ENTRY_FORM` / `CURSOR_FORM`；
-- `adapterFor()` / `allAdapters()` 从该代码映射取值；
+- `adapter_forms` 是宿主 → 形态的注册表绑定，selector 由此派生出共用形态实现（P1-a 前的 `FORM_BY_HOST` 已删除）；
+- 6 个有适配器的宿主复用 `SKILL_FORM` / `ENTRY_FORM` / `RULE_FORM`；
+- `adapterFor()` / `allAdapters()` 从注册表绑定取值；
 - `HostAdapter` 接口是内核内部接口，不是外部契约。
 
 [源码] `kernel/core/render/index.ts`：
@@ -165,14 +165,14 @@ M5 设计第 8 章原文：
 - 标准六字段、扩展白名单、降级形态、安全控制字段准入都不依赖宿主专有代码；
 - `policyOf()` 直接读内置 `hostById()`。
 
-这意味着：**一个新宿主若复用 `skill` / `rules` / `entry` 形态，理论上只需数据描述；当前实现仍必须改 `FORM_BY_HOST` 一行代码，因此现有 schema 不能直接承载第三方声明式宿主。**
+这意味着：**一个新宿主若复用 `skill` / `rules` / `entry` 形态，只需注册表数据；第三方声明式宿主仍必须走独立 manifest 与解析器，不能直接写入内置 schema。**
 
 ### 2.3 根路径与配置
 
 [源码] `kernel/core/adapters/roots.ts`：
 
 - `resolveHostRoot()` 先查内置 registry，再接受 `host.<id>.root` / `host.<id>.rules_root` 配置；
-- 默认路径由 `defaultRootFor()` 的代码分支给出；
+- 默认路径由 `defaultRootFor()` 展开注册表 `landing_roots[]` 给出；
 - 未登记宿主直接返回 undefined。
 
 [源码] `kernel/core/index/index.ts:121`：
@@ -219,7 +219,7 @@ M4b 不能通过注册新指令扩展；只能扩展数据模型、既有命令�
 
 | 扩展点 | 当前实现 | 本期判定 | 理由 |
 |---|---|---|---|
-| **新宿主**（目录/文件布局 + 标准字段/`host_declared`） | 注册表数据 + `FORM_BY_HOST` 代码映射 | **可声明式扩展（需 M4b 新 manifest + 独立解析器）** | 可复用 `skill` / `rules` / `entry` 形态和共用渲染核心；不修改内置 registry |
+| **新宿主**（目录/文件布局 + 标准字段/`host_declared`） | 注册表数据 + `adapter_forms` 形态绑定 | **可声明式扩展（需 M4b 新 manifest + 独立解析器）** | 可复用 `skill` / `rules` / `entry` 形态和共用渲染核心；不修改内置 registry |
 | **新渲染算法**（自定义 frontmatter 转换、合并、二进制格式） | 共用 render 核心 + 形态实现代码 | **需代码，本期不可扩展** | 会执行第三方逻辑；现有渲染策略是有限枚举 |
 | **新来源类型**（协议、认证、索引服务） | `source.ts` 的固定 type/protocol 分支 | **需代码，本期不可扩展** | 涉及网络/凭据/协议与供应链，必须独立安全模型 |
 | **新校验规则/新元数据字段语义** | 元数据 schema + 校验代码 | **需代码或新契约，本期不可扩展** | 插件不能改变 Skill 的校验语义 |
@@ -227,7 +227,7 @@ M4b 不能通过注册新指令扩展；只能扩展数据模型、既有命令�
 | **新 GUI 面板/动作** | Vue 视图 + 主进程 IPC | **本期可有限扩展** | 只读展示插件清单、启用/禁用状态、来源/哈希/兼容性与错误；不得加载代码 |
 | **Skill 更新检查的插件化** | M4a 对应 Skill 来源检查 | **本期不扩展** | 插件不是 Skill；插件更新检查另立后续设计 |
 | **宿主内置配置** | `host.<id>.root` | **不可由插件写入** | 与 M5 内置机制隔离；插件使用独立配置命名空间 |
-| **内置注册表/适配器表** | 内核资产 | **不可覆盖/不可伪装** | `adapter_ref`、`FORM_BY_HOST`、内置 7 条目保持只读 |
+| **内置注册表/适配器表** | 内核资产 | **不可覆盖/不可伪装** | `adapter_forms`、`adapter_ref`、内置 7 条目保持只读 |
 
 ---
 
@@ -309,7 +309,7 @@ M4b 不能通过注册新指令扩展；只能扩展数据模型、既有命令�
 | 第三方宿主键 | manifest 只声明局部 `host_key`；加载器生成 canonical `host_id = x-<plugin_id>-<host_key>` |
 | 内置 host_id | 7 个既有值冻结；永远不允许以 `x-` 开头；插件不得声明相同 canonical id |
 | 配置命名空间 | 插件使用 `plugin.<plugin_id>.<host_key>.root` / `.rules_root`；**不得写入** `host.<id>.*` |
-| 适配器命名空间 | 插件 host profile 不能写入 `FORM_BY_HOST`、`adapter_ref` 或 M5 registry |
+| 适配器命名空间 | 插件 host profile 不能写入内置 `adapter_forms`、`adapter_ref` 或 M5 registry |
 | 加载顺序 | 内置注册表先加载并冻结；插件后加载且只追加独立命名空间；冲突即拒绝该插件，不 last-wins |
 
 可机械验证的隔离断言（计划阶段落地）：
@@ -317,7 +317,7 @@ M4b 不能通过注册新指令扩展；只能扩展数据模型、既有命令�
 1. 加载插件前后，`loadHostRegistry()` 深比较完全一致；
 2. 内置 `hostIds()` 集合完全一致，且无 `x-` 开头项；
 3. 插件 canonical host 全部以 `x-` 开头，且不等于任何内置 id；
-4. `FORM_BY_HOST` 键集合加载前后不变；
+4. 内置适配器 `host_id` 集合加载前后不变；
 5. 插件 host 不出现在内置 `host.<id>.root` 配置校验中；
 6. 插件 manifest 校验失败不影响内置 registry 与其它插件。
 

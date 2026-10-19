@@ -4,15 +4,7 @@
  * 把参数转成对内核服务的调用，
  * 捕获内核抛出的错误并转换为标准结果封装。领域规则一律不在本层实现。
  */
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-} from 'node:fs';
+import { cpSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -22,7 +14,6 @@ import {
   setConfig,
   TOOL_VERSION,
 } from '../../core/index/index.ts';
-import { scanWorkspace } from '../../core/discovery/index.ts';
 import {
   disableSkill,
   enableSkill,
@@ -40,42 +31,40 @@ import { exportIndex, importIndex } from '../../core/backup/index.ts';
 import { listAllBackups, listBackups } from '../../store/backup-fs/index.ts';
 import { createInitialPluginIndex, savePluginIndex } from '../../store/plugin-registry/index.ts';
 import { loadPluginIndex } from '../../store/plugin-registry/index.ts';
-import { ID_PATTERN, META_FILE_NAME } from '../../core/metadata/constants.ts';
+import { createInitialHostLandings, saveHostLandings } from '../../store/host-landings/index.ts';
+import { ID_PATTERN } from '../../core/metadata/constants.ts';
 import { declaredRuntimeOf, declaredSkillsOf, readMetaFile } from '../../core/metadata/read.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
-import {
-  ensureWorkspaceDirs,
-  layoutOf,
-  resolveWorkspaceRoot,
-  WORKSPACE_ENV,
-} from '../../store/workspace/index.ts';
+import { ensureWorkspaceDirs, layoutOf } from '../../store/workspace/index.ts';
 import { withLock } from '../../store/locking/index.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { categoryOf, CODES, finding, type Finding } from '../../store/contract.ts';
-import { adapterFor } from '../../core/adapters/index.ts';
-import { landPlan, setHostSkillVisibility } from '../../core/adapters/land.ts';
-import { rebasePlan } from '../../core/adapters/plan.ts';
-import { resolveHostRoot } from '../../core/adapters/roots.ts';
-import type { AdapterForm, PlacementPlan } from '../../core/adapters/types.ts';
-import type { RenderSource } from '../../core/render/types.ts';
-import { hostIds as registeredHostIds } from '../../core/hosts/index.ts';
+import { setHostSkillVisibility } from '../../core/adapters/land.ts';
 import { loadHostRegistry } from '../../core/hosts/index.ts';
-import type { HostRootResolution } from '../../core/adapters/roots.ts';
-import type { RootKind } from '../../core/hosts/types.ts';
-import type { DeliveryPlanEntry } from '../../store/library-fs/index.ts';
 import { buildResult, type Change, type Result } from '../result/index.ts';
-import { flag, option, optionList, type ParsedArgs } from '../parsers/index.ts';
+import { flag, option, type ParsedArgs } from '../parsers/index.ts';
 import { acquireFromPath, looksRemote, releaseSource } from '../../core/lifecycle/source.ts';
 import { inspectPluginPackage } from '../../core/plugins/discovery.ts';
 import { createPluginRecord } from '../../core/plugins/record.ts';
+import { loadPluginCatalog, orphanPluginLandings } from '../../core/plugins/host.ts';
 import {
-  buildPluginHostPlan,
-  loadPluginCatalog,
-  orphanPluginLandings,
-  pluginHostIds,
-  upsertPluginLanding,
-  type LoadedPluginCatalog,
-} from '../../core/plugins/host.ts';
+  buildHostChannel,
+  commitBuiltinVisibility,
+  hostToggleChanges,
+  hostWritesOf,
+  metaDirOf,
+  prepareToggleLedger,
+  renderSourceOf,
+  runHostLanding,
+  type HostChannel,
+} from '../host/index.ts';
+import {
+  confirmOriginalUninstall,
+  finishOriginalUninstall,
+  rejectHostUninstallOptions,
+  rejectUninstallBase,
+  runHostOrBlockedUninstall,
+} from '../host/uninstall.ts';
 import { countTreeFiles } from '../../store/library-fs/index.ts';
 import { buildHostCatalog } from '../../core/plugins/catalog.ts';
 import type { PluginIndex } from '../../core/plugins/types.ts';
@@ -87,6 +76,14 @@ import {
   type ConfirmPlan,
   type Interaction,
 } from '../policy/index.ts';
+import { pluginKind, rejectPluginOptions, workspaceRootOf } from '../shared/options.ts';
+import {
+  emptyPluginIndex,
+  loadPluginsForRead,
+  loadPluginsForWrite,
+  pluginUnreadable,
+} from '../plugins/state.ts';
+import { scanHandler } from '../scan/index.ts';
 
 export interface CommandContext {
   args: ParsedArgs;
@@ -179,379 +176,119 @@ export async function dispatch(context: CommandContext): Promise<Result<unknown>
   return handler(context);
 }
 
-function pluginKind(args: ParsedArgs): boolean {
-  return option(args, 'kind') === 'plugin';
-}
-
-/** 插件分支只接受 plugin-format 明确列出的选项；Skill 专用选项必须显式拒绝。 */
-function rejectPluginOptions(
-  command: string,
-  args: ParsedArgs,
-  disallowed: readonly string[],
-): Result<unknown> | null {
-  for (const name of disallowed) {
-    if (option(args, name) !== undefined || flag(args, name)) {
-      return buildResult(command, [
-        finding(CODES.INPUT_INVALID_ARG, {
-          source: 'input',
-          target: `--${name}`,
-          message: `插件分支不接受 --${name}`,
-          remedy: '使用 --kind plugin 的插件专用语义；Skill 目标/宿主选项不适用于插件对象',
-        }),
-      ]);
-    }
-  }
-  return null;
-}
-
-/** 解析工作区根目录：命令行选项优先，其次环境变量，最后用户主目录 */
-function workspaceRootOf(args: ParsedArgs): string {
-  return resolveWorkspaceRoot(option(args, 'workspace'));
-}
-
-/**
- * 宿主分发通道（指令契约规范 2.2 与 4.3 节）：`--host <宿主>` 决定分发到哪个宿主的真实根，
- * 与 `--target` 正交——后者决定工作区内的目标位置，语义与一期完全一致。
- *
- * 该通道只在给出 `--host` 时介入：未给出时四条指令的执行路径与一期一字不差。
- */
-interface HostChannel {
-  hostId: string;
-  form: AdapterForm;
-  /** 解析后的宿主真实根；不可落盘的形态没有该值 */
-  resolution?: HostRootResolution;
-  plan: PlacementPlan;
-  /** 第三方插件宿主上下文；内置宿主为 undefined */
-  plugin?: import('../../core/plugins/host.ts').PluginHostPlan;
-}
-
-/** `--host` 的可用取值：注册表内每个有适配器的宿主，按其形态展开（规则路径类加后缀） */
-function hostOptionValues(pluginIds: readonly string[] = []): string[] {
-  const values: string[] = [];
-  for (const hostId of registeredHostIds()) {
-    const adapter = adapterFor(hostId);
-    if (adapter === undefined) continue;
-    for (const form of adapter.forms) {
-      values.push(form === 'rules' ? `${hostId}-rules` : hostId);
-    }
-  }
-  return [...values, ...pluginIds].sort();
-}
-
-/** 解析 `--host` 取值：宿主标识 + 形态；非法取值返回 undefined */
-function hostTargetOf(value: string): { hostId: string; form: AdapterForm } | undefined {
-  const rulesSuffixed = value.endsWith('-rules');
-  const hostId = rulesSuffixed ? value.slice(0, -'-rules'.length) : value;
-  const adapter = adapterFor(hostId);
-  if (adapter === undefined) return undefined;
-  if (rulesSuffixed) {
-    return adapter.forms.includes('rules') ? { hostId, form: 'rules' } : undefined;
-  }
-  const defaultForm = adapter.forms[0];
-  return defaultForm === undefined ? undefined : { hostId, form: defaultForm };
-}
-
-/** 组装宿主分发通道：校验取值 → 渲染与落位计划 → 解析宿主真实根 → 重定基到真实根 */
-function buildHostChannel(input: {
-  value: string;
-  layout: ReturnType<typeof layoutOf>;
-  index: SkillIndex;
-  source: RenderSource;
-  form?: AdapterForm;
-  pluginCatalog?: LoadedPluginCatalog;
-}): { channel?: HostChannel; findings: Finding[] } {
-  const findings: Finding[] = [];
-  const pluginIds = input.pluginCatalog === undefined ? [] : pluginHostIds(input.pluginCatalog);
-  const target = hostTargetOf(input.value);
-  if (target === undefined) {
-    findings.push(
-      finding(CODES.INPUT_INVALID_ARG, {
-        source: 'input',
-        target: '--host',
-        message: `--host 取值非法：${input.value}`,
-        remedy: `可用取值为 ${hostOptionValues(pluginIds).join('、')}`,
-      }),
-    );
-    if (!input.value.startsWith('x-') || input.pluginCatalog === undefined) return { findings };
-    const plugin = buildPluginHostPlan({
-      layout: input.layout,
-      catalog: input.pluginCatalog,
-      hostId: input.value,
-      source: input.source,
-    });
-    findings.length = 0;
-    findings.push(...plugin.findings);
-    if (plugin.plan === undefined) return { findings };
-    return {
-      channel: {
-        hostId: plugin.plan.hostId,
-        form: plugin.plan.form,
-        resolution: plugin.plan.resolution,
-        plan: plugin.plan.plan,
-        plugin: plugin.plan,
-      },
-      findings,
-    };
-  }
-  const adapter = adapterFor(target.hostId);
-  if (adapter === undefined) {
-    findings.push(
-      finding(CODES.INPUT_INVALID_ARG, {
-        source: 'input',
-        target: '--host',
-        message: `该宿主没有适配器：${input.value}`,
-        remedy: `可用取值为 ${hostOptionValues(pluginIds).join('、')}`,
-      }),
-    );
-    return { findings };
-  }
-  const form = input.form ?? target.form;
-  const plan = adapter.plan(input.source, form);
-  findings.push(...plan.findings);
-
-  // 不可落盘的形态（如指令文件载体）：只登记不落盘，无需解析宿主根
-  if (!plan.entries.some((entry) => entry.landable)) {
-    return { channel: { hostId: target.hostId, form, plan }, findings };
-  }
-
-  const resolution = resolveHostRoot({
-    hostId: target.hostId,
-    workspaceRoot: input.layout.root,
-    config: input.index.config as Record<string, unknown>,
-    ...(form === 'rules' ? { rootKind: 'rules' as RootKind } : {}),
-  });
-  if (resolution === undefined) {
-    findings.push(
-      finding(CODES.INPUT_INVALID_ARG, {
-        source: 'input',
-        target: '--host',
-        message: `该宿主没有可用于分发的落位根：${input.value}`,
-        remedy: `可用取值为 ${hostOptionValues(pluginIds).join('、')}`,
-      }),
-    );
-    return { findings };
-  }
-  findings.push(...resolution.findings);
-  if (resolution.findings.some((item) => item.severity === 'error') || resolution.path === '') {
-    return { findings };
-  }
-  return {
-    channel: {
-      hostId: target.hostId,
-      form,
-      resolution,
-      plan: rebasePlan(plan, resolution.path, resolution.external),
-    },
-    findings,
-  };
-}
-
-/** 宿主通道将写入的位置清单（供确认与预演呈现） */
-function hostWritesOf(plan: PlacementPlan): ConfirmPlan['writes'] {
-  return plan.entries
-    .filter((entry) => entry.landable)
-    .map((entry) => ({ action: '写入', kind: entry.artifact_kind, path: entry.target_path }));
-}
-
-/** 通道是否涉及工作区之外的写入（用于确认级别升级与提示） */
-function hostWritesOutside(plan: PlacementPlan): boolean {
-  return plan.entries.some((entry) => entry.landable && entry.external);
-}
-
-/** 把落位执行结果转换为结果封装的变更与数据 */
-function hostLandingResult(input: {
-  command: string;
-  channel: HostChannel;
-  layout: ReturnType<typeof layoutOf>;
-  now: string;
-  skillId: string;
-  sourceDir?: string;
-  fileMap?: DeliveryPlanEntry[];
-  dryRun: boolean;
-}): Result<unknown> {
-  const landed = landPlan({
-    plan: input.channel.plan,
-    workspace: input.layout,
-    now: input.now,
-    ...(input.sourceDir === undefined ? {} : { sourceDir: input.sourceDir }),
-    ...(input.fileMap === undefined ? {} : { fileMap: input.fileMap }),
-    ...(input.dryRun ? { dryRun: true } : {}),
-  });
-  const changes: Change[] = landed.changes.map((item) => ({
-    ...item,
-    detail: `${item.detail ?? ''}（宿主分发：${input.channel.hostId}）`.trim(),
-  }));
-  const consumedBy = [
-    ...new Set(input.channel.plan.entries.flatMap((entry) => entry.consumed_by)),
-  ].sort();
-  const findings = [...landed.findings];
-  let ledgerRecorded = false;
-  if (
-    !input.dryRun &&
-    input.channel.plugin !== undefined &&
-    !findings.some((item) => item.severity === 'error')
-  ) {
-    const placement = input.channel.plan.entries.find((entry) => entry.landable);
-    if (placement !== undefined) {
-      try {
-        const updated = upsertPluginLanding(input.channel.plugin.catalog.index, {
-          pluginId: input.channel.plugin.pluginId,
-          skillId: input.skillId,
-          hostId: input.channel.plugin.hostId,
-          hostKey: input.channel.plugin.hostKey,
-          targetPath: placement.target_path,
-          now: input.now,
-        });
-        savePluginIndex(input.layout.pluginIndexFile, updated);
-        ledgerRecorded = true;
-      } catch (error) {
-        const kernelError = toKernelError(error, CODES.IO_FAILED);
-        findings.push(
-          finding(kernelError.code, {
-            source: kernelError.source,
-            target: kernelError.target,
-            message: `插件落位账本写入失败：${kernelError.message}`,
-            remedy: '检查 plugin_index.yaml 是否可写；下次分发前先修复账本',
-          }),
-        );
-      }
-    }
-  }
-  return buildResult(input.command, findings, changes, {
-    data: {
-      host: input.channel.hostId,
-      ...(input.channel.plugin === undefined
-        ? {}
-        : { plugin_id: input.channel.plugin.pluginId, ledger_recorded: ledgerRecorded }),
-      host_root: input.channel.resolution?.path ?? '',
-      host_writes_outside_workspace: hostWritesOutside(input.channel.plan),
-      skipped: landed.skipped,
-      backups: landed.backups,
-      consumed_by: consumedBy,
-    },
-    ...(input.dryRun ? { preview: true } : {}),
-  });
-}
-
-/** 读取中心库副本的 SKILL.md 正文（去掉元数据块），作为渲染产物的指令正文 */
-function skillBodyOf(skillDir: string): string | undefined {
-  const file = join(skillDir, 'SKILL.md');
-  if (!existsSync(file)) return undefined;
-  const text = readFileSync(file, 'utf8');
-  const match = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(text);
-  return match === null ? text : text.slice(match[0].length);
-}
-
-/** 由元文件字段与指令正文组装渲染输入 */
-function renderSourceOf(skillDir: string, raw: Record<string, unknown>): RenderSource {
-  const source: RenderSource = { id: String(raw['id']) };
-  for (const key of ['description', 'license', 'version', 'author'] as const) {
-    const value = raw[key];
-    if (typeof value === 'string' && value.trim() !== '') source[key] = value;
-  }
-  const keywords = raw['trigger_keywords'];
-  if (Array.isArray(keywords)) {
-    source.trigger_keywords = keywords.filter((item): item is string => typeof item === 'string');
-  }
-  const dependencies = raw['dependencies'];
-  if (dependencies !== null && typeof dependencies === 'object' && !Array.isArray(dependencies)) {
-    const record = dependencies as Record<string, unknown>;
-    const skills = record['skills'];
-    if (Array.isArray(skills)) {
-      source.skill_dependencies = skills.filter((item): item is string => typeof item === 'string');
-    }
-    const runtime = record['runtime'];
-    if (runtime !== null && typeof runtime === 'object' && !Array.isArray(runtime)) {
-      const map: Record<string, string> = {};
-      for (const [name, constraint] of Object.entries(runtime as Record<string, unknown>)) {
-        if (typeof constraint === 'string') map[name] = constraint;
-      }
-      source.runtime_dependencies = map;
-    }
-  }
-  const body = skillBodyOf(skillDir);
-  if (body !== undefined) source.body = body;
-  return source;
-}
-
-/** 元文件所在目录：安装来源既可以是目录，也可以直接指向元文件 */
-function metaDirOf(sourcePath: string): string {
-  return sourcePath.endsWith(META_FILE_NAME) ? dirname(sourcePath) : sourcePath;
-}
-
-/**
- * 安装与刷新的宿主分发：把中心库原件按落位计划分发到宿主真实根。
- *
- * 调用时机在中心库就位之后（安装完成、刷新完成）；调用前该指令自身的确认门已通过，
- * 因此这里不再重复确认（指令契约规范 2.4 节：一次调用一次确认）。
- */
-function runHostLanding(input: {
-  command: 'install' | 'update';
-  hostValue: string;
-  layout: ReturnType<typeof layoutOf>;
-  index: SkillIndex;
-  /** 读取元文件与指令正文的位置：安装完成后的中心库副本，预演时为来源目录 */
-  skillDir: string;
-  now: string;
-  dryRun: boolean;
-}): { findings: Finding[]; changes: Change[]; data: Record<string, unknown> } {
-  const metaRead = readMetaFile(input.skillDir, input.skillDir);
-  if (metaRead.raw === null) {
-    return { findings: metaRead.findings, changes: [], data: {} };
-  }
-  const pluginCatalog = input.hostValue.startsWith('x-')
-    ? loadPluginCatalog({
-        layout: input.layout,
-        builtins: loadHostRegistry().hosts,
-        toolVersion: TOOL_VERSION,
-      })
-    : undefined;
-  const built = buildHostChannel({
-    value: input.hostValue,
-    layout: input.layout,
-    index: input.index,
-    source: renderSourceOf(input.skillDir, metaRead.raw),
-    ...(pluginCatalog === undefined ? {} : { pluginCatalog }),
-  });
-  if (
-    built.channel === undefined ||
-    (built.channel.plugin !== undefined && built.findings.some((item) => item.severity === 'error'))
-  ) {
-    return { findings: built.findings, changes: [], data: {} };
-  }
-  const landed = hostLandingResult({
-    command: input.command,
-    channel: built.channel,
-    layout: input.layout,
-    now: input.now,
-    skillId: String(metaRead.raw['id']),
-    sourceDir: input.skillDir,
-    dryRun: input.dryRun,
-  });
-  return {
-    findings: landed.findings,
-    changes: landed.changes,
-    data: (landed.data ?? {}) as Record<string, unknown>,
-  };
-}
-
 /**
  * 宿主根内的启用 / 禁用：改名或还原宿主副本内的技能元数据文件，目录一律不动。
  *
  * 写工作区之外属高影响操作，因此把确认级别**升到轻确认**（该两条指令在工作区内本为「无需确认」）：
  * 非终端环境必须给出 `--yes`，否则按参数类错误拒绝；`--dry-run` 只列出将变更的路径。
  */
+async function runPluginRuleToggle(input: {
+  command: 'enable' | 'disable';
+  id: string;
+  index: SkillIndex;
+  args: ParsedArgs;
+  interaction: Interaction;
+  dryRun: boolean;
+  findings: Finding[];
+  channel: HostChannel;
+}): Promise<Result<unknown>> {
+  const target = input.channel.plan.entries.find((entry) => entry.landable)?.target_path;
+  if (target === undefined) {
+    return buildResult(input.command, [
+      ...input.findings,
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--host',
+        message: '插件规则形态没有可切换的 Skill 副本',
+        remedy: '先安装/分发该 Skill 到该插件宿主',
+      }),
+    ]);
+  }
+  const paths = ruleTogglePaths(input.command, target);
+  const plan = ruleTogglePlan(input.command, input.id, input.channel.hostId, target);
+  if (!input.dryRun) {
+    const blocked = await confirmationGate({
+      command: input.command,
+      args: input.args,
+      interaction: input.interaction,
+      preview: {
+        index: input.index,
+        findings: [],
+        changes: [],
+        data: {},
+      } satisfies LifecycleOutcome,
+      plan,
+      ...ruleToggleEscalation(input.channel),
+    });
+    if (blocked !== null) return blocked;
+  }
+  if (input.dryRun) {
+    return buildResult(input.command, input.findings, [], {
+      data: {
+        host: input.channel.hostId,
+        host_root: dirname(target),
+        preview_writes: plan.writes,
+      },
+      preview: true,
+    });
+  }
+  const changed = existsSync(paths.from);
+  if (changed) renameSync(paths.from, paths.to);
+  return buildResult(
+    input.command,
+    input.findings,
+    ruleToggleChanges(changed, paths.to, input.channel.hostId),
+    { data: { host: input.channel.hostId, host_root: dirname(target), idempotent: !changed } },
+  );
+}
+
+function ruleTogglePaths(
+  command: 'enable' | 'disable',
+  target: string,
+): { from: string; to: string; writeAction: string } {
+  const disabled = `${target}.disabled`;
+  return command === 'disable'
+    ? { from: target, to: disabled, writeAction: '改名' }
+    : { from: disabled, to: target, writeAction: '恢复' };
+}
+
+function ruleTogglePlan(
+  command: 'enable' | 'disable',
+  id: string,
+  hostId: string,
+  target: string,
+): ConfirmPlan {
+  const paths = ruleTogglePaths(command, target);
+  return {
+    action: command === 'enable' ? '启用' : '禁用',
+    subject: `${id}（插件宿主 ${hostId}）`,
+    writes: [{ action: paths.writeAction, kind: 'rule_file', path: target }],
+    notes: [`插件规则副本：${target}`, '只切换规则文件后缀，不改动 Skill 索引或插件登记'],
+  };
+}
+
+function ruleToggleChanges(changed: boolean, to: string, hostId: string): Change[] {
+  return changed
+    ? [{ action: 'modify', kind: 'host-copy', path: to, detail: `插件宿主：${hostId}` }]
+    : [];
+}
+
+function ruleToggleEscalation(channel: HostChannel): { escalateTo?: 'light' } {
+  return channel.resolution?.external === true ? { escalateTo: 'light' } : {};
+}
+
 async function runHostToggle(input: {
   command: 'enable' | 'disable';
   hostValue: string;
   id: string;
   layout: ReturnType<typeof layoutOf>;
   index: SkillIndex;
+  now: string;
   args: ParsedArgs;
   interaction: Interaction;
   dryRun: boolean;
 }): Promise<Result<unknown>> {
-  const { command, hostValue, id, layout, index, args, interaction, dryRun } = input;
+  const { command, hostValue, id, layout, index, now, args, interaction, dryRun } = input;
   const metaRead = readMetaFile(join(layout.skillsDir, id), id);
   if (metaRead.raw === null) {
     return buildResult(command, metaRead.findings, [], { data: { host: hostValue } });
@@ -575,56 +312,16 @@ async function runHostToggle(input: {
   }
   const channel = built.channel;
   if (channel.plugin?.form === 'rules') {
-    const target = channel.plan.entries.find((entry) => entry.landable)?.target_path;
-    if (target === undefined) {
-      return buildResult(command, [
-        ...built.findings,
-        finding(CODES.INPUT_INVALID_ARG, {
-          source: 'input',
-          target: '--host',
-          message: '插件规则形态没有可切换的 Skill 副本',
-          remedy: '先安装/分发该 Skill 到该插件宿主',
-        }),
-      ]);
-    }
-    const disabled = `${target}.disabled`;
-    const from = command === 'disable' ? target : disabled;
-    const to = command === 'disable' ? disabled : target;
-    const plan: ConfirmPlan = {
-      action: command === 'enable' ? '启用' : '禁用',
-      subject: `${id}（插件宿主 ${channel.hostId}）`,
-      writes: [
-        { action: command === 'disable' ? '改名' : '恢复', kind: 'rule_file', path: target },
-      ],
-      notes: [`插件规则副本：${target}`, '只切换规则文件后缀，不改动 Skill 索引或插件登记'],
-    };
-    if (!dryRun) {
-      const blocked = await confirmationGate({
-        command,
-        args,
-        interaction,
-        preview: { index: index, findings: [], changes: [], data: {} } satisfies LifecycleOutcome,
-        plan,
-        ...(channel.resolution?.external === true ? { escalateTo: 'light' as const } : {}),
-      });
-      if (blocked !== null) return blocked;
-    }
-    if (dryRun) {
-      return buildResult(command, built.findings, [], {
-        data: { host: channel.hostId, host_root: dirname(target), preview_writes: plan.writes },
-        preview: true,
-      });
-    }
-    const changed = existsSync(from);
-    if (changed) renameSync(from, to);
-    return buildResult(
+    return runPluginRuleToggle({
       command,
-      built.findings,
-      changed
-        ? [{ action: 'modify', kind: 'host-copy', path: to, detail: `插件宿主：${channel.hostId}` }]
-        : [],
-      { data: { host: channel.hostId, host_root: dirname(target), idempotent: !changed } },
-    );
+      id,
+      index,
+      args,
+      interaction,
+      dryRun,
+      findings: built.findings,
+      channel,
+    });
   }
   const rootPath = channel.resolution?.path ?? '';
   if (rootPath === '') {
@@ -638,6 +335,23 @@ async function runHostToggle(input: {
           target: '--host',
           message: `该宿主的该形态不落盘，没有可切换可见性的副本：${hostValue}`,
           remedy: '按路径类改用会落位的取值（例如宿主标识本身而非其片段形态）',
+        }),
+      ],
+      [],
+      { data: { host: channel.hostId } },
+    );
+  }
+
+  if (channel.plugin === undefined && channel.form === 'rules') {
+    return buildResult(
+      command,
+      [
+        ...built.findings,
+        finding(CODES.INPUT_INVALID_ARG, {
+          source: 'input',
+          target: '--host',
+          message: `规则形态没有可切换的可见性标记：${hostValue}`,
+          remedy: 'rules 记录只允许 visible；请重新分发以刷新规则文件',
         }),
       ],
       [],
@@ -689,31 +403,68 @@ async function runHostToggle(input: {
     });
   }
 
+  const prepared = prepareToggleLedger({
+    channel,
+    layout,
+    now,
+    dryRun,
+    rootPath,
+    skillId: id,
+  });
+  if (prepared.findings.some((item) => item.severity === 'error')) {
+    return buildResult(command, [...built.findings, ...prepared.findings], [], {
+      data: { host: channel.hostId, ledger_recorded: false },
+    });
+  }
+
   const visibility = setHostSkillVisibility({
     rootPath: visibilityRoot,
     skillId: id,
     enabled: command === 'enable',
   });
   const changed = visibility === 'changed';
+  let ledgerRecorded = false;
+  let adopted = false;
+  let origin = '';
+  const findings = [...built.findings];
+  if (channel.plugin === undefined && prepared.index !== undefined) {
+    const committed = commitBuiltinVisibility({
+      layout,
+      now,
+      skillId: id,
+      hostId: channel.hostId,
+      sourceMeta: metaRead.raw,
+      index: prepared.index,
+      targetPath: copyDir,
+      rootPath,
+      visibility: command === 'enable' ? 'visible' : 'disabled',
+      beforeDisabled: prepared.beforeDisabled,
+      changed,
+    });
+    ledgerRecorded = committed.recorded;
+    adopted = committed.adopted;
+    origin = committed.origin;
+    findings.push(...committed.findings);
+  }
+  const hostChanges = hostToggleChanges(findings, changed, targetPath, channel.hostId);
   return buildResult(
     command,
-    built.findings,
-    changed
-      ? [
-          {
-            action: 'modify',
-            kind: 'host-copy',
-            path: targetPath,
-            detail: `宿主分发：${channel.hostId}；目录与其余文件未改动`,
-          },
-        ]
-      : [],
+    findings,
+    findings.some((item) => item.severity === 'error') ? [] : hostChanges,
     {
       data: {
         host: channel.hostId,
         host_root: rootPath,
         host_writes_outside_workspace: true,
         idempotent: !changed,
+        ...(channel.plugin === undefined
+          ? {
+              ledger_source: 'host_landings',
+              ledger_recorded: ledgerRecorded,
+              adopted,
+              origin,
+            }
+          : {}),
         consumed_by: [
           ...new Set(channel.plan.entries.flatMap((entry) => entry.consumed_by)),
         ].sort(),
@@ -734,6 +485,12 @@ const initHandler: CommandHandler = async ({ args, now }) => {
       pluginIndexCreated = true;
       changes.push({ action: 'add', kind: 'plugin_index', path: layout.pluginIndexFile });
     }
+    let hostLandingsCreated = false;
+    if (!existsSync(layout.hostLandingsFile)) {
+      saveHostLandings(layout.hostLandingsFile, createInitialHostLandings(now, TOOL_VERSION));
+      hostLandingsCreated = true;
+      changes.push({ action: 'add', kind: 'host_landings', path: layout.hostLandingsFile });
+    }
     if (existed) {
       // 幂等：工作区已存在时不覆盖既有索引与配置
       return buildResult('init', [], changes, {
@@ -741,8 +498,10 @@ const initHandler: CommandHandler = async ({ args, now }) => {
           root: layout.root,
           index: layout.indexFile,
           plugin_index: layout.pluginIndexFile,
+          host_landings: layout.hostLandingsFile,
           created: false,
           plugin_index_created: pluginIndexCreated,
+          host_landings_created: hostLandingsCreated,
           tool_version: TOOL_VERSION,
         },
       });
@@ -757,8 +516,10 @@ const initHandler: CommandHandler = async ({ args, now }) => {
         root: layout.root,
         index: layout.indexFile,
         plugin_index: layout.pluginIndexFile,
+        host_landings: layout.hostLandingsFile,
         created: true,
         plugin_index_created: pluginIndexCreated,
+        host_landings_created: hostLandingsCreated,
         tool_version: TOOL_VERSION,
       },
     });
@@ -774,70 +535,6 @@ const initHandler: CommandHandler = async ({ args, now }) => {
     ]);
   }
 };
-
-function emptyPluginIndex(now: string): PluginIndex {
-  return {
-    schema_version: '1',
-    tool_version: TOOL_VERSION,
-    generated_at: now,
-    config: {},
-    plugins: [],
-    landings: [],
-  };
-}
-
-function loadPluginsForRead(layout: ReturnType<typeof layoutOf>): {
-  index: PluginIndex | null;
-  findings: Finding[];
-  initialized: boolean;
-} {
-  if (!existsSync(layout.pluginIndexFile)) {
-    return { index: null, findings: [], initialized: false };
-  }
-  const loaded = loadPluginIndex(layout.pluginIndexFile);
-  return { index: loaded.index, findings: [...loaded.findings], initialized: true };
-}
-
-function loadPluginsForWrite(
-  layout: ReturnType<typeof layoutOf>,
-  now: string,
-): { index: PluginIndex | null; findings: Finding[]; missing: boolean } {
-  if (!existsSync(layout.pluginIndexFile)) {
-    return { index: null, findings: [], missing: true };
-  }
-  const loaded = loadPluginIndex(layout.pluginIndexFile);
-  return {
-    index:
-      loaded.index ??
-      (loaded.findings.some((item) => item.severity === 'error') ? null : emptyPluginIndex(now)),
-    findings: [...loaded.findings],
-    missing: false,
-  };
-}
-
-function pluginUnreadable(
-  command: string,
-  layout: ReturnType<typeof layoutOf>,
-  findings: Finding[],
-  missing: boolean,
-): Result<unknown> {
-  return buildResult(command, [
-    ...findings,
-    missing
-      ? finding(CODES.ENV_NOT_INITIALIZED, {
-          source: 'workspace',
-          target: layout.root,
-          message: '工作区尚未初始化',
-          remedy: '请先执行 init',
-        })
-      : finding(CODES.ENV_INCOMPLETE, {
-          source: 'workspace',
-          target: layout.pluginIndexFile,
-          message: '插件索引无法读取，不能执行该操作',
-          remedy: '修复 plugin_index.yaml 或重新初始化工作区',
-        }),
-  ]);
-}
 
 async function pluginInstallCommand(context: CommandContext): Promise<Result<unknown>> {
   const { args, now } = context;
@@ -1009,108 +706,6 @@ async function pluginInstallCommand(context: CommandContext): Promise<Result<unk
   } finally {
     releaseSource(acquired);
   }
-}
-
-function pluginScanCommand(context: { args: ParsedArgs; now: string }): Result<unknown> {
-  const { args, now } = context;
-  const layout = layoutOf(workspaceRootOf(args));
-  const rejected = rejectPluginOptions('scan', args, ['root']);
-  if (rejected !== null) return rejected;
-  const loaded = loadPluginsForWrite(layout, now);
-  if (loaded.index === null)
-    return pluginUnreadable('scan', layout, loaded.findings, loaded.missing);
-  const dryRun = flag(args, 'dry-run');
-  const unregistered: Array<Record<string, unknown>> = [];
-  const findings: Finding[] = [...loaded.findings];
-  const byId = new Map(loaded.index.plugins.map((item) => [item.id, item]));
-  const discovered = inspectPluginPackagesForScan(layout, TOOL_VERSION);
-  for (const candidate of discovered) {
-    if (!byId.has(candidate.plugin_id)) {
-      unregistered.push({
-        plugin_id: candidate.plugin_id,
-        path: candidate.dir,
-        manifest_hash: candidate.manifest_hash,
-      });
-      continue;
-    }
-  }
-  const plugins = loaded.index.plugins.map((record) => {
-    const packageDir = join(layout.pluginsDir, record.id);
-    const inspected = inspectPluginPackage(packageDir, TOOL_VERSION);
-    const errors = inspected.findings.filter((item) => item.severity === 'error');
-    if (errors.length > 0 || inspected.manifest === null) {
-      findings.push(...errors);
-      return {
-        ...record,
-        state: 'invalid' as const,
-        validation: {
-          status: 'invalid' as const,
-          errors: errors.map((item) => item.code),
-          last_scan_at: now,
-        },
-        updated_at: now,
-      };
-    }
-    if (
-      inspected.manifest_hash !== record.manifest_hash ||
-      inspected.manifest.plugin_id !== record.id
-    ) {
-      findings.push(
-        finding(CODES.HASH_FORMAT, {
-          source: 'plugin-scan',
-          target: record.id,
-          message: 'manifest 哈希或标识与登记不一致',
-          remedy: '确认插件包未被修改；必要时重新安装',
-        }),
-      );
-      return {
-        ...record,
-        state: 'invalid' as const,
-        validation: {
-          status: 'invalid' as const,
-          errors: [CODES.HASH_FORMAT],
-          last_scan_at: now,
-        },
-        updated_at: now,
-      };
-    }
-    return {
-      ...record,
-      validation: { ...record.validation, status: 'ok' as const, errors: [], last_scan_at: now },
-      updated_at: now,
-    };
-  });
-  const orphaned = loaded.index.landings.filter((item) => !byId.has(item.plugin_id));
-  const next: PluginIndex = { ...loaded.index, generated_at: now, plugins };
-  if (!dryRun) savePluginIndex(layout.pluginIndexFile, next);
-  return buildResult('scan', findings, [], {
-    data: {
-      kind: 'plugin',
-      registered: plugins.length,
-      invalid: plugins.filter((item) => item.state === 'invalid').length,
-      unregistered,
-      orphaned_landings: orphaned,
-    },
-    ...(dryRun ? { preview: true } : {}),
-  });
-}
-
-function inspectPluginPackagesForScan(
-  layout: ReturnType<typeof layoutOf>,
-  toolVersion: string,
-): Array<{ plugin_id: string; dir: string; manifest_hash: string }> {
-  if (!existsSync(layout.pluginsDir)) return [];
-  const result: Array<{ plugin_id: string; dir: string; manifest_hash: string }> = [];
-  for (const entry of readdirSync(layout.pluginsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.isSymbolicLink() || entry.name.startsWith('.')) continue;
-    const inspected = inspectPluginPackage(join(layout.pluginsDir, entry.name), toolVersion);
-    result.push({
-      plugin_id: inspected.manifest?.plugin_id ?? entry.name,
-      dir: inspected.dir,
-      manifest_hash: inspected.manifest_hash,
-    });
-  }
-  return result;
 }
 
 function pluginListCommand(context: { args: ParsedArgs }): Result<unknown> {
@@ -1496,75 +1091,6 @@ async function pluginUninstallCommand(context: CommandContext): Promise<Result<u
   });
 }
 
-const scanHandler: CommandHandler = async ({ args, now }) => {
-  if (pluginKind(args)) return pluginScanCommand({ args, now });
-  const layout = layoutOf(workspaceRootOf(args));
-  const dryRun = flag(args, 'dry-run');
-  const overrides = optionList(args, 'root');
-
-  if (!existsSync(layout.indexFile)) {
-    return buildResult('scan', [
-      finding(CODES.ENV_NOT_INITIALIZED, {
-        source: 'workspace',
-        target: layout.root,
-        message: '工作区尚未初始化',
-        remedy: `请先执行 init，或设置环境变量 ${WORKSPACE_ENV} 指向已有工作区`,
-      }),
-    ]);
-  }
-
-  try {
-    return await withLock(layout.indexFile, () => {
-      const loaded = loadIndex(layout.indexFile);
-      const findings: Finding[] = [...loaded.findings];
-      if (loaded.index === null) {
-        findings.push(
-          finding(CODES.ENV_INCOMPLETE, {
-            source: 'workspace',
-            target: layout.indexFile,
-            message: '索引无法读取，请重建后再扫描',
-            remedy: '请先执行 init 建立新的索引，或修复索引文件',
-          }),
-        );
-        return buildResult('scan', findings);
-      }
-
-      const index =
-        overrides.length > 0
-          ? { ...loaded.index, config: { ...loaded.index.config, skill_roots: overrides } }
-          : loaded.index;
-
-      const outcome = scanWorkspace({ layout, index, now });
-      findings.push(...outcome.findings);
-
-      if (!dryRun) saveIndex(layout.indexFile, outcome.index);
-
-      const extra: {
-        data: { root: string; summary: typeof outcome.summary; total: number };
-        preview?: boolean;
-      } = {
-        data: {
-          root: layout.root,
-          summary: outcome.summary,
-          total: outcome.index.skills.length,
-        },
-      };
-      if (dryRun) extra.preview = true;
-      return buildResult('scan', findings, outcome.changes, extra);
-    });
-  } catch (error) {
-    const kernelError = toKernelError(error, CODES.IO_FAILED);
-    return buildResult('scan', [
-      finding(kernelError.code, {
-        source: kernelError.source,
-        target: kernelError.target,
-        message: kernelError.message,
-        remedy: kernelError.remedy,
-      }),
-    ]);
-  }
-};
-
 register({ name: 'init', handler: initHandler });
 register({ name: 'scan', handler: scanHandler });
 
@@ -1800,30 +1326,31 @@ const installHandler: CommandHandler = async ({ args, now, interaction }) => {
 };
 
 const uninstallHandler: CommandHandler = async ({ args, now, interaction }) => {
-  if (pluginKind(args)) return pluginUninstallCommand({ args, now, interaction });
+  const hostValue = option(args, 'host');
+  const kindPlugin = pluginKind(args);
+  const rejected = rejectHostUninstallOptions({
+    hostValue,
+    kindPlugin,
+    hard: flag(args, 'hard'),
+  });
+  if (rejected !== null) return rejected;
+  if (kindPlugin) return pluginUninstallCommand({ args, now, interaction });
   const layout = layoutOf(workspaceRootOf(args));
-  const id = args.positionals[0];
   const dryRun = flag(args, 'dry-run');
-  if (id === undefined || id === '') {
-    return buildResult('uninstall', [
-      finding(CODES.INPUT_MISSING_ARG, {
-        source: 'input',
-        target: 'id',
-        message: 'uninstall 需要给出 Skill 标识',
-        remedy: '请提供要卸载的 Skill 标识',
-      }),
-    ]);
-  }
-  if (!existsSync(layout.indexFile)) {
-    return buildResult('uninstall', [
-      finding(CODES.ENV_NOT_INITIALIZED, {
-        source: 'workspace',
-        target: layout.root,
-        message: '工作区尚未初始化',
-        remedy: '请先执行 init',
-      }),
-    ]);
-  }
+  const invalid = rejectUninstallBase({ layout, id: args.positionals[0] });
+  if (invalid !== null) return invalid;
+  const skillId = args.positionals[0] as string;
+  const early = await runHostOrBlockedUninstall({
+    layout,
+    now,
+    hostValue,
+    skillId,
+    dryRun,
+    args,
+    interaction,
+    confirm: confirmationGate,
+  });
+  if (early !== null) return early;
   try {
     return await withLock(layout.indexFile, async () => {
       const loaded = loadIndex(layout.indexFile);
@@ -1841,38 +1368,30 @@ const uninstallHandler: CommandHandler = async ({ args, now, interaction }) => {
       const uninstallInput = {
         layout,
         index: loaded.index,
-        id,
+        id: skillId,
         now,
         ...(hard ? { hard: true } : {}),
       };
 
-      // 需要确认且不是预演时，先跑一次只读预览；强制二次确认须逐条列出影响范围与文件数量
-      if (!dryRun) {
-        const preview = uninstallSkill({ ...uninstallInput, dryRun: true });
-        const detail = preview.data['would_remove_detail'];
-        const fileCount = String(preview.data['would_remove_file_count'] ?? 0);
-        const notes = [
-          `合计将移除 ${Array.isArray(detail) ? detail.length : 0} 个副本位置、${fileCount} 个文件`,
-          '卸载前会先把中心库原件备份到工作区的备份目录',
-          hard
-            ? '中心库原件将被永久删除，本工具不再持有该 Skill 的任何原件'
-            : '中心库原件将保留；保留后它不再属于已管理集合',
-        ];
-        const blocked = await confirmationGate({
-          command: 'uninstall',
-          args,
-          interaction,
-          preview,
-          plan: planOf('uninstall', id, preview, notes),
-        });
-        if (blocked !== null) return blocked;
-      }
+      const blocked = await confirmOriginalUninstall({
+        args,
+        interaction,
+        skillId,
+        hard,
+        dryRun,
+        runPreview: () => uninstallSkill({ ...uninstallInput, dryRun: true }),
+        confirm: confirmationGate,
+      });
+      if (blocked !== null) return blocked;
 
       const outcome = uninstallSkill({ ...uninstallInput, dryRun });
       if (!dryRun && outcome.index !== loaded.index) saveIndex(layout.indexFile, outcome.index);
-      return buildResult('uninstall', outcome.findings, outcome.changes, {
-        data: outcome.data,
-        ...(outcome.preview === true ? { preview: true } : {}),
+      return finishOriginalUninstall({
+        layout,
+        now,
+        skillId,
+        dryRun,
+        outcome,
       });
     });
   } catch (error) {
@@ -2425,7 +1944,17 @@ function toggleHandler(command: 'enable' | 'disable'): CommandHandler {
     // 宿主分发通道：只在给出 --host 时介入，且只作用于宿主真实根内的副本，
     // 不修改索引状态（索引状态描述工作区内的目标），也不新建副本。
     if (hostValue !== undefined) {
-      return runHostToggle({ command, hostValue, id, layout, index, args, interaction, dryRun });
+      return runHostToggle({
+        command,
+        hostValue,
+        id,
+        layout,
+        index,
+        now,
+        args,
+        interaction,
+        dryRun,
+      });
     }
 
     const base = {

@@ -571,11 +571,19 @@ skill-manager/
 │   ├── assets/
 │   └── packaging/                   打包配置与平台相关资源
 │
+├── contract/                        跨层纯契约包：类型与常量，零运行时依赖
+│   ├── package.json                 包声明：exports 指向 src/index.ts
+│   ├── tsconfig.json                无 Node / 无 kernel / 无 gui 依赖
+│   └── src/                         问题码、结果类型、文件常量、插件纯结构类型
+│
 ├── scripts/                         构建、打包、发布、校验脚本，不含业务逻辑
 │   ├── build-kernel.mjs             内核构建为各平台可执行文件
 │   ├── build-desktop.mjs            桌面外壳构建与打包
 │   ├── check-contract.mjs           构建期校验指令清单与结果结构未被破坏
-│   └── check-layer.mjs              构建期校验内核产物不依赖任何界面框架
+│   ├── check-layer.mjs              分层、依赖方向、循环与 allowlist 校验
+│   ├── check-complexity.mjs         复杂度与文件规模棘轮
+│   └── architecture/
+│       └── complexity-baseline.json 棘轮基线（只减不增）
 ├── tests/
 │   ├── fixtures/                    正例与反例样本
 │   ├── unit/                        模块级测试
@@ -594,7 +602,8 @@ skill-manager/
 | `kernel/dispatch/` | 指令注册、参数处理、确认策略、结果装配与输出渲染 | L2 |
 | `kernel/core/` | 全部领域服务，业务规则的唯一归属地 | L3 |
 | `kernel/store/` | 全部文件系统交互，其余各层不得直接访问文件系统 | L4 |
-| 仓库根配置文件 | `package.json` 声明两个工作区与统一脚本；`tsconfig.base.json` 提供共享编译选项；`.nvmrc` 锁定 Node 主版本 | 构建 |
+| 仓库根配置文件 | `package.json` 声明 kernel / gui / contract 三个工作区与统一脚本；`tsconfig.base.json` 提供共享编译选项；`.nvmrc` 锁定 Node 主版本 | 构建 |
+| `contract/` | 跨层纯契约包：结果类型、问题码、共享常量与插件纯结构类型；零运行时依赖，不 import kernel / gui | L0 契约 |
 | `kernel/` | 内核包根目录，含独立的依赖清单与编译配置。该包**不依赖任何界面框架**，约束由依赖清单直接保证 | L2 至 L4 |
 | `kernel/entry/` | 宿主适配层：命令行入口与子进程入口，不含业务规则 | L2 宿主 |
 | `kernel/index.ts` | 内核对外接口，只暴露调度层入口 | L2 |
@@ -606,7 +615,8 @@ skill-manager/
 | `gui/packaging/` | 打包配置与图标等平台资源 | 构建 |
 | `scripts/` | 构建与发版脚本 | 构建 |
 | `scripts/check-contract.mjs` | 构建期强制检查：指令清单与结果结构未被破坏 | 构建 |
-| `scripts/check-layer.mjs` | 构建期强制检查：内核产物不依赖任何界面框架、界面未直接引用内核内部模块 | 构建 |
+| `scripts/check-layer.mjs` | 构建期强制检查：分层依赖方向、循环依赖、跨层深引用、allowlist 与工作区声明 | 构建 |
+| `scripts/check-complexity.mjs` | 复杂度 / 文件规模棘轮：新代码红线、基线只减不增、拆分后残留基线条目报错 | 构建 |
 | `scripts/build-kernel.mjs` | 把内核构建为各平台可执行文件 | 构建 |
 | `tests/fixtures/` | 校验所需的正例与反例 | 测试 |
 | `tests/contract/` | 保证指令契约与结果结构不被破坏 | 测试 |
@@ -1418,6 +1428,379 @@ flowchart TB
 | 对象模型 | 插件独立于 Skill；新增 `plugins/` 与 `plugin_index.yaml`，不改变 Skill 索引结构 |
 | 架构层次与模块 | 未变动；插件能力位于内核领域层与独立存储模块 |
 | 待处理项 | 0 |
+
+### 补充记录 2026-10-18（第七份契约规范：内置宿主分发账本）
+
+来源：M4c 前置账本批次 L-1。本次为**追加记录**，不改写既有条目；账本仍是工作区级数据，不新增架构层或内核模块。
+
+| 序号 | 位置 | 改动前 | 改动后 | 依据 |
+|---|---|---|---|---|
+| 1 | 契约来源 | 六份规范 | 新增 `docs/specification/host-landings.spec.md`，作为第七份契约规范 | L-1 |
+| 2 | 机器可读形态 | 七份 JSON Schema | 新增 `schemas/host_landings.schema.json`，作为第八份 schema | L-1 |
+| 3 | 工作区布局 | `skill_index.yaml` + `plugin_index.yaml` | 新增与两者同级的 `host_landings.yaml`；`skill_index.targets[]` 语义不变 | L-1 |
+| 4 | 依赖方向 | 契约层最底层 | 新规范与 schema 不引入代码依赖；`check:arch` 规则不变 | 既有 AD 约束 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 | 由六份增至**七份**（新增内置宿主分发账本规范） |
+| JSON Schema 份数 | 由七份增至**八份**（新增 `host_landings.schema.json`） |
+| 问题码 | 由 64 个增至**66 个**（新增 `E-LANDING-001` / `E-LANDING-002`，新增 `LANDING` 类别） |
+| 测试总数 | 常规套件 569 → **573 项**（572 通过 + 1 项平台条件跳过） |
+| 架构层次与模块 | 未变动；账本属工作区存储数据，不是新架构层 |
+| 待处理项 | 0 |
+
+### 补充记录 2026-10-18（L-2 内置宿主账本写路径）
+
+来源：M4c 前置账本批次 L-2。本次为**追加记录**，不改写既有条目；新增模块均落在既有分层内，依赖方向不变。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/store/host-landings/` | 账本原子读写、结构校验、主键 CRUD、共享路径同步 | L4 存储层 | L-2 |
+| 2 | `kernel/core/host-landings/` | 记录构造、adopted、账本提交与物理回滚编排 | L3 内核领域层 | L-2 |
+| 3 | `kernel/dispatch/host/` | 宿主通道、落位结果与账本接线；从 `dispatch/registry` 抽出 | L2 指令调度层 | L-2 |
+| 4 | `kernel/dispatch/registry/index.ts` | 只保留路由、确认与 init；宿主通道改为引用 `dispatch/host` | L2 指令调度层 | L-2 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 依赖方向 | `dispatch/host → core/host-landings → store/host-landings`；store 不依赖 core；`check:arch` 134 文件 / 377 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 99 → **96**（宿主通道拆分与渲染输入拆分后减少） |
+| 规模热点 | `dispatch/registry` 2621 → **2419** 行；`dispatch/host` 三个新文件均低于 500 行 |
+| 测试总数 | 573 → **591 项**（590 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0 |
+
+### 补充记录 2026-10-18（L-3 宿主副本卸载与原件闭环）
+
+来源：M4c 前置账本批次 L-3。新增模块仍在既有分层内，依赖方向不变。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/core/host-landings/uninstall.ts` | 两账本统一视图、物理副本分组、孤儿化与 host 孤儿清理 | L3 内核领域层 | L-3 |
+| 2 | `kernel/dispatch/host/uninstall-types.ts` | 卸载计划 / 执行结果类型；断开 plan 与 execute 的类型循环 | L2 指令调度层 | L-3 |
+| 3 | `kernel/dispatch/host/uninstall-options.ts` | `--host` 参数与工作区前置校验 | L2 指令调度层 | L-3 |
+| 4 | `kernel/dispatch/host/uninstall.ts` | 计划、原件阻断、`--host` / `all` 命令编排 | L2 指令调度层 | L-3 |
+| 5 | `kernel/dispatch/host/uninstall-execute.ts` | 临时改名、两账本提交、删除与逐组失败恢复 | L2 指令调度层 | L-3 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 依赖方向 | `dispatch/host/uninstall* → core/host-landings → store/host-landings`；类型文件不反向依赖执行文件；`check:arch` 139 文件 / 407 边 / 0 循环 |
+| 复杂函数基线 | 96 → **95** |
+| 规模热点 | `dispatch/registry` 保持 **2419** 行；`dispatch/host/uninstall*` 四个文件均低于 500 行 |
+| 测试总数 | 591 → **603 项**（602 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0 |
+
+### 补充记录 2026-10-18（L-4 对账纯函数与 export 边界）
+
+来源：M4c 对账纯函数批次 L-4。分类器只消费调用方提供的事实，不新增扫描/IO 模块，也不改变架构分层。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `contract/src/host-reconciliation.ts` | 观察副本、两账本记录、工作区基线、三轴证据与分类输出类型 | 契约层 | L-4 |
+| 2 | `kernel/core/host-landings/reconcile.ts` | `reconcileHostCopy` 纯函数与判定表辅助函数 | L3 内核领域层 | L-4 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动；新增 contract 纯类型 |
+| 依赖方向 | 内核分类器只依赖 contract；不访问存储/宿主目录；`check:arch` 141 文件 / 408 边 / 0 循环 |
+| 复杂函数基线 | 保持 **95** |
+| 规模热点 | `reconcile.ts` ≤ 500 行；`dispatch/registry` 保持 2419 行 |
+| 测试总数 | 603 → **616 项**（615 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0 |
+
+### 补充记录 2026-10-18（L-5 v0.3.0 旧工作区兼容）
+
+来源：账本批次 L-5。本批不新增模块或架构层，只调整旧工作区的读取与懒初始化口径。
+
+| 序号 | 位置 | 调整 | 依据 |
+|---|---|---|---|
+| 1 | `kernel/store/host-landings/` | 缺失返回 `exists:false/index:null/无 findings`；存在但损坏返回 `E-LANDING-001` | L-5 |
+| 2 | `kernel/dispatch/host/landing-result.ts` | 写命令首次遇到缺失账本时幂等补建空文件；dry-run 不写 | L-5 |
+| 3 | 升级路径 | 不扫描宿主、不批量写记录；历史副本只走 inferred，主动 enable/disable 时 adopted | L-5 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 架构层次与模块 | 未变动 |
+| 依赖方向 | `check:arch` 141 文件 / 408 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **95** |
+| 规模热点 | `dispatch/registry` 保持 2419 行 |
+| 测试总数 | 616 → **621 项**（620 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0 |
+
+### 补充记录 2026-10-19（P1-a 宿主三处合一与盘点根）
+
+来源：可维护性 P1-a。本批为**纯重构 + 注册表契约扩展**，不改分发默认根、命令输出或退出码；不实现宿主目录扫描。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `contract/src/host-roots.ts` | `HostLandingRootDefinition` / `InventoryRootDefinition` / `InventoryRootView` 与 role / depth / origin 枚举 | 契约层 | P1-a、M5-R7 |
+| 2 | `kernel/core/hosts/host-root-models.ts` | 六类可落位宿主的 `adapter_forms` / `landing_roots` / `inventory_roots` 数据；注册表单点引用 | L3 内核领域层 | P1-a |
+| 3 | `kernel/core/hosts/registry-data.ts` | 删除分散的形态与默认根第二定义，仅组合根模型与宿主语义字段 | L3 内核领域层 | P1-a |
+| 4 | `kernel/core/adapters/index.ts` / `roots.ts` | `formImplementationOf` 从 `adapter_forms` 派生；`defaultRootFor` 从 `landing_roots` 展开 | L3 内核领域层 | M5-R7 |
+| 5 | `kernel/core/hosts/inventory.ts` | 内置宿主静态根展开、平台筛选、config 覆盖根追加；不访问文件系统 | L3 内核领域层 | M4c-2 前置 |
+| 6 | `kernel/core/plugins/inventory.ts` | 已启用插件 catalog 的 `x-` 宿主根展开为同一 `InventoryRootView` | L3 内核领域层 | M4c-2 前置 |
+
+#### 关键边界
+
+1. `landing_roots[]` 只驱动现有分发默认根；Codex 仍分发到 `~/.agents/skills`，豆包仍分发到 `.user_skills`。
+2. `inventory_roots[]` 只驱动盘点枚举；Codex `.codex/skills` 标 `legacy`，`.codex/skills/.system` 标 `system`，豆包 `.skills` 标 `platform`。
+3. `config host.<id>.root` / `.rules_root` 由 selector 以 `origin: config`、`role: user` 追加，不写回注册表。
+4. 第三方 `x-` 宿主不进入内置注册表；插件 selector 输出相同视图形状，未配置 global 根时显式 `configured:false`。
+5. macOS / Linux 候选根带 `pending_verification`，等待 M4c-7 CI fixture 探针；不把推导路径冒充实测。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动；宿主注册表规范扩展至 HR-15 |
+| 依赖方向 | `contract` 为最底层；内核 selector 只依赖 contract 与宿主注册表；store 不依赖 core |
+| 分层检查 | `check:arch` 146 文件 / 416 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 95 → **94** |
+| 规模热点 | `registry-data.ts` 428 行；`host-root-models.ts` 204 行；`hosts/inventory.ts` 117 行；`plugins/inventory.ts` 89 行 |
+| 测试总数 | 621 → **627 项**（单元 400、契约 123、端到端 104；626 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0；分发根是否修正仍待 Codex 官方口径 / 多版本证据，不混入本批 |
+
+### 补充记录 2026-10-19（P1-b dispatch scan 段拆分）
+
+来源：可维护性 P1-b。本批为**纯重构**：现有 `scan` / `scan --kind plugin` 的索引更新、`last_scan_at`、输出、退出码与锁行为不变；不新增 `--inventory` 参数。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/dispatch/scan/index.ts` | 插件分支、扫描计划入口与 M4c-1 inventory 分流点 | L2 指令调度层 | P1-b |
+| 2 | `kernel/dispatch/scan/types.ts` | `ScanMode` / `WorkspaceScanPlan` / 扫描结果数据类型 | L2 指令调度层 | P1-b |
+| 3 | `kernel/dispatch/scan/options.ts` | 现有 `--root` / `--dry-run` / 工作区参数计划；不解析 inventory | L2 指令调度层 | P1-b |
+| 4 | `kernel/dispatch/scan/workspace.ts` | Skill 扫描：索引检查、加锁、discovery、写索引 | L2 指令调度层 | P1-b |
+| 5 | `kernel/dispatch/scan/plugin.ts` | 插件扫描：无锁刷新插件索引与候选区 | L2 指令调度层 | P1-b |
+| 6 | `kernel/dispatch/scan/result.ts` | 未初始化、坏索引、skill / plugin 结果组装 | L2 指令调度层 | P1-b |
+| 7 | `kernel/dispatch/shared/options.ts` | 工作区定位、插件分支与插件选项拒绝的共享辅助 | L2 指令调度层 | P1-b |
+| 8 | `kernel/dispatch/plugins/state.ts` | 插件索引读取状态与不可读结果；registry 与 scan 共用 | L2 指令调度层 | P1-b |
+
+#### 分流与行为边界
+
+1. `scanHandler` 在任何工作区索引存在性检查之前形成扫描计划；M4c-1 的 inventory 分支将从该位置进入。
+2. workspace 分支继续使用 `withLock` 并写 `last_scan_at`；插件分支继续不加 Skill 索引锁。
+3. `dispatch/registry/index.ts` 只保留 `scanHandler` 导入与注册，不再持有 Skill / 插件扫描实现。
+4. 结构测试锁定 registry 无残留 scan 实现、workspace 加锁、插件无锁与 inventory 分流点位置。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 依赖方向 | `registry → scan`；`scan → shared/plugins + core/store`；无反向引用与循环 |
+| 分层检查 | `check:arch` 154 文件 / 462 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94** |
+| 规模热点 | `dispatch/registry` 2419 → **2172** 行；`dispatch/scan/*` 最大 121 行；`shared/options.ts` 33 行；`plugins/state.ts` 64 行 |
+| 测试总数 | 627 → **629 项**（单元 400、契约 125、端到端 104；628 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0 |
+
+### 补充记录 2026-10-19（M4c-1 `scan --inventory` 骨架）
+
+来源：M4c-1。本批新增只读盘点入口，只展开宿主候选根；不读宿主目录、不发现技能、不做对账，也不写工作区。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/dispatch/parsers/index.ts` | 登记 `--inventory` 布尔选项 | L2 指令调度层 | M4c-R6 |
+| 2 | `kernel/dispatch/scan/options.ts` | `ScanPlan` 增加 inventory 变体；只解析 workspace 定位 | L2 指令调度层 | M4c-1 |
+| 3 | `kernel/dispatch/scan/index.ts` | 在 workspace 索引检查前分流 inventory；互斥错误先行返回 | L2 指令调度层 | M4c-R6 |
+| 4 | `kernel/dispatch/scan/inventory.ts` | 互斥白名单、工作区状态、内置根 + 已启用插件根展开、只读结果组装 | L2 指令调度层 | M4c-1/2 前置 |
+| 5 | `kernel/dispatch/scan/types.ts` | inventory 计划、根条目与 `mode / workspace / roots[]` 数据类型 | L2 指令调度层 | M4c-1 |
+| 6 | `kernel/entry/cli.ts` | help 登记 `--inventory` | 入口层 | M4c-1 |
+
+#### 边界
+
+1. inventory 不调用 `withLock`、`saveIndex`、`savePluginIndex`、`scanWorkspace`，也不写 `last_scan_at`。
+2. 未初始化工作区仍返回 exit 0；`workspace.state` 区分 `ok` / `uninitialized` / `unreadable`。
+3. 根来源为 `inventoryRootsForAll` 与 `inventoryRootsForPluginCatalog`；不判断根是否存在，不读目录。
+4. `root_role`、`recursive`、`origin`、`is_x_host`、`consumed_by`、`configured` 与降级 `reason` 是输出字段；共享根按宿主各列一条。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动；`--inventory` 为 scan 选项 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 依赖方向 | `scan/inventory → core/hosts + core/plugins + store`；无写路径、无环 |
+| 分层检查 | `check:arch` 155 文件 / 474 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94** |
+| 测试总数 | 629 → **634 项**（单元 402、契约 125、端到端 107；633 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0；目录发现归 M4c-2，对账归 M4c-3 |
+
+### 补充记录 2026-10-19（M4c-2 宿主目录发现与物理去重）
+
+来源：M4c-2。本批在 M4c-1 根清单上读取宿主目录并产出物理副本观察；不做对账分类、不写缓存或索引。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `contract/src/host-inventory.ts` | 根状态、副本观察、损坏副本、去重摘要的跨层纯类型 | 契约层 | M4c-2 |
+| 2 | `kernel/core/inventory/discover.ts` | 目录遍历、SKILL.md/规则识别、可见性、摘要、realpath 去重 | L3 内核领域层 | M4c-2 |
+| 3 | `kernel/dispatch/scan/inventory.ts` | M4c-1 根清单接入 discovery，输出 roots/copies/corrupt/summary | L2 指令调度层 | M4c-2 |
+| 4 | `tests/helpers/env.ts` | e2e 将 HOME/LOCALAPPDATA 指向临时根，避免读取真实宿主目录 | 测试基建 | M4c-2 |
+
+#### 发现与去重边界
+
+1. direct 根只枚举一级子目录；recursive 才做任意深度查找；`references` / `examples` 等无 `SKILL.md` 目录不产生副本。
+2. `.disabled` 映射为 disabled；同一目录同时存在可见与禁用标记进入 corrupt。
+3. 规则根只识别 `.mdc`；agents-md 的 entry 根标记为 not_applicable，不伪造规则副本。
+4. 物理键为 `realpath + Windows casefold`；重叠根和共享根合并为一条，多宿主聚合到 `consumed_by` / `root_ids` / `sources`；同 skill_id 不同物理根不合并。
+5. 损坏与不可读副本进入 `corrupt[]`，有效副本进入 `copies[]`；根状态与计数在 `roots[]` 和 `summary` 中可复核。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份；新增 contract 纯类型，不新增规范 / schema |
+| 依赖方向 | `dispatch/scan/inventory → core/inventory → core/integrity`；无写盘、无反向依赖 |
+| 分层检查 | `check:arch` 157 文件 / 480 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94** |
+| 规模热点 | `kernel/core/inventory/discover.ts` 457 行；`kernel/dispatch/scan/inventory.ts` 146 行；均低于 core 500 行 |
+| 性能观察 | 200 技能 × 10 references 文件（2200 文件）Windows 本机 **214 ms**；无缓存 |
+| 测试总数 | 634 → **639 项**（单元 406、契约 125、端到端 108；638 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0；对账归 M4c-3，聚合归 M4c-4 |
+
+### 补充记录 2026-10-19（M4c-3 双源双向对账）
+
+来源：M4c-3。本批把 M4c-2 的物理观察接入 L-4 `reconcileHostCopy`，并增加账本→磁盘的 active 记录反查；只读、不写缓存，不输出 M4c-4 聚合统计。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `contract/src/host-inventory.ts` | `ReconciledInventoryCopy` / `ReconciledInventoryCorruptCopy` / `MissingInventoryCopy` 与 reconciliation 输出类型 | 契约层 | M4c-3 |
+| 2 | `kernel/dispatch/scan/reconcile.ts` | 两账本读取、workspace baseline、正反向组装、插件重渲染与 degraded 标记 | L2 指令调度层 | M4c-3 |
+| 3 | `kernel/dispatch/scan/inventory.ts` | M4c-2 discovery 结果接入 reconciliation，输出 copies/corrupt/missing/degradation | L2 指令调度层 | M4c-3 |
+
+#### 对账边界
+
+1. 正向：每个 valid/corrupt 物理观察调用 L-4；分类、ledger_source、三轴 evidence、reasons 与 drift_reasons 原样暴露。
+2. 反向：只遍历两账本 active 记录，规范化 target_path 不在 observed 集合时生成 missing；orphaned 不产生 missing。
+3. 插件 active：managed / missing 为权威；content/source 通过现有 profile 与渲染核心重渲染为 inferred，无基线时 undetermined，绝不写 authoritative。
+4. workspace baseline 从只读 `skill_index` 与工作区源文件构造 checksum/version/source_ref/expected digest；未初始化映射为无工作区，索引不可读保持 `unreadable`。
+5. `degradation` 显式给出 host_landings / plugin_landings 的 `ok|missing|unreadable`；根不可读、工作区不可读与账本降级进入 L-4 reasons。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动；新增 contract 纯类型 |
+| 依赖方向 | `dispatch/scan/reconcile → core/host-landings + core/plugins + dispatch/host`；无写盘 |
+| 分层检查 | `check:arch` 158 文件 / 496 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；`reconcile.ts` 474 行 |
+| 测试总数 | 639 → **644 项**（单元 408、契约 125、端到端 111；643 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0；主计数与呈现聚合归 M4c-4 |
+
+### 补充记录 2026-10-19（M4c-4 结构化聚合与最终统计）
+
+来源：M4c-4。本批只聚合 M4c-3 已产生的对账明细，不改变发现与对账规则；输出增加 role 主计数、分类分组、宿主层级和人类可读摘要。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/dispatch/scan/aggregate.ts` | role 计数、unique skills、classification groups、hosts→roots→copies 聚合 | L2 指令调度层 | M4c-4 |
+| 2 | `contract/src/host-inventory.ts` | 聚合 summary / role / host 节点纯类型 | 契约层 | M4c-4 |
+| 3 | `kernel/dispatch/render/index.ts` | inventory 人类摘要、role 分组、默认宿主摘要与 `--verbose` 明细 | L2 输出层 | M4c-4 |
+| 4 | `kernel/dispatch/scan/inventory.ts` | discovery + reconciliation + aggregate 串联 | L2 指令调度层 | M4c-4 |
+
+#### 计数边界
+
+1. `summary.main` 只计 `root_role=user` 的有效物理副本；`unique_skills` 按 `skill_id` 去重。
+2. `system/platform/project` 独立分组，不进入 user 主计数；共享根在扁平 copies 中已去重，不重复计数。
+3. corrupt 只进 `corrupt_count`，不进 total_copies / unique_skills / by_classification 有效计数。
+4. `by_classification` 保留 L-4 原分类；`groups` 保留 managed/drift 的 authoritative/inferred 区分，missing/untracked/undetermined/unreadable/not_distributed/orphaned 单列，orphaned 分工作区在/不在。
+5. `hosts` 是跨宿主展示视图，共享根副本可出现在多个宿主下；扁平 `copies` 是去重后的下钻依据。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 依赖方向 | `dispatch/scan/aggregate` 只消费 contract 类型；renderer 只消费结果 data |
+| 分层检查 | `check:arch` 159 文件 / 498 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 94 → **93**（renderer 拆分为 append helpers） |
+| 规模热点 | `aggregate.ts` 253 行；`render/index.ts` 176 行；`reconcile.ts` 474 行 |
+| 测试总数 | 644 → **647 项**（单元 410、契约 125、端到端 112；646 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0；只读系统化归 M4c-5，GUI 归 M4c-6 |
+
+### 补充记录 2026-10-19（M4c-5 只读保证系统化）
+
+来源：M4c-5。本批不新增功能，增加盘点只读静态守卫与动态全状态快照。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `scripts/check-layer.mjs` | `checkInventoryReadonly`：盘点源码只允许只读 fs API，拒绝写调用与写索引 / 锁 / 落位 / 账本提交导入 | 构建期门禁 | M4c-5 |
+| 2 | `tests/helpers/snapshot.ts` | 递归快照：相对路径、类型、mtime、大小、SHA-256；不跟随符号链接 | 测试基建 | M4c-5 |
+| 3 | `tests/e2e/scan-inventory-readonly.test.ts` | 多宿主/共享根/x- 宿主、未初始化、损坏账本、缺失/非目录根、100 副本快照 | 测试 | M4c-5 |
+| 4 | `tests/contract/scan-split.test.ts` | synthetic 写调用 / 写模块反例验证静态守卫可失败 | 契约测试 | M4c-5 |
+
+#### 只读验证边界
+
+1. 静态守卫在 `npm run check` 中执行，盘点 fs 调用仅允许 `existsSync` / `statSync` / `lstatSync` / `readFileSync` / `readdirSync` / `realpathSync`。
+2. 动态快照覆盖工作区根与全部已配置宿主根；`mtime`、大小、内容哈希、目录项与文件清单均参与比较。
+3. 损坏 `host_landings` 只作为输入，不被修复；未初始化工作区不创建索引；缺失/非目录根不写父目录。
+4. 快照无锁文件、临时文件、缓存文件或 `last_scan_at` 变化；单根失败不改变整体只读结论。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 分层检查 | `check:arch` 159 文件 / 498 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **93** |
+| 测试总数 | 647 → **652 项**（单元 410、契约 126、端到端 116；651 通过 + 1 项平台条件跳过） |
+| 待处理项 | 0；GUI 盘点视图归 M4c-6 |
+
+### 补充记录 2026-10-19（M4c-6 GUI 盘点视图）
+
+来源：M4c-6。GUI 只消费 `scan --inventory` 的 contract 结果，不新增 IPC 通道、不推导对账状态。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `gui/renderer/src/components/HostInventoryView.vue` | 盘点视图：加载 / 刷新、工作区状态、账本降级、未纳管清单、损坏与缺失副本 | GUI renderer | M4c-6 |
+| 2 | `gui/renderer/src/components/host-inventory/InventorySummary.vue` | user 主计数置顶；system/platform/project 折叠分组；分类分布保留 authoritative/inferred | GUI renderer | M4c-6 |
+| 3 | `gui/renderer/src/components/host-inventory/InventoryHostGroups.vue` | 内置宿主 / 第三方 x- 宿主分区；根状态、role、深度、共享根 `consumed_by` | GUI renderer | M4c-6 |
+| 4 | `gui/renderer/src/components/host-inventory/InventoryCopyDetails.vue` | 副本 / 损坏 / 缺失明细下钻；分类、权威等级、账本来源与判定依据 | GUI renderer | M4c-6 |
+| 5 | `gui/renderer/src/host-inventory-presentation.ts` | 角色、分类、权威等级、根状态与分类分组的纯展示映射 | GUI renderer | M4c-6 |
+| 6 | `contract/src/host-inventory.ts` | `InventoryScanData` 迁入 contract；内核 scan 类型改为 re-export，GUI 与内核同源 | contract | M4c-6 |
+| 7 | `kernel/core/inventory/discover.ts` | 插件 rules 根兼容 `.md`；内置 Cursor 规则仍只识别 `.mdc` | kernel core | M4c-6 冒烟发现 |
+| 8 | `scripts/gui-smoke-fixtures.mjs` / `gui-smoke-inventory.mjs` | 隔离 HOME/LOCALAPPDATA 宿主夹具、树哈希快照与盘点界面断言 | 冒烟基建 | M4c-6 |
+
+#### 界面边界
+
+1. 盘点视图只调用 `kernel.invoke(['scan','--inventory'])`，不使用 `preview` / `execute` / `runWithConfirm`，也不直接访问 preload 或 Node。
+2. 视图无安装、卸载、启用、更新、导入、修复执行入口；二期动作以禁用按钮占位。
+3. `App.vue` 只做导航与挂载；盘点组件独立拆分，`App.vue` 858 → **844** 行，所有盘点组件低于 800 行。
+4. 空工作区入口与已初始化入口并存；未初始化时只展示宿主清点与未纳管 / 无法判定，不判断缺失或漂移。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 分层检查 | `check:arch` 167 文件 / 511 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94** |
+| 测试总数 | 652 → **658 项**（单元 412、契约 130、端到端 116；657 通过 + 1 项平台条件跳过） |
+| 界面冒烟 | 28 → **40/40** |
+| 待处理项 | 0；三平台 fixture 探针归 M4c-7 |
 
 ---
 

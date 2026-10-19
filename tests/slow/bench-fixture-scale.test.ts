@@ -1,3 +1,4 @@
+import { makeTempDir } from '../helpers/temp.ts';
 /**
  * 慢测试：N=5000 夹具的**真机落盘**规模验证（15000 文件 / 约 160 MiB / 约 10 s）。
  *
@@ -7,8 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DEFAULT_SEED, planFixture, writeFixture } from '../../scripts/bench/fixture.mjs';
 
@@ -22,7 +22,7 @@ function countFiles(dir: string): number {
 }
 
 test('T0 慢测试：N=5000 落盘规模与设计一致（15000 文件量级 / 约 160 MiB）', () => {
-  const root = mkdtempSync(join(tmpdir(), 'bench-fixture-5000-'));
+  const root = makeTempDir('bench-fixture-5000-');
   try {
     const started = process.hrtime.bigint();
     const plan = planFixture({ seed: DEFAULT_SEED, n: 5000 });

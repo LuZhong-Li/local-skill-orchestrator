@@ -1,7 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { makeBackup } from '../helpers/backup.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   disableSkill,
@@ -17,7 +18,6 @@ import { CODES } from '../../kernel/store/contract.ts';
 import {
   BACKUP_CONTENT_DIR_NAME,
   BACKUP_META_FILE_NAME,
-  createBackup,
   timestampToDirName,
 } from '../../kernel/store/backup-fs/index.ts';
 import type { SkillIndex } from '../../kernel/core/metadata/types.ts';
@@ -27,14 +27,14 @@ const LATER = '2026-10-15T08:00:00Z';
 const LATEST = '2026-10-15T16:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-restore-'));
+  const root = makeTempDir('sm-restore-');
   ensureWorkspaceDirs(layoutOf(root));
   return root;
 }
 
 /** 造一份可安装的来源目录 */
 function sourceSkill(id: string, options: { content?: string } = {}): string {
-  const dir = mkdtempSync(join(tmpdir(), 'sm-restore-src-'));
+  const dir = makeTempDir('sm-restore-src-');
   writeFileSync(join(dir, 'SKILL.md'), options.content ?? '# skill');
   writeFileSync(
     join(dir, 'skill_meta.yaml'),
@@ -65,17 +65,8 @@ function emptyIndex(): SkillIndex {
 
 /** 对当前中心库原件造一份备份载体，返回载体目录的绝对路径 */
 function backupAt(root: string, id: string, now: string): string {
-  const layout = layoutOf(root);
   const sourceDir = join(root, 'skills', id);
-  const result = createBackup({
-    workspaceRoot: layout.root,
-    backupsDir: layout.backupsDir,
-    id,
-    sourceDir,
-    now,
-    checksum: computeChecksum(sourceDir),
-  });
-  return result.dir;
+  return makeBackup(root, id, sourceDir, now, computeChecksum(sourceDir));
 }
 
 /** 装一份合法 Skill 并返回安装后的索引 */

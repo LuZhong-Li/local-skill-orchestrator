@@ -1,3 +1,5 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { freePort, startGitDaemon, stopGitDaemon } from '../helpers/git-daemon.ts';
 /**
  * M4a T0：`update` 的远端来源重新获取（独立进程 + 回环 `git daemon`）。
  *
@@ -10,10 +12,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { createServer } from 'node:net';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const CLI = join(
@@ -36,62 +36,6 @@ function git(cwd: string, args: string[]) {
   );
   assert.equal(result.status, 0, `git ${args.join(' ')} 失败：${result.stderr}`);
   return result.stdout ?? '';
-}
-
-/** 取一个空闲端口（绑定 0 后立即释放；git daemon 需要显式端口） */
-async function freePort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  const port = typeof address === 'object' && address !== null ? address.port : 0;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  assert.ok(port > 0);
-  return port;
-}
-
-/** 起回环 git daemon，等端口可连接后返回句柄 */
-async function startDaemon(basePath: string, port: number) {
-  const child = spawn(
-    'git',
-    [
-      'daemon',
-      '--reuseaddr',
-      '--export-all',
-      `--base-path=${basePath}`,
-      `--port=${port}`,
-      '--listen=127.0.0.1',
-    ],
-    // POSIX 上用独立进程组，便于连同子进程一起收掉；Windows 用 taskkill /T
-    { stdio: 'ignore', detached: process.platform !== 'win32' },
-  );
-  await new Promise<void>((resolve, reject) => {
-    const deadline = Date.now() + 10_000;
-    const attempt = () => {
-      const probe = spawnSync(process.execPath, [
-        '-e',
-        `require('net').connect(${port},'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))`,
-      ]);
-      if (probe.status === 0) return resolve();
-      if (Date.now() > deadline) return reject(new Error('git daemon 未在 10 秒内就绪'));
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-  return child;
-}
-
-/** 收掉 git daemon：Windows 上 `git daemon` 会再拉起 `git-daemon` 子进程，必须按进程树杀 */
-function stopDaemon(child: { pid?: number } | null) {
-  if (child?.pid === undefined) return;
-  if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-    return;
-  }
-  try {
-    process.kill(-child.pid, 'SIGTERM');
-  } catch {
-    // 进程已退出时忽略
-  }
 }
 
 /** 读库内内容：Windows 的 git autocrlf 可能把检出内容写成 CRLF，比较前统一换行符 */
@@ -125,7 +69,7 @@ function metaOf(url: string, ref: string) {
 }
 
 test('远端来源 update：重新获取并更新内容与指纹；--check 不落盘；失败不写索引', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'update-remote-'));
+  const root = makeTempDir('update-remote-');
   const served = join(root, 'served');
   const work = join(root, 'work');
   const workspace = join(root, 'ws');
@@ -145,7 +89,7 @@ test('远端来源 update：重新获取并更新内容与指纹；--check 不�
     git(work, ['commit', '-q', '-m', 'v1']);
     git(root, ['clone', '-q', '--bare', work, join(served, 'sample.git')]);
 
-    daemon = await startDaemon(served, port);
+    daemon = await startGitDaemon(served, port);
 
     // 二、工作区：旧内容 + 声明远端来源 → scan 登记
     writeFileSync(join(workspace, 'skills', 'remote-skill', 'SKILL.md'), '# v1\n');
@@ -202,7 +146,7 @@ test('远端来源 update：重新获取并更新内容与指纹；--check 不�
     );
     assert.equal(libraryText(workspace), '# v2-changed\n', '失败不得改动原件');
   } finally {
-    stopDaemon(daemon);
+    stopGitDaemon(daemon);
     rmSync(root, { recursive: true, force: true });
   }
 });

@@ -1,22 +1,15 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { makeHostRoot } from '../helpers/host.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { run } from '../../kernel/entry/cli.ts';
 import { resolveHostRoot, rootConfigKey } from '../../kernel/core/adapters/roots.ts';
 import { hostIds } from '../../kernel/core/hosts/index.ts';
 
-/** 工作区与宿主根均落在临时目录；测试绝不触碰真实宿主根 */
-function tempWorkspace(): string {
-  return mkdtempSync(join(tmpdir(), 'sm-closure-ws-'));
-}
-function tempHostRoot(): string {
-  return mkdtempSync(join(tmpdir(), 'sm-closure-host-'));
-}
-
 function makeSource(id: string): string {
-  const dir = mkdtempSync(join(tmpdir(), `sm-closure-src-${id}-`));
+  const dir = makeTempDir(`sm-closure-src-${id}-`);
   writeFileSync(join(dir, 'SKILL.md'), `---\nname: ${id}\n---\n\n# ${id}\n\n正文。\n`);
   writeFileSync(
     join(dir, 'skill_meta.yaml'),
@@ -64,9 +57,9 @@ async function callJson(
 }
 
 test('收口审计：多宿主分发按调用次数独立完成，单次调用只取一个宿主取值', async () => {
-  const ws = tempWorkspace();
-  const claudeRoot = tempHostRoot();
-  const cursorRoot = tempHostRoot();
+  const ws = makeTempDir('sm-closure-ws-');
+  const claudeRoot = makeHostRoot('sm-closure-host-');
+  const cursorRoot = makeHostRoot('sm-closure-host-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
   assert.equal(await call(['config', 'set', 'host.claude.root', claudeRoot, '--workspace', ws]), 0);
   assert.equal(await call(['config', 'set', 'host.cursor.root', cursorRoot, '--workspace', ws]), 0);
@@ -107,8 +100,8 @@ test('收口审计：多宿主分发按调用次数独立完成，单次调用�
 });
 
 test('收口审计：update --host 在宿主根尚无副本时创建副本并报告', async () => {
-  const ws = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const ws = makeTempDir('sm-closure-ws-');
+  const hostRoot = makeHostRoot('sm-closure-host-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
   assert.equal(await call(['config', 'set', 'host.claude.root', hostRoot, '--workspace', ws]), 0);
 
@@ -140,8 +133,8 @@ test('收口审计：update --host 在宿主根尚无副本时创建副本并报
 });
 
 test('收口审计：外部根解析边界（覆盖根为文件、父级不是目录）', async () => {
-  const ws = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const ws = makeTempDir('sm-closure-ws-');
+  const hostRoot = makeHostRoot('sm-closure-host-');
   const asFile = join(hostRoot, 'occupies-the-path');
   writeFileSync(asFile, 'x');
   const parentIsFile = join(asFile, 'nested', 'skills');
@@ -183,8 +176,8 @@ test('收口审计：外部根解析边界（覆盖根为文件、父级不是�
 });
 
 test('收口审计：重叠消费在详情输出中呈现；agents-md 形态不落盘', async () => {
-  const ws = tempWorkspace();
-  const hostRoot = tempHostRoot();
+  const ws = makeTempDir('sm-closure-ws-');
+  const hostRoot = makeHostRoot('sm-closure-host-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
   assert.equal(await call(['config', 'set', 'host.claude.root', hostRoot, '--workspace', ws]), 0);
 

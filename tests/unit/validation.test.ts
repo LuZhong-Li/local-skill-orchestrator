@@ -1,14 +1,8 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { validMeta } from '../helpers/skill.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  appendFileSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { validateWorkspace } from '../../kernel/core/validation/index.ts';
 import { scanWorkspace } from '../../kernel/core/discovery/index.ts';
@@ -20,7 +14,7 @@ import type { SkillIndex } from '../../kernel/core/metadata/types.ts';
 const NOW = '2026-10-14T00:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-val-'));
+  const root = makeTempDir('sm-val-');
   mkdirSync(join(root, 'skills'), { recursive: true });
   return root;
 }
@@ -31,25 +25,6 @@ function putSkill(root: string, dir: string, meta: string | null, content = '# s
   if (content !== '') writeFileSync(join(target, 'SKILL.md'), content);
   if (meta !== null) writeFileSync(join(target, 'skill_meta.yaml'), meta);
 }
-
-const validMeta = (id: string): string =>
-  [
-    `id: ${id}`,
-    `name: ${id}`,
-    'status: enabled',
-    `path: ./skills/${id}`,
-    'source:',
-    '  type: local',
-    'targets:',
-    '  - target: claude',
-    '    scope: global',
-    `    path: .claude/skills/${id}`,
-    '    mode: copy',
-    '    enabled: true',
-    '    file_map:',
-    '      SKILL.md: SKILL.md',
-    '',
-  ].join('\n');
 
 function metaFile(root: string, id: string): string {
   return join(root, 'skills', id, 'skill_meta.yaml');

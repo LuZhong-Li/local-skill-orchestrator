@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInitialIndex, setConfig } from '../../kernel/core/index/index.ts';
 import { layoutOf } from '../../kernel/store/workspace/index.ts';
@@ -10,7 +10,7 @@ import { CODES } from '../../kernel/store/contract.ts';
 const NOW = '2026-10-15T00:00:00Z';
 
 function workspace(): { root: string; index: ReturnType<typeof createInitialIndex> } {
-  const root = mkdtempSync(join(tmpdir(), 'sm-config-'));
+  const root = makeTempDir('sm-config-');
   mkdirSync(join(root, 'skills'), { recursive: true });
   return { root, index: { ...createInitialIndex(NOW), extension_flag: 'x' } };
 }

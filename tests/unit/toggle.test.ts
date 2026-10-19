@@ -1,14 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  writeFileSync,
-} from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { disableSkill, enableSkill, updateSkill } from '../../kernel/core/lifecycle/index.ts';
 import { scanWorkspace } from '../../kernel/core/discovery/index.ts';
@@ -21,7 +14,7 @@ const NOW = '2026-10-15T00:00:00Z';
 const LATER = '2026-10-15T02:00:00Z';
 
 function workspace(): string {
-  const root = mkdtempSync(join(tmpdir(), 'sm-toggle-'));
+  const root = makeTempDir('sm-toggle-');
   ensureWorkspaceDirs(layoutOf(root));
   return root;
 }

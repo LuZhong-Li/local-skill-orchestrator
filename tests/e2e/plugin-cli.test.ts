@@ -1,7 +1,7 @@
+import { makeTempDir } from '../helpers/temp.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { run } from '../../kernel/entry/cli.ts';
 import { parseYaml } from '../../kernel/store/yaml/index.ts';
@@ -23,7 +23,7 @@ async function capture(argv: string[]): Promise<{ code: number; out: string }> {
 }
 
 function temp(prefix: string): string {
-  return mkdtempSync(join(tmpdir(), prefix));
+  return makeTempDir(prefix);
 }
 
 function writePlugin(root: string, patch: Record<string, unknown> = {}): string {

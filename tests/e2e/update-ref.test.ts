@@ -1,3 +1,5 @@
+import { makeTempDir } from '../helpers/temp.ts';
+import { freePort, startGitDaemon, stopGitDaemon } from '../helpers/git-daemon.ts';
 /**
  * M4a T3：远端目标标签 update --ref。
  *
@@ -6,10 +8,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
-import { createServer } from 'node:net';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { KernelBridge } from '../../gui/bridge/commands.ts';
 import {
@@ -34,58 +34,6 @@ function git(cwd: string, args: string[]) {
   );
   assert.equal(result.status, 0, `git ${args.join(' ')} 失败：${result.stderr}`);
   return result.stdout ?? '';
-}
-
-async function freePort(): Promise<number> {
-  const server = createServer();
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const address = server.address();
-  const port = typeof address === 'object' && address !== null ? address.port : 0;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  assert.ok(port > 0);
-  return port;
-}
-
-async function startDaemon(basePath: string, port: number) {
-  const child = spawn(
-    'git',
-    [
-      'daemon',
-      '--reuseaddr',
-      '--export-all',
-      `--base-path=${basePath}`,
-      `--port=${port}`,
-      '--listen=127.0.0.1',
-    ],
-    { stdio: 'ignore', detached: process.platform !== 'win32' },
-  );
-  await new Promise<void>((resolve, reject) => {
-    const deadline = Date.now() + 10_000;
-    const attempt = () => {
-      const probe = spawnSync(process.execPath, [
-        '-e',
-        `require('net').connect(${port},'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))`,
-      ]);
-      if (probe.status === 0) return resolve();
-      if (Date.now() > deadline) return reject(new Error('git daemon 未在 10 秒内就绪'));
-      setTimeout(attempt, 100);
-    };
-    attempt();
-  });
-  return child;
-}
-
-function stopDaemon(child: { pid?: number } | null) {
-  if (child?.pid === undefined) return;
-  if (process.platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
-    return;
-  }
-  try {
-    process.kill(-child.pid, 'SIGTERM');
-  } catch {
-    // 已退出
-  }
 }
 
 function metaOf(url: string, ref: string, version: string) {
@@ -123,7 +71,7 @@ function libraryText(workspace: string): string {
 }
 
 test('T3 全链路：update --ref 切换目标标签，持久化 declared.ref 后检查为最新', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'update-ref-'));
+  const root = makeTempDir('update-ref-');
   const served = join(root, 'served');
   const work = join(root, 'work');
   const workspace = join(root, 'ws');
@@ -149,7 +97,7 @@ test('T3 全链路：update --ref 切换目标标签，持久化 declared.ref �
     git(work, ['commit', '-q', '-m', 'v2']);
     git(work, ['tag', 'v1.1.0']);
     git(root, ['clone', '-q', '--bare', work, join(served, 'sample.git')]);
-    daemon = await startDaemon(served, port);
+    daemon = await startGitDaemon(served, port);
 
     writeFileSync(join(workspace, 'skills', 'remote-skill', 'SKILL.md'), '# v1\n');
     writeFileSync(
@@ -232,13 +180,13 @@ test('T3 全链路：update --ref 切换目标标签，持久化 declared.ref �
     assert.equal(rows?.[0]?.id, 'remote-skill');
     assert.equal(rows?.[0]?.file_count, 2);
   } finally {
-    stopDaemon(daemon);
+    stopGitDaemon(daemon);
     rmSync(root, { recursive: true, force: true });
   }
 });
 
 test('T3 边界：--check --ref 拒绝；本地来源传 --ref 报参数错误', () => {
-  const root = mkdtempSync(join(tmpdir(), 'update-ref-input-'));
+  const root = makeTempDir('update-ref-input-');
   const workspace = join(root, 'ws');
   const localRepo = join(root, 'local-repo');
   mkdirSync(workspace, { recursive: true });
@@ -302,7 +250,7 @@ test('T3 边界：--check --ref 拒绝；本地来源传 --ref 报参数错误',
 });
 
 test('T3 失败：目标 ref 不存在时退出码 4，索引与原件不变', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'update-ref-missing-'));
+  const root = makeTempDir('update-ref-missing-');
   const served = join(root, 'served');
   const work = join(root, 'work');
   const workspace = join(root, 'ws');
@@ -320,7 +268,7 @@ test('T3 失败：目标 ref 不存在时退出码 4，索引与原件不变', a
     git(work, ['commit', '-q', '-m', 'v1']);
     git(work, ['tag', 'v1.0.0']);
     git(root, ['clone', '-q', '--bare', work, join(served, 'sample.git')]);
-    daemon = await startDaemon(served, port);
+    daemon = await startGitDaemon(served, port);
 
     writeFileSync(join(workspace, 'skills', 'remote-skill', 'SKILL.md'), '# v1\n');
     writeFileSync(
@@ -345,7 +293,7 @@ test('T3 失败：目标 ref 不存在时退出码 4，索引与原件不变', a
     assert.deepEqual(readFileSync(join(workspace, 'skill_index.yaml')), before);
     assert.equal(libraryText(workspace), '# v1\n');
   } finally {
-    stopDaemon(daemon);
+    stopGitDaemon(daemon);
     rmSync(root, { recursive: true, force: true });
   }
 });
