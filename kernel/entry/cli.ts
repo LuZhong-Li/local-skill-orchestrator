@@ -131,8 +131,10 @@ function isEntryPoint(): boolean {
 
 if (isEntryPoint()) {
   // 不用顶层 await：内核也要能被打包成 CommonJS 的单文件可执行形态
+  // 不能直接 process.exit：macOS 的管道 stdout 可能尚未排空，会截断较大的 --json 输出。
+  // 设置 exitCode 后让事件循环自然结束，退出码语义不变。
   void run(process.argv.slice(2)).then((code) => {
-    process.exit(code);
+    process.exitCode = code;
   });
 }
 

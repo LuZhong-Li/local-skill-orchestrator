@@ -20,6 +20,9 @@ test('契约：M4c-7 三平台探针接入可复用 verify 工作流', () => {
   assert.match(job, /npm ci/);
   assert.match(job, /npm run probe:inventory/);
   assert.match(workflow, /inventory-probe:[\s\S]*actions\/checkout@v5/);
+  const cli = read('kernel/entry/cli.ts');
+  assert.match(cli, /process\.exitCode = code/);
+  assert.equal(cli.includes('process.exit(code)'), false, '大 JSON 输出必须等待 stdout 排空');
 });
 
 test('契约：探针覆盖路径展开、发现、四分类、插件 .md 与未初始化', () => {
