@@ -334,9 +334,22 @@ test('T4 插件 x-：repair/track/forget/clean 写 plugin_index，adopt/accept �
   t.after(isolateHostEnvironment(root));
   await capture(['init', '--workspace', root]);
   const plugin = makePluginDir('sm-t4-plugin-src-');
-  writePluginManifest(plugin);
+  writePluginManifest(plugin, {}, { scope: 'global' });
   assert.equal(
     (await capture(['install', plugin, '--kind', 'plugin', '--workspace', root, '--yes'])).code,
+    0,
+  );
+  assert.equal(
+    (
+      await capture([
+        'config',
+        'set',
+        'plugin.acme-tools.zed.rules_root',
+        join(root, '.zed', 'rules'),
+        '--workspace',
+        root,
+      ])
+    ).code,
     0,
   );
   assert.equal(
@@ -483,9 +496,22 @@ test('T4 插件包禁用后的 orphaned 副本可由 clean 清理，插件包保
   t.after(isolateHostEnvironment(root));
   await capture(['init', '--workspace', root]);
   const plugin = makePluginDir('sm-t4-plugin-clean-src-');
-  writePluginManifest(plugin);
+  writePluginManifest(plugin, {}, { scope: 'global' });
   assert.equal(
     (await capture(['install', plugin, '--kind', 'plugin', '--workspace', root, '--yes'])).code,
+    0,
+  );
+  assert.equal(
+    (
+      await capture([
+        'config',
+        'set',
+        'plugin.acme-tools.zed.rules_root',
+        join(root, '.zed', 'rules'),
+        '--workspace',
+        root,
+      ])
+    ).code,
     0,
   );
   assert.equal(

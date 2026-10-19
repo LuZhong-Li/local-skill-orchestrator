@@ -1545,6 +1545,13 @@
     },
     {
       "from": "contract/src/reconcile.ts",
+      "to": "contract/src/host-roots.ts",
+      "specifier": "./host-roots.ts",
+      "from_layer": "contract",
+      "to_layer": "contract"
+    },
+    {
+      "from": "contract/src/reconcile.ts",
       "to": "contract/src/result.ts",
       "specifier": "./result.ts",
       "from_layer": "contract",
@@ -7834,7 +7841,7 @@
     "source_files": 238,
     "asset_nodes": 1,
     "nodes": 239,
-    "edges": 913,
+    "edges": 914,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
@@ -7848,7 +7855,7 @@
       "store": 12
     },
     "outgoing": {
-      "contract": 17,
+      "contract": 18,
       "core": 294,
       "dispatch": 457,
       "entry": 8,
@@ -7858,7 +7865,7 @@
       "store": 21
     },
     "incoming": {
-      "contract": 17,
+      "contract": 18,
       "core": 330,
       "dispatch": 181,
       "entry": 1,

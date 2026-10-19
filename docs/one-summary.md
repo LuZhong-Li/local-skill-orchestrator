@@ -724,6 +724,20 @@
 
 > v0.5.0 已标记 macOS SEA 管道已知问题并指向 v0.5.1；v0.5.1 为 latest 修复版。
 
+### 6.36 Dogfood 修正：reconcile 角色写保护（2026-10-20）
+
+| 项 | 结果 |
+|---|---|
+| 缺陷 | 六动作此前无角色门槛，system / platform / project 副本在分类允许时会生成 `planned`；GUI 未纳管清单也给出采纳动作 |
+| 内核 | 候选携带 `root_roles`；仅全部角色为 user 才可写；非 user 与混合角色共享根一律 `skipped` / `non_user_role_read_only`，零写入；执行层防御性拒绝 |
+| 根归属 | missing 记录按最长路径匹配 root，修正 `~/.codex/skills/.system` 被外层 user 根误归 |
+| GUI | 未纳管清单只列 user（本机 20）；system/platform/project 无动作按钮并标注「由对应工具管理」 |
+| 插件 | 写动作测试迁移到 global 作用域（user 角色）；project 作用域插件副本同样只读 |
+| 测试 | 常规 727 → **731 项**（730 通过 + 1 平台跳过）；写探针 87 → **102** 项；`smoke:gui` 61 → **64/64** |
+| 结构 | 依赖图 238 文件 / 914 边 / 0 循环；complexity 94；超阈值文件 0 |
+
+> 未发版，随下一补丁或下一版本。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

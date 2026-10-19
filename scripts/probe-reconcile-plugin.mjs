@@ -44,7 +44,7 @@ export function writePluginPackage(fixture) {
             host_key: 'zed',
             display_name: 'Zed',
             form: 'rules',
-            roots: [{ kind: 'rules', path_template: '.zed/rules/<skill_id>.md', scope: 'project' }],
+            roots: [{ kind: 'rules', path_template: '<skill_id>.md', scope: 'global' }],
             render_policy: { field_mode: 'standard6' },
           },
         ],
@@ -66,6 +66,14 @@ function installPluginHost(context) {
     '--workspace',
     fixture.workspace,
     '--yes',
+  ]);
+  cli(fixture, [
+    'config',
+    'set',
+    'plugin.probe-tools.zed.rules_root',
+    join(fixture.workspace, '.zed', 'rules'),
+    '--workspace',
+    fixture.workspace,
   ]);
   cli(fixture, [
     'enable',

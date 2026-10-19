@@ -174,6 +174,8 @@ function missingAt(data, path) {
 function stateHash(fixture) {
   return [
     treeHash(fixture.workspace),
+    treeHash(fixture.home),
+    treeHash(fixture.local),
     treeHash(fixture.claude),
     treeHash(fixture.doubao),
     treeHash(fixture.shared),
@@ -440,6 +442,55 @@ function checkFailureIsolation(fixture) {
   );
 }
 
+function checkRoleGuard(fixture) {
+  const roles = [
+    {
+      name: 'system',
+      path: join(fixture.home, '.codex', 'skills', '.system', 'system-guard'),
+      enabled: true,
+    },
+    {
+      name: 'project',
+      path: join(fixture.workspace, '.claude', 'skills', 'project-guard'),
+      enabled: true,
+    },
+    {
+      name: 'platform',
+      path: join(
+        fixture.local,
+        'Doubao',
+        'User Data',
+        'Default',
+        '.doubao',
+        'agent_mode',
+        'workspace',
+        '.skills',
+        'platform-guard',
+      ),
+      enabled: process.platform === 'win32',
+    },
+  ];
+  for (const role of roles.filter((item) => item.enabled)) {
+    writeSkill(role.path, `${role.name}-guard`);
+    const before = stateHash(fixture);
+    const plan = preview(fixture, ['--action', 'adopt', '--path', role.path]);
+    expect(
+      `${role.name} 角色写保护 skipped`,
+      plan.items[0]?.status === 'skipped' && plan.items[0]?.reason === 'non_user_role_read_only',
+      JSON.stringify(plan.items[0]),
+    );
+    expect(
+      `${role.name} 角色写保护零写入项`,
+      plan.items[0]?.writes.length === 0 && plan.items[0]?.ledger_changes.length === 0,
+    );
+    const applied = apply(fixture, ['--action', 'adopt', '--path', role.path]);
+    expect(
+      `${role.name} 角色 apply 不写入`,
+      applied.data?.applied === false && stateHash(fixture) === before,
+    );
+  }
+}
+
 function main() {
   const fixture = prepare();
   try {
@@ -464,6 +515,7 @@ function main() {
       writeSource,
     });
     checkFailureIsolation(fixture);
+    checkRoleGuard(fixture);
     for (const item of checks) {
       console.log(`${item.ok ? '✔' : '✖'} ${item.name}${item.detail ? `（${item.detail}）` : ''}`);
     }

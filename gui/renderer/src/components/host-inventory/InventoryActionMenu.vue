@@ -5,6 +5,7 @@ import type { ReconcileAction } from '@skill-manager/contract';
 import {
   inventoryActionPath,
   inventoryActionsFor,
+  isUserWritableCopy,
   type InventoryCopyLike,
 } from '../../inventory-actions.ts';
 
@@ -12,10 +13,12 @@ const props = defineProps<{ copy: InventoryCopyLike }>();
 const emit = defineEmits<{ action: [action: ReconcileAction, path: string] }>();
 const actions = computed(() => inventoryActionsFor(props.copy));
 const path = computed(() => inventoryActionPath(props.copy));
+const managedByTool = computed(() => !isUserWritableCopy(props.copy));
 </script>
 
 <template>
-  <span v-if="actions.length === 0" class="muted">无可用动作</span>
+  <span v-if="managedByTool" class="muted managed-by-tool">由对应工具管理</span>
+  <span v-else-if="actions.length === 0" class="muted">无可用动作</span>
   <span v-else class="action-menu">
     <button
       v-for="option in actions"
@@ -48,5 +51,9 @@ const path = computed(() => inventoryActionPath(props.copy));
 .action-button.danger {
   color: var(--danger);
   border-color: #eccbc8;
+}
+
+.managed-by-tool {
+  font-size: 11px;
 }
 </style>

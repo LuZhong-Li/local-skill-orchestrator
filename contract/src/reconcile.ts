@@ -1,5 +1,6 @@
 /** M4c 二期 reconcile 动作计划的跨层纯类型；不含 IO、执行或界面逻辑。 */
 import type { InventoryClassificationKey, InventoryCopyVisibility } from './host-inventory.ts';
+import type { HostRootRole } from './host-roots.ts';
 import type {
   ReconciliationClassification,
   ReconciliationEvidence,
@@ -10,6 +11,11 @@ import type {
 import type { Change, Finding } from './result.ts';
 
 export const RECONCILE_ACTIONS = ['adopt', 'track', 'repair', 'accept', 'clean', 'forget'] as const;
+
+/** 非 user 角色副本的稳定 skip 原因；系统 / 平台 / 项目副本由对应工具管理。 */
+export const RECONCILE_REASON_NON_USER_ROLE = 'non_user_role_read_only';
+/** 共享根同时被 user 与非 user 角色消费时的保守告警。 */
+export const RECONCILE_WARNING_SHARED_NON_USER_ROLE = 'shared_root_non_user_role';
 
 export type ReconcileAction = (typeof RECONCILE_ACTIONS)[number];
 export type ReconcileSelectionMode = 'path' | 'id-host' | 'classification';
@@ -77,6 +83,8 @@ export interface ReconcilePlanItem {
   consumed_by: string[];
   format: ReconciliationFormat;
   visibility?: InventoryCopyVisibility;
+  /** 该物理副本被哪些角色消费；混合角色时整组保守跳过。 */
+  root_roles: HostRootRole[];
   transaction_group: string;
   status: 'planned' | 'skipped';
   reason?: string;

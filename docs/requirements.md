@@ -1958,6 +1958,8 @@ M4c 一期只读：只盘点、只对账、只呈现，不改变任何文件。
 
 **M4c-4 计数口径**：主计数只算 `root_role=user` 且通过物理去重的有效副本；同一技能在多根多副本时分别给出 `total_copies` 与 `unique_skills`。`system` / `platform` / `project` 独立分组，不进入主计数；共享根只算一份；corrupt 只进 `corrupt_count`，不进入任何有效副本 / 唯一技能 / 分类计数；missing 进入分类但不算有效副本。人类可读摘要默认只给 role / 分类 / 宿主摘要，明细由 `--json` 或 `--verbose` 提供。
 
+**M4c-4 动作角色边界（dogfood 修正）**：计数与动作按角色隔离；`reconcile` 六动作只对 `root_role=user` 的物理副本生效。`system` / `platform` / `project` 副本以及共享根中混入非 user 角色的组一律 `skipped`，原因 `non_user_role_read_only`，不写文件 / 账本 / 索引；这些副本由对应工具管理，GUI 未纳管清单只列 user 可操作副本，非 user 分组只读展示。
+
 验收标准：
 
 1. 同一夹具的 CLI 输出与 GUI 计数一致；
@@ -2193,6 +2195,7 @@ M4c 一期只读：只盘点、只对账、只呈现，不改变任何文件。
 3. 错误信息必须包含宿主、物理路径、账本来源、动作与可执行 remedy；共享根冲突与过期计划必须有独立、可测试的边界；
 4. 不自动删除未纳管副本、不自动全盘修复、不自动覆盖用户改动、不猜测来源、不执行 Skill 内容、不启动宿主、不处理 IDE 扩展或宿主插件缓存；
 5. 不把 `host_landings` 纳入 `export` / `import` / `restore`；动作产生的宿主事实仍只属于本机。
+6. 写动作按 `root_role` 隔离：仅 `user` 副本可执行；`system` / `platform` / `project` 以及共享根中混入非 user 角色的物理副本一律 `skipped`（`non_user_role_read_only`），零写入。
 
 **验收标准**
 
@@ -4419,6 +4422,17 @@ M4c 一期只读：只盘点、只对账、只呈现，不改变任何文件。
 | 修复 | `process.exitCode = code`；三平台 `sea-pipe-probe`；`kernel/`/`gui/` 无 `process.exit(` 静态守卫；GUI 动作按钮就绪等待 |
 | 验证 | Pack 39272915140 与 Release Verify 39275887751 全 Success；Windows GUI 61/61；Windows/macOS 发布物六动作 + 302 副本 / 约 1.03MB 管道完整解析；常规 727 项（726 通过 + 1 平台跳过） |
 | 边界 | 不改变 CLI 契约、指令数、问题码或 schema；v0.5.0 已标记已知问题并指向 v0.5.1 |
+
+### 实现批次 2026-10-20（Dogfood：reconcile 角色写保护）
+
+| 校验项 | 结果 |
+|---|---|
+| 需求覆盖 | M4c-R4 / R5 / R9 / R10：写动作按 root_role 隔离；非 user 与混合角色共享根 skipped |
+| 内核 | `root_roles` 候选聚合；计划 `non_user_role_read_only`、零 writes / ledger_changes；执行层防御性拒绝；missing 根归属最长路径优先 |
+| GUI | 未纳管清单只列 user；system/platform/project 不显示动作并标注「由对应工具管理」 |
+| 测试 | 常规 727 → **731 项**（730 通过 + 1 平台跳过）；写探针 87 → **102** 项；`smoke:gui` 61 → **64/64** |
+| 结构指标 | 238 文件 / 914 边 / 0 循环；complexity 94；超阈值文件 0 |
+| 边界 | 未发版；不改变指令数、问题码或 schema |
 
 ---
 

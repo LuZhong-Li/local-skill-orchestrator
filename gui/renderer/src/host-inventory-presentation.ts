@@ -46,9 +46,9 @@ export function roleLabel(role: HostRootRole): string {
 }
 
 export function roleFoldNote(role: HostRootRole): string {
-  if (role === 'system') return '平台/系统内置，不参与用户主计数';
-  if (role === 'platform') return '平台持有并刷新，不参与用户主计数';
-  if (role === 'project') return '当前工作区项目级副本，不参与用户主计数';
+  if (role === 'system') return '平台/系统内置，不参与用户主计数；由对应工具管理，不提供动作';
+  if (role === 'platform') return '平台持有并刷新，不参与用户主计数；由对应工具管理，不提供动作';
+  if (role === 'project') return '当前工作区项目级副本，不参与用户主计数；不提供 reconcile 动作';
   return '用户级安装副本';
 }
 

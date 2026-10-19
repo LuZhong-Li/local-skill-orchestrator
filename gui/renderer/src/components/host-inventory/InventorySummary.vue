@@ -23,6 +23,7 @@ defineProps<{ summary: InventorySummary }>();
     <p class="muted hint">
       已按物理路径去重；系统 / 平台 / 项目级副本不计入主计数。本次根
       {{ summary.roots_total }} 个，物理去重移除 {{ summary.duplicates_removed }} 份重复副本。
+      写动作只对用户安装副本开放。
     </p>
   </div>
 

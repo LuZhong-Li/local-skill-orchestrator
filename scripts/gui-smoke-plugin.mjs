@@ -62,6 +62,14 @@ export async function runPluginSmoke({ evaluate, waitFor, check, workspace }) {
       "document.querySelector('[data-plugin-id=\"smoke-tools\"]')?.innerText.includes('已停用')",
     )) === true,
   );
+  runKernel([
+    'config',
+    'set',
+    'plugin.smoke-tools.zed.rules_root',
+    join(workspace, '.zed', 'rules'),
+    '--workspace',
+    workspace,
+  ]);
   await evaluate(
     "document.querySelector('[data-plugin-id=\"smoke-tools\"] button')?.parentElement?.querySelector('button:nth-of-type(2)')?.click()",
   );

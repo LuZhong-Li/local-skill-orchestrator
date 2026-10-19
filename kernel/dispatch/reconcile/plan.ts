@@ -12,6 +12,10 @@ import type {
   ReconcileTransactionGroup,
   ReconcileWriteKind,
 } from '@skill-manager/contract';
+import {
+  RECONCILE_REASON_NON_USER_ROLE,
+  RECONCILE_WARNING_SHARED_NON_USER_ROLE,
+} from '@skill-manager/contract';
 import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
 import type { InventoryRootView } from '@skill-manager/contract';
 import type { InventorySnapshot } from '../scan/inventory.ts';
@@ -267,6 +271,13 @@ function groupConflictReason(candidate: Candidate): string | undefined {
   return undefined;
 }
 
+/** 写动作只允许全部消费角色均为 user 的物理副本。 */
+function nonUserRoleReason(candidate: Candidate): string | undefined {
+  return candidate.root_roles.length > 0 && candidate.root_roles.every((role) => role === 'user')
+    ? undefined
+    : RECONCILE_REASON_NON_USER_ROLE;
+}
+
 function t2EligibilityReason(
   snapshot: InventorySnapshot,
   candidate: Candidate,
@@ -334,6 +345,7 @@ function actionShape(
   candidate: Candidate,
 ): ActionShape {
   const reason =
+    nonUserRoleReason(candidate) ??
     actionEligibilityReason(snapshot, candidate, selection.action) ??
     cleanEligibilityReason(snapshot, candidate, selection.action) ??
     unsupportedReason(candidate, selection.action);
@@ -377,10 +389,14 @@ function beforeOf(candidate: Candidate): ReconcilePlanItem['before'] {
 }
 
 function warningsOf(candidate: Candidate): string[] {
+  const hasNonUserRole = candidate.root_roles.some((role) => role !== 'user');
   return [
     ...(candidate.consumed_by.length > 1 || candidate.host_ids.length > 1 ? ['shared_root'] : []),
     ...(candidate.format_conflict ? ['shared_root_form_conflict'] : []),
     ...(candidate.ledger_conflict ? ['shared_root_ledger_conflict'] : []),
+    ...(hasNonUserRole && candidate.root_roles.length > 1
+      ? [RECONCILE_WARNING_SHARED_NON_USER_ROLE]
+      : []),
   ];
 }
 
@@ -410,6 +426,7 @@ function itemOf(
     consumed_by: candidate.consumed_by,
     format: candidate.format,
     ...(candidate.visibility === undefined ? {} : { visibility: candidate.visibility }),
+    root_roles: candidate.root_roles,
     transaction_group: `group-${candidate.physical_key}`,
     status: shape.status,
     ...(shape.reason === undefined ? {} : { reason: shape.reason }),
@@ -455,6 +472,7 @@ export function reconcilePlanSignature(plan: ReconcilePreviewData): string {
       item_id: item.item_id,
       action: item.action,
       target_path: item.target_path,
+      root_roles: item.root_roles,
       ...(item.skill_id === undefined ? {} : { skill_id: item.skill_id }),
       status: item.status,
       before: item.before,

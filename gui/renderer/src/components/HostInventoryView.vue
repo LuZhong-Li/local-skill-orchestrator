@@ -23,7 +23,9 @@ const actionPath = ref('');
 
 const untracked = computed(
   () =>
-    data.value?.copies.filter((copy) => copy.reconciliation.classification === 'untracked') ?? [],
+    data.value?.copies.filter(
+      (copy) => copy.root_role === 'user' && copy.reconciliation.classification === 'untracked',
+    ) ?? [],
 );
 
 async function load(): Promise<void> {
@@ -129,7 +131,8 @@ onMounted(load);
         </summary>
         <p class="muted">
           这些副本在磁盘上存在，但没有可用的账本或工作区记录。可在明细中逐条采纳；
-          共享根会提示受影响的全部宿主。
+          共享根会提示受影响的全部宿主。系统 / 平台 / 项目级副本由对应工具管理，
+          不在此清单提供动作，可在下方角色分组只读查看。
         </p>
         <InventoryCopyDetails
           :copies="untracked"

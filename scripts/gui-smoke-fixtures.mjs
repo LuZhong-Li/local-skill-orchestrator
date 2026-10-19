@@ -89,8 +89,8 @@ export function prepareWorkspace(url) {
             roots: [
               {
                 kind: 'rules',
-                path_template: '.zed/rules/<skill_id>.md',
-                scope: 'project',
+                path_template: '<skill_id>.md',
+                scope: 'global',
               },
             ],
             render_policy: { field_mode: 'standard6' },

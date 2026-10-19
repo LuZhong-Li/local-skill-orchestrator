@@ -551,6 +551,8 @@
 | 测试 | 新增 3 项（2 unit / 1 e2e）；常规 644 → **647 项**（单元 410、契约 125、端到端 112；646 通过 + 1 平台跳过） |
 | 结构 | `check:arch` 159 文件 / 498 边 / 0 循环；complexity 93；`aggregate.ts` 253 行 |
 
+**Dogfood 角色动作边界（2026-10-19）**：计数按角色隔离的口径不变；新增「动作只作用于 user」约束。未纳管清单只列 user 副本，system/platform/project 在角色分组只读展示并标注「由对应工具管理」；`reconcile` 对非 user 副本一律 `skipped` / `non_user_role_read_only`。详见 `m4c-inventory-actions.md` 的 Dogfood 修正记录。
+
 ### M4c-5 只读断言（已完成 2026-10-19）
 
 **目标**：证明盘点前后工作区 + 宿主目录字节一致。

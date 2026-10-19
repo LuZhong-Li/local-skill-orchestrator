@@ -302,7 +302,7 @@ async function main() {
     );
 
     await runPluginSmoke({ evaluate, waitFor, check, workspace });
-    await runInventoryActionChecks({ evaluate, waitFor, check, workspace, hostHome });
+    await runInventoryActionChecks({ evaluate, waitFor, check, workspace, hostHome, hostLocal });
     // T2/T3：设置默认关闭；即时检查触发角标，点击角标进入已有结果视图。
     await evaluate(
       "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '设置')?.click()",

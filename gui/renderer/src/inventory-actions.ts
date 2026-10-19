@@ -54,7 +54,12 @@ export function inventoryActionPath(copy: InventoryCopyLike): string {
   return 'path' in copy ? copy.path : copy.target_path;
 }
 
+export function isUserWritableCopy(copy: InventoryCopyLike): boolean {
+  return copy.root_role === 'user';
+}
+
 export function inventoryActionsFor(copy: InventoryCopyLike): InventoryActionOption[] {
+  if (!isUserWritableCopy(copy)) return [];
   const plugin = copy.host_group === 'plugin';
   return baseActions(classificationKey(copy)).map((action) => {
     const disabled = plugin && (action === 'adopt' || action === 'accept');

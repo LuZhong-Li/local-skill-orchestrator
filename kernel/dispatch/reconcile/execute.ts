@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   CODES,
+  RECONCILE_REASON_NON_USER_ROLE,
   type Change,
   type Finding,
   type ReconcileApplyData,
@@ -52,15 +53,20 @@ function unavailable(item: ReconcilePlanItem): ReconcileExecutionItem {
   };
 }
 
-function executionOf(
-  input: {
-    plan: ReconcileApplyData;
-    layout: WorkspaceLayout;
-    index: SkillIndex | null;
-    now: string;
-  },
-  item: ReconcilePlanItem,
-): ReconcileExecutionItem {
+interface ExecutionInput {
+  plan: ReconcileApplyData;
+  layout: WorkspaceLayout;
+  index: SkillIndex | null;
+  now: string;
+}
+
+function executionOf(input: ExecutionInput, item: ReconcilePlanItem): ReconcileExecutionItem {
+  const roleFailure = nonUserRoleFailure(item);
+  if (roleFailure !== undefined) return roleFailure;
+  return actionExecutionOf(input, item);
+}
+
+function actionExecutionOf(input: ExecutionInput, item: ReconcilePlanItem): ReconcileExecutionItem {
   if (item.action === 'repair') {
     return repairItem({ item, layout: input.layout, index: input.index, now: input.now });
   }
@@ -82,6 +88,25 @@ function executionOf(
     return acceptItem({ item, layout: input.layout, index: input.index, now: input.now });
   }
   return unavailable(item);
+}
+
+function nonUserRoleFailure(item: ReconcilePlanItem): ReconcileExecutionItem | undefined {
+  if (item.root_roles.length > 0 && item.root_roles.every((role) => role === 'user')) {
+    return undefined;
+  }
+  const findings = [
+    finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
+      source: 'reconcile',
+      target: item.target_path,
+      message: `非 user 角色副本只读（${RECONCILE_REASON_NON_USER_ROLE}）`,
+      remedy: '系统 / 平台 / 项目副本由对应工具管理；写动作仅对 user 角色生效',
+    }),
+  ];
+  return {
+    result: failedResult(item, findings),
+    findings,
+    changes: [],
+  };
 }
 
 function errorFinding(cause: unknown, target: string): Finding {

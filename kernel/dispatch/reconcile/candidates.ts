@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type {
   InventoryCopyVisibility,
+  HostRootRole,
   InventoryRootView,
   MissingInventoryCopy,
   ReconciliationFormat,
@@ -30,6 +31,8 @@ export interface Candidate {
   content_digest?: string;
   exists: boolean;
   root_ids: string[];
+  /** 物理副本被哪些 root_role 消费；只有全为 user 才允许写动作。 */
+  root_roles: HostRootRole[];
   reconciliation: ReconciliationOutput;
   is_plugin: boolean;
   /** 同一物理副本被不同 form 的根同时消费：T4 必须拒绝而不是任选。 */
@@ -42,6 +45,10 @@ export function unique(values: readonly (string | undefined)[]): string[] {
   return [
     ...new Set(values.filter((value): value is string => value !== undefined && value !== '')),
   ];
+}
+
+function uniqueRoles(values: readonly HostRootRole[]): HostRootRole[] {
+  return [...new Set(values)];
 }
 
 function candidateOfCopy(
@@ -60,6 +67,7 @@ function candidateOfCopy(
     ...(copy.content_digest === undefined ? {} : { content_digest: copy.content_digest }),
     exists: true,
     root_ids: unique([copy.root_id, ...copy.root_ids]),
+    root_roles: uniqueRoles([copy.root_role, ...copy.sources.map((item) => item.root_role)]),
     reconciliation: copy.reconciliation,
     is_plugin: copy.host_group === 'plugin',
     format_conflict: false,
@@ -78,6 +86,7 @@ function candidateOfMissing(copy: MissingInventoryCopy): Candidate {
     ...(copy.skill_id === undefined ? {} : { skill_id: copy.skill_id }),
     exists: false,
     root_ids: unique([copy.root_id]),
+    root_roles: [copy.root_role ?? 'user'],
     reconciliation: copy,
     is_plugin: copy.host_group === 'plugin',
     format_conflict: false,
@@ -92,6 +101,7 @@ function mergeCandidate(left: Candidate | undefined, right: Candidate): Candidat
     host_ids: unique([...left.host_ids, ...right.host_ids]),
     consumed_by: unique([...left.consumed_by, ...right.consumed_by]),
     root_ids: unique([...left.root_ids, ...right.root_ids]),
+    root_roles: uniqueRoles([...left.root_roles, ...right.root_roles]),
     format_conflict: left.format_conflict || right.format_conflict || left.format !== right.format,
     ledger_conflict:
       left.ledger_conflict || right.ledger_conflict || left.is_plugin !== right.is_plugin,
@@ -165,6 +175,7 @@ function pluginOrphanCandidate(
     ...(digest === undefined ? {} : { content_digest: digest }),
     exists: true,
     root_ids: [],
+    root_roles: [pluginRootRole(snapshot, record.host_id, unified.physical_path)],
     reconciliation: {
       classification: 'orphaned',
       ledger_source: 'plugin_landings',
@@ -206,6 +217,22 @@ function notDistributedRoots(
           (value) => inventoryPhysicalKey(value) === inventoryPhysicalKey(root.path),
         )),
   );
+}
+
+function pluginRootRole(
+  snapshot: InventorySnapshot,
+  hostId: string,
+  targetPath: string,
+): HostRootRole {
+  const key = inventoryPhysicalKey(targetPath);
+  const root = snapshot.roots
+    .filter((item) => {
+      if (item.host_id !== hostId) return false;
+      const base = inventoryPhysicalKey(item.path);
+      return key === base || key.startsWith(`${base}/`) || key.startsWith(`${base}\\`);
+    })
+    .sort((left, right) => right.path.length - left.path.length)[0];
+  return root?.role ?? 'user';
 }
 
 function notDistributedCandidate(
@@ -274,6 +301,7 @@ function notDistributedCandidate(
     skill_id: id,
     exists: false,
     root_ids: [root.root_id],
+    root_roles: [root.role],
     reconciliation,
     is_plugin: false,
     format_conflict: false,

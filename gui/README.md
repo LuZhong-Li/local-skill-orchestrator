@@ -60,6 +60,7 @@ npm run smoke:gui                        # 启动应用并经调试协议校验�
 - 点击动作只生成 `reconcile` 预览；对话框展示写入项、账本变化、备份、执行后分类与共享根全部消费宿主。
   只有显式确认才附带 `--apply --yes`；接受与清理另有破坏性二次确认。
 - 插件 `x-` 宿主只允许 track / repair / clean / forget；adopt / accept 禁用。
+- 写动作只对 `root_role=user` 副本开放；未纳管清单只列 user 副本，system / platform / project 在角色分组只读展示并标注「由对应工具管理」。
 - 不提供一键全修 / 全删，clean 不提供分类批量；执行后自动重新盘点。
 
 ## 依赖安装说明

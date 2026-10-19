@@ -2043,6 +2043,30 @@ flowchart TB
 | v0.5.1 发布验证 | Pack [39272915140](https://github.com/LuZhong-Li/skill-manager/actions/runs/39272915140) 与 Release Verify [39275887751](https://github.com/LuZhong-Li/skill-manager/actions/runs/39275887751) 全 Success；Windows GUI 61/61；Windows/macOS 发布物 `actions=6 / pipe_copies=302 / ~1.03MB` |
 | 测试总数 | 714 → **727 项**（726 通过 + 1 项平台条件跳过） |
 
+### 补充记录 2026-10-20（Dogfood：reconcile 角色写保护）
+
+来源：dogfood 真机缺陷。计数按角色隔离的口径不变；写动作增加 user 角色门槛。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `contract/src/reconcile.ts` | `ReconcilePlanItem.root_roles` 与 `non_user_role_read_only` 常量 | contract | M4c-R4 / R5 |
+| 2 | `kernel/dispatch/reconcile/candidates.ts` | 候选聚合 root_roles；插件 orphan 按最长匹配根归属角色 | dispatch | M4c-R2 |
+| 3 | `kernel/dispatch/reconcile/plan.ts` | 角色检查先于分类 / 基线 / 动作适配；混合角色共享根告警 | dispatch | M4c-R2 / R10 |
+| 4 | `kernel/dispatch/reconcile/execute.ts` | 计划项执行前防御性拒绝非 user 角色 | dispatch | M4c-R10 |
+| 5 | `kernel/dispatch/scan/reconcile.ts` | missing 根归属按最长路径优先 | dispatch | M4c-R3 |
+| 6 | `gui/renderer/src/inventory-actions.ts` / `HostInventoryView.vue` | 未纳管清单只列 user；非 user 不提供动作 | gui | M4c-R9 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 17；问题码 69；规范 7 / schema 8 不变 |
+| 分层检查 | `check:arch` 238 文件 / 914 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
+| 写探针 | 87 → **102** 项（新增 system/platform/project 角色断言） |
+| 冒烟 | `smoke:gui` 61 → **64/64** |
+| 测试总数 | 727 → **731 项**（730 通过 + 1 项平台条件跳过） |
+
 ---
 
 **文档结束。** 本文档只定义架构、模块、数据流与接口契约，不包含实现代码。

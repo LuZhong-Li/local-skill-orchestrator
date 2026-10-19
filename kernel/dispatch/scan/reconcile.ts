@@ -321,9 +321,16 @@ function rootOfLedger(
   item: OwnedLedger,
   roots: readonly InventoryRootObservation[],
 ): InventoryRootObservation | undefined {
-  return roots.find(
-    (root) => root.host_id === item.host_id && item.record.target_path.startsWith(root.path),
-  );
+  const target = item.record.target_path;
+  return roots
+    .filter(
+      (root) =>
+        root.host_id === item.host_id &&
+        (target === root.path ||
+          target.startsWith(`${root.path}/`) ||
+          target.startsWith(`${root.path}\\`)),
+    )
+    .sort((left, right) => right.path.length - left.path.length)[0];
 }
 
 function rootReadable(root: InventoryRootObservation | undefined): boolean {

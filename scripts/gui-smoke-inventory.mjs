@@ -177,7 +177,7 @@ export async function runThirdPartyInventoryCheck(context) {
   );
   check(
     '盘点视图分区显示已启用第三方 x- 宿主',
-    ['x-smoke-tools-zed', 'plugin-smoke-skill', '项目级'].every((label) => text.includes(label)),
+    ['x-smoke-tools-zed', 'plugin-smoke-skill', '用户安装'].every((label) => text.includes(label)),
     cut(text, 240),
   );
   const untracked = String(

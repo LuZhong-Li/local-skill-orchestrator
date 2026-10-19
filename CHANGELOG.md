@@ -1,5 +1,16 @@
 # 变更记录
 
+## 未发布
+
+### Dogfood 修正：reconcile 角色写保护（2026-10-20）
+
+- **核查**：六动作此前没有角色门槛，system / platform / project 副本在分类允许时会生成 `planned`；本机 141 个平台 + 5 个系统副本存在误操作风险。
+- **内核**：候选携带 `root_roles`；只有全部消费角色为 `user` 才允许写动作。非 user（含混合角色共享根）一律 `skipped` / `non_user_role_read_only`，`writes` 与 `ledger_changes` 为空；执行层另有防御性拒绝。缺失记录的根归属改为最长路径优先，避免 `~/.codex/skills/.system` 被外层 user 根误归。
+- **GUI**：未纳管清单只列 user 副本；system / platform / project 不显示动作按钮，标注「由对应工具管理」，角色折叠区只读展示。
+- **插件**：写动作测试改用 global 作用域（映射 user 角色）；project 作用域插件副本同样只读。
+- **验证**：新增 system/platform/project × 六动作 e2e、混合角色共享根 e2e、三平台探针角色断言、GUI smoke 角色隔离；常规 **727 → 731 项**（730 通过 + 1 平台跳过）；写探针 87 → **102** 项；`smoke:gui` 61 → **64/64**；依赖图 238 文件 / **914** 边 / 0 循环；complexity 94；超阈值文件 0。
+- **边界**：未发版，随下一补丁或下一版本；不改变指令数、问题码或 schema。
+
 ## 0.5.1
 
 > **已发布**：tag `v0.5.1` → `433b3e4`；修复 v0.5.0 发布物在 macOS 管道上的大 JSON 截断。

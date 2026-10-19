@@ -710,6 +710,8 @@ skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
 | `clean` | 宿主 → 删除 | 无工作区记录的 orphaned 残留；无基线的 corrupt / unreadable 副本 | 宿主副本、账本 |
 | `forget` | 账本 → 孤儿 | 副本确认不存在的 `missing` | 账本 |
 
+**角色写保护**：六动作只对 `root_role = user` 的物理副本生效。`system` / `platform` / `project` 副本，以及共享根中混入任一非 user 角色的物理副本，一律在计划中标记为 `skipped`，`reason = non_user_role_read_only`，`writes` 与 `ledger_changes` 均为空；不写文件、账本、索引或临时目录。系统 / 平台 / 项目副本由对应工具管理。混合角色共享根另带 `shared_root_non_user_role` 告警。GUI 的未纳管清单只列出 user 可操作副本；非 user 副本在角色分组中只读展示并标注「由对应工具管理」。
+
 T4 执行范围：六个动作均支持共享根整组与插件 `x-` 宿主。共享物理副本按 realpath + Windows casefold 去重为一个事务组：repair / accept 只写一次物理副本并同步全部 active 账本；adopt 只建一份中心库；track 为全部消费宿主补账；forget 只转移选中宿主记录；clean 按引用计数决定是否删除物理副本。同一物理路径被不同 form 或内置/插件两套账本同时消费时返回 `shared_root_form_conflict` / `shared_root_ledger_conflict`，不得任选。
 
 插件 `x-` 宿主：`track` / `repair` / `clean` / `forget` 写 `plugin_index.landings`，repair 使用插件 profile/adapter 重渲染；插件禁用或不可用时 repair 拒绝。`adopt` / `accept` 明确拒绝，插件技能源不进入工作区中心库。内置 `host_landings` 与插件账本互不串写。
@@ -738,7 +740,7 @@ T4 执行范围：六个动作均支持共享根整组与插件 `x-` 宿主。�
 11. `clean` 的共享根引用计数：仍有 active 消费记录时只清理选中宿主的 orphaned 账本记录并保留物理副本；全部记录均 orphaned 时才删除物理副本并清理全部相关记录。单宿主操作不得破坏其他 host 的 active 消费。
 12. `--classification` 批量必须同时给出 `--host` 或 `--root`；不同物理副本逐项执行并逐项返回结果，单项失败不回滚已成功项；同一共享根事务组内仍保持原子。
 
-**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。`--apply` 的六动作均另返回 `results[]`（逐项 succeeded / failed / skipped、message、changes 与 findings）；accept 的 `backups[]` 给出标准备份根，clean 不产生用户可见备份。
+**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、`root_roles`、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。`--apply` 的六动作均另返回 `results[]`（逐项 succeeded / failed / skipped、message、changes 与 findings）；accept 的 `backups[]` 给出标准备份根，clean 不产生用户可见备份。
 
 **退出码**：参数与选择器错误返回 `2`；动作不适配、尚未实现、计划过期与共享根选择冲突返回 `1`；写入失败按既有 IO / 备份 / 账本派生的退出码处理。
 
@@ -922,6 +924,7 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 | 45 | 2026-10-19 | 第 4.17 节 T2 执行口径：`adopt` 从宿主实际内容建立 `skills/<skill_id>`、合成 `source: unknown` 元文件并写索引 / 内置账本，不创建工作区目标副本；`track` 只对 `inferred_consistent` 补 adopted 账本。补充 ID / 目标冲突、frontmatter 目录名不一致、track 拒绝 drift / untracked 的口径；`accept` / `clean` 仍返回 `E-RECONCILE-001` |
 | 46 | 2026-10-19 | 第 4.17 节 T3 执行口径：`accept` 支持 content / visibility，保留工作区元文件、拒绝 source/version 漂移并更新索引与账本；`clean` 仅处理无工作区 orphaned 或无基线 corrupt/unreadable，使用同卷临时快照、成功后删除，禁止分类批量。六动作均具备 `--apply` 执行能力 |
 | 47 | 2026-10-19 | 第 4.17 节 T4 口径：共享根 realpath+casefold 事务组、物理写一次/多账本同步、forget/clean 引用计数与 form/ledger 冲突拒绝；插件 `x-` 的 track/repair/clean/forget 写 `plugin_index.landings`，adopt/accept 拒绝；分类批量逐项结果与共享组原子性边界 |
+| 48 | 2026-10-19 | 第 4.17 节 dogfood 角色写保护：六动作仅对 `root_role=user` 生效；system/platform/project 与混合角色共享根一律 `skipped` / `non_user_role_read_only`，零写入；输出增加 `root_roles`，混合角色共享根带 `shared_root_non_user_role` 告警 |
 
 ---
 

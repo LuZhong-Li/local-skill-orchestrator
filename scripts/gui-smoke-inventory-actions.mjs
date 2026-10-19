@@ -132,6 +132,71 @@ async function execute(context, destructive = false) {
   return text;
 }
 
+async function checkRoleIsolation(context) {
+  const { check, hostHome, hostLocal } = context;
+  const system = join(hostHome, '.codex', 'skills', '.system', 'system-skill');
+  const platform = join(
+    hostLocal,
+    'Doubao',
+    'User Data',
+    'Default',
+    '.doubao',
+    'agent_mode',
+    'workspace',
+    '.skills',
+    'platform-skill',
+  );
+  const untrackedText = String(
+    await context.evaluate(
+      "document.querySelector('[data-testid=\"inventory-untracked\"]')?.innerText ?? ''",
+    ),
+  );
+  const untrackedCount = String(
+    await context.evaluate(
+      "document.querySelector('[data-testid=\"inventory-untracked\"] .count')?.textContent ?? ''",
+    ),
+  ).trim();
+  check(
+    '未纳管清单只统计 user 副本',
+    untrackedCount === '2' &&
+      untrackedText.includes('history-skill') &&
+      untrackedText.includes('shared-skill') &&
+      !untrackedText.includes('system-skill') &&
+      !untrackedText.includes('platform-skill'),
+    `count=${untrackedCount} ${cut(untrackedText, 200)}`,
+  );
+  const noActions = async (path) =>
+    Number(
+      await context.evaluate(
+        `(() => {
+          const path = ${JSON.stringify(path)};
+          return [...document.querySelectorAll('[data-testid^="inventory-action-"]')]
+            .filter((button) => button.dataset.path === path).length;
+        })()`,
+      ),
+    ) === 0;
+  const managedLabel = async (id) =>
+    String(
+      await context.evaluate(
+        `(() => {
+          const rows = [...document.querySelectorAll('[data-testid="host-inventory"] tr')]
+            .filter((row) => (row.textContent ?? '').includes(${JSON.stringify(id)}));
+          return rows.map((row) => row.textContent ?? '').join('\\n');
+        })()`,
+      ),
+    ).includes('由对应工具管理');
+  check(
+    '系统副本无动作按钮且标注由对应工具管理',
+    (await noActions(system)) && (await managedLabel('system-skill')),
+  );
+  if (process.platform === 'win32') {
+    check(
+      '平台副本无动作按钮且标注由对应工具管理',
+      (await noActions(platform)) && (await managedLabel('platform-skill')),
+    );
+  }
+}
+
 export async function runInventoryActionChecks(context) {
   const { check, workspace, hostHome } = context;
   const history = join(hostHome, '.claude', 'skills', 'history-skill');
@@ -140,6 +205,7 @@ export async function runInventoryActionChecks(context) {
 
   await openInventory(context);
   await refresh(context);
+  await checkRoleIsolation(context);
   await preview(context, 'adopt', history);
   const adoptPreview = await dialogText(context);
   check(
