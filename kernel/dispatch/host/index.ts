@@ -1,7 +1,8 @@
 /** 宿主分发通道的公共入口。 */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { Change, Finding } from '@skill-manager/contract';
+import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import { META_FILE_NAME } from '../../core/metadata/constants.ts';
@@ -10,7 +11,7 @@ import { TOOL_VERSION } from '../../core/index/index.ts';
 import { loadHostRegistry } from '../../core/hosts/index.ts';
 import { loadPluginCatalog } from '../../core/plugins/host.ts';
 import type { RenderSource } from '../../core/render/types.ts';
-import { buildHostChannel } from './channel.ts';
+import { buildHostChannel, type HostChannel } from './channel.ts';
 import { hostLandingResult } from './landing-result.ts';
 
 export * from './channel.ts';
@@ -74,6 +75,38 @@ export function metaDirOf(sourcePath: string): string {
   return sourcePath.endsWith(META_FILE_NAME) ? dirname(sourcePath) : sourcePath;
 }
 
+function missingRequiredCopy(input: {
+  hostValue: string;
+  channel: HostChannel;
+  requireExisting?: boolean;
+}): { findings: Finding[]; changes: Change[]; data: Record<string, unknown> } | undefined {
+  if (input.requireExisting !== true) return undefined;
+  const entry = input.channel.plan.entries.find((item) => item.landable);
+  const targetPath =
+    entry === undefined
+      ? undefined
+      : input.channel.form === 'rules'
+        ? entry.target_path
+        : entry.root_path;
+  if (targetPath !== undefined && existsSync(targetPath)) return undefined;
+  return {
+    findings: [
+      finding(CODES.PATH_INVALID, {
+        source: 'host',
+        target: targetPath ?? input.hostValue,
+        message: `update --host 要求宿主副本已存在：${input.hostValue}`,
+        remedy: `请先执行 skill-manager reconcile --action repair --id <标识> --host ${input.hostValue}`,
+      }),
+    ],
+    changes: [],
+    data: {
+      host: input.channel.hostId,
+      host_root: input.channel.resolution?.path ?? '',
+      rejected: 'host_copy_missing',
+    },
+  };
+}
+
 /**
  * 安装与刷新的宿主分发：把中心库原件按落位计划分发到宿主真实根。
  *
@@ -89,6 +122,8 @@ export function runHostLanding(input: {
   skillDir: string;
   now: string;
   dryRun: boolean;
+  /** update 只刷新既有副本；缺失时由 reconcile repair 创建。 */
+  requireExisting?: boolean;
 }): { findings: Finding[]; changes: Change[]; data: Record<string, unknown> } {
   const metaRead = readMetaFile(input.skillDir, input.skillDir);
   if (metaRead.raw === null) {
@@ -114,6 +149,12 @@ export function runHostLanding(input: {
   ) {
     return { findings: built.findings, changes: [], data: {} };
   }
+  const missing = missingRequiredCopy({
+    hostValue: input.hostValue,
+    channel: built.channel,
+    ...(input.requireExisting === undefined ? {} : { requireExisting: input.requireExisting }),
+  });
+  if (missing !== undefined) return missing;
   const landed = hostLandingResult({
     command: input.command,
     channel: built.channel,

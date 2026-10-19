@@ -5,10 +5,10 @@ import type { SkillIndex } from '../../../core/metadata/types.ts';
 import { layoutOf } from '../../../store/workspace/index.ts';
 import { withLock } from '../../../store/locking/index.ts';
 import { toKernelError } from '../../../store/errors.ts';
-import { CODES } from '@skill-manager/contract';
+import { CODES, type Finding, type Result } from '@skill-manager/contract';
 import { finding } from '../../../store/findings.ts';
 import { buildResult } from '../../result/index.ts';
-import { flag, option } from '../../parsers/index.ts';
+import { flag, option, type ParsedArgs } from '../../parsers/index.ts';
 import { runHostLanding } from '../../host/index.ts';
 import { pluginKind, workspaceRootOf } from '../../shared/options.ts';
 import type { CommandHandler } from '../types.ts';
@@ -134,6 +134,45 @@ export function toggleHandler(command: 'enable' | 'disable'): CommandHandler {
     });
   };
 }
+
+function updatePreflight(input: {
+  args: ParsedArgs;
+  layout: ReturnType<typeof layoutOf>;
+  index: SkillIndex;
+  id: string;
+  now: string;
+  findings: readonly Finding[];
+}): Result<unknown> | null {
+  const check = flag(input.args, 'check');
+  const targetRef = option(input.args, 'ref');
+  if (check && targetRef !== undefined) {
+    return buildResult('update', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--ref',
+        message: '--ref 不能与 --check 组合',
+        remedy: '--check 只检查当前声明；请用 update --ref <tag> --dry-run 预览目标标签',
+      }),
+    ]);
+  }
+  const hostValue = option(input.args, 'host');
+  if (hostValue === undefined || check) return null;
+  const hostCheck = runHostLanding({
+    command: 'update',
+    hostValue,
+    layout: input.layout,
+    index: input.index,
+    skillDir: join(input.layout.skillsDir, input.id),
+    now: input.now,
+    dryRun: true,
+    requireExisting: true,
+  });
+  if (!hostCheck.findings.some((item) => item.severity === 'error')) return null;
+  return buildResult('update', [...input.findings, ...hostCheck.findings], [], {
+    data: hostCheck.data,
+  });
+}
+
 export const updateHandler: CommandHandler = async ({ args, now, interaction }) => {
   const layout = layoutOf(workspaceRootOf(args));
   const id = args.positionals[0];
@@ -152,16 +191,9 @@ export const updateHandler: CommandHandler = async ({ args, now, interaction }) 
   const check = flag(args, 'check');
   const dryRun = flag(args, 'dry-run');
   const targetRef = option(args, 'ref');
-  if (check && targetRef !== undefined) {
-    return buildResult('update', [
-      finding(CODES.INPUT_INVALID_ARG, {
-        source: 'input',
-        target: '--ref',
-        message: '--ref 不能与 --check 组合',
-        remedy: '--check 只检查当前声明；请用 update --ref <tag> --dry-run 预览目标标签',
-      }),
-    ]);
-  }
+  const hostValue = option(args, 'host');
+  const preflight = updatePreflight({ args, layout, index, id, now, findings });
+  if (preflight !== null) return preflight;
   const updateTarget = option(args, 'target');
   if (!check && !dryRun) {
     const preview = await updateSkill({
@@ -196,7 +228,6 @@ export const updateHandler: CommandHandler = async ({ args, now, interaction }) 
   });
   if (!check && !dryRun && outcome.index !== index) saveIndex(layout.indexFile, outcome.index);
   // 宿主分发通道：刷新后按落位计划把新内容重分发到宿主真实根（不新建副本）
-  const hostValue = option(args, 'host');
   if (
     hostValue !== undefined &&
     !check &&
@@ -211,6 +242,7 @@ export const updateHandler: CommandHandler = async ({ args, now, interaction }) 
       skillDir: join(layout.skillsDir, id),
       now,
       dryRun: false,
+      requireExisting: true,
     });
     return buildResult(
       'update',

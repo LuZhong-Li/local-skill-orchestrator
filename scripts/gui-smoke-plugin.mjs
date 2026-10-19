@@ -1,7 +1,18 @@
 /** 插件视图冒烟流程。 */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { runThirdPartyInventoryCheck } from './gui-smoke-inventory.mjs';
+
+const CLI = fileURLToPath(new URL('../kernel/entry/cli.ts', import.meta.url));
+
+function runKernel(argv) {
+  const result = spawnSync(process.execPath, [CLI, ...argv], { encoding: 'utf8' });
+  if (result.status !== 0) {
+    throw new Error(`GUI smoke kernel setup failed: ${result.stdout ?? result.stderr ?? ''}`);
+  }
+}
 
 export async function runPluginSmoke({ evaluate, waitFor, check, workspace }) {
   // M4b T2：插件视图的真实全流程（安装默认 disabled → enable → x- 宿主分发 → 账本 → 停用/卸载）
@@ -67,11 +78,29 @@ export async function runPluginSmoke({ evaluate, waitFor, check, workspace }) {
       "document.querySelector('[data-host-id=\"x-smoke-tools-zed\"]')?.innerText.includes('可选')",
     )) === true,
   );
+  runKernel([
+    'install',
+    join(workspace, 'plugin-smoke-source'),
+    '--host',
+    'x-smoke-tools-zed',
+    '--workspace',
+    workspace,
+    '--yes',
+  ]);
+  await evaluate('location.reload()');
+  await waitFor('document.querySelector(\'[data-nav="plugins"]\') !== null', 80);
+  await evaluate('document.querySelector(\'[data-nav="plugins"]\')?.click()');
+  await waitFor('document.querySelector(\'[data-testid="plugin-hosts"]\') !== null', 80);
+  await waitFor('document.querySelector(\'[data-host-id="claude"]\') !== null', 80);
+  await waitFor(
+    "[...document.querySelectorAll('[data-testid=\"plugin-hosts\"] option')].some((item) => item.value === 'plugin-smoke-skill')",
+    80,
+  );
   const hostBefore = String(
     await evaluate("document.querySelector('[data-testid=\"plugin-hosts\"]')?.innerText ?? ''"),
   );
   await evaluate(
-    "(() => { const select = document.querySelector('[data-testid=\"plugin-hosts\"] select'); select.value = 'smoke-skill'; select.dispatchEvent(new Event('change', { bubbles: true })); })()",
+    "(() => { const select = document.querySelector('[data-testid=\"plugin-hosts\"] select'); select.value = 'plugin-smoke-skill'; select.dispatchEvent(new Event('change', { bubbles: true })); })()",
   );
   await waitFor(
     'document.querySelector(\'[data-host-id="x-smoke-tools-zed"] button\')?.disabled === false',
@@ -87,7 +116,7 @@ export async function runPluginSmoke({ evaluate, waitFor, check, workspace }) {
   );
   let pluginLanded = false;
   for (let index = 0; index < 80; index += 1) {
-    if (existsSync(join(workspace, '.zed', 'rules', 'smoke-skill.md'))) {
+    if (existsSync(join(workspace, '.zed', 'rules', 'plugin-smoke-skill.md'))) {
       pluginLanded = true;
       break;
     }
@@ -128,7 +157,7 @@ export async function runPluginSmoke({ evaluate, waitFor, check, workspace }) {
   await waitFor('document.querySelector(\'[data-host-id="x-smoke-tools-zed"]\') === null', 60);
   check(
     '停用后第三方宿主从分发区消失，既有副本保留',
-    existsSync(join(workspace, '.zed', 'rules', 'smoke-skill.md')),
+    existsSync(join(workspace, '.zed', 'rules', 'plugin-smoke-skill.md')),
   );
   await waitFor(
     'document.querySelector(\'[data-plugin-id="smoke-tools"] button.danger\')?.disabled === false',
@@ -158,6 +187,6 @@ export async function runPluginSmoke({ evaluate, waitFor, check, workspace }) {
   check(
     '卸载删除插件包但保留 Skill 产物',
     !existsSync(join(workspace, 'plugins', 'smoke-tools')) &&
-      existsSync(join(workspace, '.zed', 'rules', 'smoke-skill.md')),
+      existsSync(join(workspace, '.zed', 'rules', 'plugin-smoke-skill.md')),
   );
 }

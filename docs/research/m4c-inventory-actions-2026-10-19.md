@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作技术调研 |
 | 文档路径 | `docs/research/m4c-inventory-actions-2026-10-19.md` |
-| 文档状态 | **调研完成，待需求 / 设计评审** |
+| 文档状态 | **调研完成，已用于设计评审**（2026-10-19） |
 | 依据 | 需求 9.3.7（M4c 一期）、9.3.8（M4c 二期）、9.4.7、9.5；`docs/specification/host-landings.spec.md`；`docs/specification/cli-contract.md` |
 | 关联 | `docs/research/m4c-host-inventory-2026-10-18.md`、`docs/design/m4c-host-inventory.md`、`docs/plan/m4c-host-inventory.md` |
 | 边界 | 只做代码 / 契约取证与外部惯例分析；不改代码、不改 schema、不改 `docs/reviews/` |
@@ -187,7 +187,7 @@
 
 结论：不推荐。
 
-### 5.4 推荐语法（待评审）
+### 5.4 已采纳语法
 
 ```text
 skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
@@ -235,7 +235,7 @@ skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
 
 1. 由 `--id` 或 frontmatter `name` 生成合法 ID；非法 / 冲突时拒绝；
 2. `source: { type: unknown }`，不猜来源；
-3. `targets` 使用 **显式 `--target`**，或在单宿主且 host id 可作为目标标识时取该 host id；target 只是工作区目标，不是宿主真实根；
+3. `targets` 优先使用显式 `--target`；省略时使用工作区 `default_target`，工作区路径按 `skill_id` 推导，不使用源 host id；target 只是工作区目标，不是宿主真实根；
 4. `path` 按现有约定生成；
 5. `status` 取宿主观测可见性；`version` 仅在符合语义化版本时写入；
 6. `adopt` 结束时必须用现有 `validateMetaRecord` 验证合成元数据，失败则不写中心库。

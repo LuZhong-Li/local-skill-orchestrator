@@ -289,7 +289,11 @@ test('T2 分发链路：已安装 Skill 通过 update --host 落位并写入账�
     0,
   );
   const skill = writeSkillSource(root, 'late-update-skill');
-  assert.equal((await capture(['install', skill, '--workspace', root, '--yes'])).code, 0);
+  assert.equal(
+    (await capture(['install', skill, '--host', 'x-acme-tools-zed', '--workspace', root, '--yes']))
+      .code,
+    0,
+  );
   const updated = await capture([
     'update',
     'late-update-skill',

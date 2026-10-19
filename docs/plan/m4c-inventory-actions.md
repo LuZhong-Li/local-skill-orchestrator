@@ -4,9 +4,9 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作实施计划 |
 | 文档路径 | `docs/plan/m4c-inventory-actions.md` |
-| 文档状态 | **待评审**（需求与设计已产出；本文件只计划，不实现） |
+| 文档状态 | **评审通过，T0 已完成；T1 待启动**（2026-10-19） |
 | 依据 | [`docs/design/m4c-inventory-actions.md`](../design/m4c-inventory-actions.md)；需求 9.3.8、9.3.7；[`docs/research/m4c-inventory-actions-2026-10-19.md`](../research/m4c-inventory-actions-2026-10-19.md) |
-| 基线 | 常规测试 **668 项**（667 通过 + 1 项平台跳过）；`check:arch` 214 文件 / 761 边 / 0 循环；complexity 94；超阈值文件 0 |
+| 基线 | T0 后常规测试 **676 项**（675 通过 + 1 项平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0 |
 | 边界 | 本文不修改代码、契约或 schema；评审批准后才进入 T0 实现 |
 
 ---
@@ -21,9 +21,9 @@
 | R-02 | untracked 默认方向 | `adopt` 导入中心库；`track` 只处理已有工作区且内容一致的副本 |
 | R-03 | drift 默认方向 | 默认 `repair`（工作区）；`accept` 只接受内容 / 可见性 |
 | R-04 | missing 清理 | 默认 `repair`；`forget` 只把确认不存在的记录转 orphaned |
-| R-05 | `adopt` 的 workspace target | 显式 `--target` 优先；单内置宿主可推导 host id；共享根 / x- 宿主必须显式 |
-| R-06 | `clean` 的回滚快照 | 使用操作级临时快照；是否新增用户可见 `host_snapshot` backup 类型留待评审 |
-| R-07 | 插件宿主动作范围 | 先支持 `track / repair / clean / forget`；`adopt / accept` 后置 |
+| R-05 | `adopt` 的 workspace target | 显式 `--target` 优先；省略时使用工作区 `default_target`，路径按 `skill_id` 推导；不使用源 host id |
+| R-06 | `clean` 的回滚快照 | 已定：操作级临时快照，不新增用户可见 backup 类型；成功后清理 |
+| R-07 | 插件宿主动作范围 | 已定：先支持 `track / repair / clean / forget`；`adopt / accept` 后置 |
 
 ### 0.2 全局原则
 
@@ -48,11 +48,11 @@
 | T5 | GUI 动作预览 / 执行 / 刷新 | GUI + 内核动作 | T1~T4 | 从盘点视图进入可确认动作 |
 | T6 | 三平台 e2e、失败注入、发布前门禁 | 无新增产品写面 | T1~T5 | 验收与回归收口 |
 
-> 顺序说明：虽然用户最直观的需求是“先 adopt + missing repair”，但 `adopt` 需要先决定元数据、targets、ID 冲突和来源未知规则；T1 先交付复用现有写原语的 `repair / forget`，能把风险最低的闭环跑通，再进入 T2 的 adopt。若评审要求把 adopt 提前，T0 必须先完成 R-05 并保持 T1 既有的回滚测试作为 adopt 的基础。
+> 顺序说明：虽然用户最直观的需求是“先 adopt + missing repair”，但 `adopt` 需要先决定元数据、targets、ID 冲突和来源未知规则；T1 先交付复用现有写原语的 `repair / forget`，能把风险最低的闭环跑通，再进入 T2 的 adopt。R-05 已定，T2 不再等待该项裁决。
 
 ---
 
-## 2. T0：契约与只读计划
+## 2. T0：契约与只读计划（已完成 2026-10-19）
 
 **目标**：把动作变成稳定、可测试、零写入的计划结构。
 
@@ -71,7 +71,17 @@
 - `scan --inventory` 的静态守卫与动态快照完全不变；
 - 预览 JSON 具备 action / selector / before / after / writes / ledger_changes / backups / hosts / warnings；
 - 不带 `--apply` 的调用零字节变化；
-- 既有 668 项测试与全门禁不回归。
+- 既有 668 项测试与全门禁不回归；T0 新增后为 676 项。
+
+**落地记录**：
+
+| 项 | 结果 |
+|---|---|
+| 指令与选择器 | 第 17 条 `reconcile` 注册；action / path / id+host / classification / root / target / apply / dry-run 校验完成 |
+| 计划类型 | `contract/src/reconcile.ts`：六动作、前后分类、三轴证据、写入、账本变化、共享根事务组与汇总 |
+| 只读预览 | 复用 `inventorySnapshotOf` 与 L-4 对账；预览前后工作区与宿主字节不变；`--apply` 返回 `E-RECONCILE-001` |
+| update 对齐 | `update --host` 缺失副本返回 `E-PATH-001` 并引导 `reconcile repair`，不再隐式创建 |
+| 契约与门槛 | CLI 17 条；问题码 `E-RECONCILE-001/002/003`；`check:arch` 218 文件 / 778 边 / 0 循环；测试 676 项 |
 
 ---
 
@@ -208,7 +218,7 @@
 
 每个实现批次：
 
-1. 不回归 668 项基线；新增动作测试与快照测试计入回填；
+1. 不回归 676 项基线；新增动作测试与快照测试计入回填；
 2. `check:arch` 0 违例、0 循环、0 allowlist；
 3. complexity / 文件规模 ratchet 不新增超标；
 4. `npm test`、`test:slow`、`typecheck`、`lint`、`format:check`、`build`、`smoke:kernel`、`smoke:gui` 全绿；

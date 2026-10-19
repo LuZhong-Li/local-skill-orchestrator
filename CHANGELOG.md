@@ -10,6 +10,17 @@
 - **计划**：T0 契约与只读计划，T1 repair + forget，T2 adopt + track，T3 accept + clean，T4 插件 / 批量，T5 GUI，T6 跨平台收口。
 - **边界**：纯文档批次，不改代码、schema 或契约；常规测试保持 **668 项**；等待评审后再进入实现。
 
+### M4c 二期 T0：reconcile 注册与只读预览（2026-10-19）
+
+- **指令**：新增第 17 条 `reconcile`，接入路由、帮助、确认表与选项解析；`scan --inventory` 继续只读。
+- **计划类型**：`contract/src/reconcile.ts` 定义动作、选择器、前后分类、三轴证据、写入、账本变化、共享根事务组与预览汇总。
+- **只读预览**：复用盘点快照与 L-4 对账，按 path / id+host / classification 选择；预览前后工作区与宿主字节不变。
+- **apply 边界**：T0 的 `--apply` 返回 `E-RECONCILE-001` 与 `applied: false`，不执行写入。
+- **update 对齐**：`update --host` 目标缺失时返回 `E-PATH-001` 并引导 `reconcile --action repair`，不再隐式创建副本。
+- **契约**：CLI 17 条、新增 `E-RECONCILE-001/002/003`；七份规范 / 八份 schema 不变。
+- **验证**：常规 **676 项**（675 通过 + 1 平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0。
+- **边界**：T0 只读骨架，不发版；T1 再实现 `repair + forget`。
+
 ### P1-c：lifecycle 拆分（2026-10-19）
 
 - **入口**：`kernel/core/lifecycle/index.ts` 1738 → **19 行**，只保留公共导出；实现按 `install` / `uninstall` / `toggle` / `update` / `restore` 拆分，共享工具进 `shared.ts`、稳定类型进 `types.ts`。

@@ -62,7 +62,7 @@ export function inventoryOptionsError(args: ParsedArgs): Result<unknown> | null 
   return null;
 }
 
-interface WorkspaceReadState {
+export interface WorkspaceReadState {
   state: 'ok' | 'uninitialized' | 'unreadable';
   index: SkillIndex | null;
   config: Record<string, unknown>;
@@ -139,9 +139,19 @@ function pluginRootsOf(layout: WorkspaceLayout): {
   }
 }
 
-/** 展开内置与已启用插件的候选根；本函数不判断路径是否存在。 */
-export function inventoryScanCommand(plan: InventoryScanPlan): Result<unknown> {
-  const layout = layoutOf(plan.workspaceRoot);
+export interface InventorySnapshot {
+  layout: WorkspaceLayout;
+  workspace: WorkspaceReadState;
+  roots: InventoryRootView[];
+  discovered: ReturnType<typeof discoverInventoryCopies>;
+  reconciled: ReturnType<typeof reconcileInventory>;
+  aggregated: ReturnType<typeof aggregateInventory>;
+  findings: Finding[];
+}
+
+/** 只读生成盘点快照；供 scan --inventory 与 reconcile 预览共用。 */
+export function inventorySnapshotOf(workspaceRoot: string): InventorySnapshot {
+  const layout = layoutOf(workspaceRoot);
   const workspace = readWorkspaceState(layout);
   const builtinRoots = inventoryRootsForAll({
     workspaceRoot: layout.root,
@@ -151,7 +161,8 @@ export function inventoryScanCommand(plan: InventoryScanPlan): Result<unknown> {
     config: workspace.config,
   });
   const plugins = pluginRootsOf(layout);
-  const discovered = discoverInventoryCopies([...builtinRoots, ...plugins.roots]);
+  const roots = [...builtinRoots, ...plugins.roots];
+  const discovered = discoverInventoryCopies(roots);
   const reconciled = reconcileInventory({
     discovery: discovered,
     workspace: { state: workspace.state, index: workspace.index },
@@ -163,16 +174,30 @@ export function inventoryScanCommand(plan: InventoryScanPlan): Result<unknown> {
     corrupt: reconciled.corrupt,
     missing: reconciled.missing,
   });
+  return {
+    layout,
+    workspace,
+    roots,
+    discovered,
+    reconciled,
+    aggregated,
+    findings: [...workspace.findings, ...plugins.findings],
+  };
+}
+
+/** 展开内置与已启用插件的候选根；本函数不判断路径是否存在。 */
+export function inventoryScanCommand(plan: InventoryScanPlan): Result<unknown> {
+  const snapshot = inventorySnapshotOf(plan.workspaceRoot);
   const data: InventoryScanData = {
     mode: 'inventory',
-    workspace: { root: layout.root, state: workspace.state },
-    roots: discovered.roots,
-    hosts: aggregated.hosts,
-    copies: reconciled.copies,
-    corrupt: reconciled.corrupt,
-    missing: reconciled.missing,
-    summary: aggregated.summary,
-    degradation: reconciled.degradation,
+    workspace: { root: snapshot.layout.root, state: snapshot.workspace.state },
+    roots: snapshot.discovered.roots,
+    hosts: snapshot.aggregated.hosts,
+    copies: snapshot.reconciled.copies,
+    corrupt: snapshot.reconciled.corrupt,
+    missing: snapshot.reconciled.missing,
+    summary: snapshot.aggregated.summary,
+    degradation: snapshot.reconciled.degradation,
   };
-  return buildResult('scan', [...workspace.findings, ...plugins.findings], [], { data });
+  return buildResult('scan', snapshot.findings, [], { data });
 }

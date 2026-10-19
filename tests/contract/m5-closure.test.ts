@@ -99,7 +99,7 @@ test('收口审计：多宿主分发按调用次数独立完成，单次调用�
   );
 });
 
-test('收口审计：update --host 在宿主根尚无副本时创建副本并报告', async () => {
+test('收口审计：update --host 在宿主根尚无副本时拒绝并引导 reconcile repair', async () => {
   const ws = makeTempDir('sm-closure-ws-');
   const hostRoot = makeHostRoot('sm-closure-host-');
   assert.equal(await call(['init', '--workspace', ws]), 0);
@@ -119,17 +119,20 @@ test('收口审计：update --host 在宿主根尚无副本时创建副本并报
     'claude',
     '--yes',
   ]);
-  assert.equal(outcome.code, 0);
+  assert.equal(outcome.code, 1);
   assert.equal(
     existsSync(join(hostRoot, 'update-without-copy', 'SKILL.md')),
-    true,
-    '刷新时分发创建副本',
+    false,
+    'update --host 不得隐式创建副本',
   );
-  const changes = (outcome.result['changes'] ?? []) as Array<{ action: string; path: string }>;
-  assert.ok(
-    changes.some((item) => item.action === 'add' && item.path.includes(hostRoot)),
-    `刷新创建副本应报告为新增：${JSON.stringify(changes)}`,
-  );
+  const findings = (outcome.result['findings'] ?? []) as Array<{
+    code: string;
+    remedy: string;
+  }>;
+  assert.equal(findings[0]?.code, 'E-PATH-001');
+  assert.match(findings[0]?.remedy ?? '', /reconcile --action repair/);
+  const data = outcome.result['data'] as Record<string, unknown>;
+  assert.equal(data['rejected'], 'host_copy_missing');
 });
 
 test('收口审计：外部根解析边界（覆盖根为文件、父级不是目录）', async () => {

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { makeTempDir } from '../helpers/temp.ts';
-import { makeHostRoot } from '../helpers/host.ts';
+import { makeHostRoot, writeHostSkill } from '../helpers/host.ts';
 import { makeSkillSource } from '../helpers/skill.ts';
 import { makePluginDir, writePluginManifest } from '../helpers/plugin.ts';
 import type { HostLanding, HostLandingIndex, PluginIndex } from '../../contract/src/index.ts';
@@ -56,8 +56,9 @@ test('L-3 e2e：多宿主单宿主卸载只删指定副本并标 orphaned', () =
   const { root, doubao, agents } = setupWorkspace();
   const source = makeSkillSource('uninstall-skill', { description: '卸载链路' });
   assert.equal(runCli(root, ['install', source, '--host', 'doubao', '--yes']).code, 0);
+  writeHostSkill(agents, 'uninstall-skill', { description: '历史副本' });
   assert.equal(
-    runCli(root, ['update', 'uninstall-skill', '--host', 'agentskills', '--yes']).code,
+    runCli(root, ['enable', 'uninstall-skill', '--host', 'agentskills', '--yes']).code,
     0,
   );
   assert.equal(existsSync(join(doubao, 'uninstall-skill')), true);
@@ -157,16 +158,20 @@ test('L-3 e2e：互斥、非法宿主与无记录均不误删', () => {
   assert.equal(runCli(root, ['uninstall', 'none', '--host', 'doubao', '--yes']).code, 2);
 });
 
-test('L-3 e2e：orphaned 后重新 update 回到 active 且不重复', () => {
+test('L-3 e2e：orphaned 后 update 不隐式创建副本，记录保持 orphaned', () => {
   const { root, doubao } = setupWorkspace();
   const source = makeSkillSource('uninstall-skill', { description: '再激活' });
   assert.equal(runCli(root, ['install', source, '--host', 'doubao', '--yes']).code, 0);
   assert.equal(runCli(root, ['uninstall', 'uninstall-skill', '--host', 'doubao', '--yes']).code, 0);
-  assert.equal(runCli(root, ['update', 'uninstall-skill', '--host', 'doubao', '--yes']).code, 0);
+  const updated = runCli(root, ['update', 'uninstall-skill', '--host', 'doubao', '--yes']);
+  assert.equal(updated.code, 1);
   const records = hostLedger(root).landings.filter((item) => item.skill_id === 'uninstall-skill');
   assert.equal(records.length, 1);
-  assert.equal(records[0]?.state, 'active');
-  assert.equal(existsSync(join(doubao, 'uninstall-skill')), true);
+  assert.equal(records[0]?.state, 'orphaned');
+  assert.equal(existsSync(join(doubao, 'uninstall-skill')), false);
+  const findings = updated.result['findings'] as Array<{ code: string; remedy: string }>;
+  assert.equal(findings[0]?.code, 'E-PATH-001');
+  assert.match(findings[0]?.remedy ?? '', /reconcile --action repair/);
 });
 
 test('L-3 e2e：x- 宿主卸载路由 plugin_index 且不卸载插件包', () => {

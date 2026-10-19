@@ -102,6 +102,32 @@ export function prepareWorkspace(url) {
     ),
   );
 
+  const pluginSkillSource = join(root, 'plugin-smoke-source');
+  mkdirSync(pluginSkillSource, { recursive: true });
+  writeFileSync(join(pluginSkillSource, 'SKILL.md'), '# plugin smoke');
+  writeFileSync(
+    join(pluginSkillSource, 'skill_meta.yaml'),
+    [
+      'id: plugin-smoke-skill',
+      'name: plugin-smoke-skill',
+      'description: plugin smoke skill',
+      'version: 1.0.0',
+      'status: enabled',
+      'path: ./skills/plugin-smoke-skill',
+      'source:',
+      '  type: local',
+      'targets:',
+      '  - target: claude',
+      '    scope: global',
+      '    path: .claude/skills/plugin-smoke-skill',
+      '    mode: copy',
+      '    enabled: true',
+      '    file_map:',
+      '      SKILL.md: SKILL.md',
+      '',
+    ].join('\n'),
+  );
+
   mkdirSync(join(root, 'backups'), { recursive: true });
   createBackup({
     workspaceRoot: root,

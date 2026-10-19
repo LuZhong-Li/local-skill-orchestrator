@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-19T07:31:44.683Z",
+  "generated_at": "2026-10-19T08:52:48.773Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -655,22 +655,22 @@
         "clearedBy": "P1-b"
       },
       {
+        "id": "kernel/dispatch/registry/commands/mutate.ts#<anonymous>#781154d8952a",
+        "file": "kernel/dispatch/registry/commands/mutate.ts",
+        "function": "<anonymous>",
+        "scope": "hostCheck",
+        "signature": "export const updateHandler: CommandHandler = async ({ args, now, interaction }) => {",
+        "complexity": 18,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
         "id": "kernel/dispatch/registry/commands/mutate.ts#<anonymous>#837462e01208",
         "file": "kernel/dispatch/registry/commands/mutate.ts",
         "function": "<anonymous>",
         "scope": "toggleHandler",
         "signature": "return async ({ args, now, interaction }) => {",
         "complexity": 15,
-        "owner": "dispatch",
-        "clearedBy": "P1-b"
-      },
-      {
-        "id": "kernel/dispatch/registry/commands/mutate.ts#<anonymous>#86ea75b0bf5d",
-        "file": "kernel/dispatch/registry/commands/mutate.ts",
-        "function": "<anonymous>",
-        "scope": "outcome",
-        "signature": "export const updateHandler: CommandHandler = async ({ args, now, interaction }) => {",
-        "complexity": 19,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },

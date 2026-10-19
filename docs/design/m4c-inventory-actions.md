@@ -4,9 +4,9 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作设计 |
 | 文档路径 | `docs/design/m4c-inventory-actions.md` |
-| 文档状态 | **设计稿，待评审**（2026-10-19） |
+| 文档状态 | **已评审通过**（2026-10-19；T0 骨架已完成） |
 | 设计依据 | 需求 9.3.8（M4c2-R1 ~ R10）、9.3.7、9.4.7、9.5；`docs/research/m4c-inventory-actions-2026-10-19.md`；`docs/specification/host-landings.spec.md` |
-| 设计边界 | 只设计，不实现、不改 schema、不改 `docs/reviews/`；命令名、动作枚举与关键方向等待评审拍板 |
+| 设计边界 | 设计与契约已评审；本次实现只落 T0 注册 / 只读计划，不改 schema、不改 `docs/reviews/` |
 | 关键前置 | M4c 一期只读验收已通过；host_landings / plugin landings 双源读取；L-4 对账纯函数；现有 `landPlan` / 备份 / 原子写 / 锁 |
 
 > 设计目标不是让盘点“自动修好”，而是把每个候选动作变成可解释的计划：用户知道方向、看到写入、理解证据、确认执行，并在失败时回到操作前状态。
@@ -26,15 +26,16 @@
 7. **物理副本组是共享根的事务单位**：共享路径只写一次，多条 host 账本记录同步更新；
 8. **宿主副本删除使用可回滚事务快照**：不把宿主副本当作可长期恢复的 Skill 备份；工作区内容覆盖使用既有标准备份。
 
-### 0.2 待评审的核心拍板项
+### 0.2 已拍板的核心决策
 
-| 编号 | 推荐 | 需要评审的理由 |
+| 编号 | 裁决 | 落地口径 |
 |---|---|---|
-| D-01 | 新增 `reconcile`，指令数 16 → 17 | 与“尽量不新增指令”的保守倾向冲突，但能避免现有动词语义污染 |
-| D-02 | `adopt` 导入内容到中心库，`track` 仅补账本 | 决定 untracked 是完整纳管还是仅提升为可见的受管副本 |
-| D-03 | drift 默认 `repair`（工作区），`accept` 只接受内容 / 可见性 | 决定 source/version 是否允许宿主反向权威 |
-| D-04 | `clean` 使用操作快照，不新增用户可见 backup 类型 | 决定删除后的可恢复性与 `restore` 语义 |
-| D-05 | 插件 `x-` 宿主先支持 `track / repair / clean / forget` | 决定 adopt / accept 是否要对插件宿主开放 |
+| D-01 | 新增 `reconcile`，指令数 16 → 17 | 独立动作族与只读扫描分离；T0 已注册 |
+| D-02 | `adopt` 导入磁盘实际内容到中心库，`track` 仅补账本 | adopt 不反向解渲染，`source: unknown`；T1+ 实现 |
+| D-03 | drift 默认 `repair`（工作区）；`accept` 只接内容 / 可见性 | source/version 永不从宿主反向接受 |
+| D-04 | adopt 的 target 默认按工作区默认目标与 `skill_id` 推导 | 不使用源 host id；目标冲突提示显式 `--target` |
+| D-05 | `clean` 使用操作级临时快照 | 不新增用户可见 backup 类型；成功后清理快照 |
+| D-06 | 插件 `x-` 先限制 `track / repair / clean / forget` | 插件技能源归插件包，不进入工作区 adopt |
 
 ---
 
@@ -117,7 +118,7 @@
 | 新增 `reconcile` | 17 | 方向、选择、预览、回滚集中；不污染既有生命周期 | 需要新契约、确认表与 GUI 通道 | **推荐** |
 | `adopt` + 扩展其余命令 | 17 | untracked 直观 | 三套语义与回滚仍分散 | 不推荐 |
 
-### 3.2 推荐语法（待评审）
+### 3.2 已采纳语法
 
 ```text
 skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
@@ -149,7 +150,7 @@ skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
 4. **version**：frontmatter `version` 合法时进入元文件，否则省略；
 5. **source**：固定 `{type: unknown}`；不猜 URL / ref / 本地路径；
 6. **status**：可见性 `visible` → `enabled`，`disabled` → `disabled`；
-7. **targets**：优先取 `--target`；省略时，若源是内置宿主，使用源 host id 作为工作区目标标识，`scope` 按 root role 映射（项目根 → `project`，其余 → `global`），`path` 按 `targetRootOf` 约定；共享根或 `x-` 宿主没有唯一目标时要求 `--target`；
+7. **targets**：优先取 `--target`；省略时使用工作区配置的 `default_target`，工作区路径按 `skill_id` 与既有 install 相同的 `.target/skills/<skill_id>` 约定推导；不使用源 host id，也不强制要求 `--target`；目标冲突时提示显式 `--target`；
 8. **path**：`./skills/<id>`；
 9. 合成元文件必须通过现有 `validateMetaRecord`；任何错误都不得写入中心库；
 10. 目标副本仅作为工作区目标镜像，真实宿主副本仍由 `host_landings` 记录；不把工作区 `.host/skills` 误认为宿主真实根。

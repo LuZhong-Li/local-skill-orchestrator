@@ -7,3 +7,4 @@ export * from './host-landing.ts';
 export * from './host-reconciliation.ts';
 export * from './host-roots.ts';
 export * from './host-inventory.ts';
+export * from './reconcile.ts';

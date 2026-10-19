@@ -22,6 +22,7 @@ import { initHandler } from './commands/init.ts';
 import { installHandler, uninstallHandler } from './commands/lifecycle.ts';
 import { restoreHandler } from './commands/restore.ts';
 import { validateHandler } from './commands/validate.ts';
+import { reconcileHandler } from '../reconcile/index.ts';
 import type { CommandContext, CommandHandler, CommandSpec } from './types.ts';
 
 export type { CommandContext, CommandHandler, CommandSpec } from './types.ts';
@@ -44,6 +45,7 @@ export const REGISTERED_COMMANDS = [
   'export',
   'import',
   'restore',
+  'reconcile',
 ] as const;
 
 const handlers = new Map<string, CommandHandler>();
@@ -118,3 +120,4 @@ register({ name: 'disable', handler: toggleHandler('disable') });
 register({ name: 'update', handler: updateHandler });
 register({ name: 'import', handler: importHandler });
 register({ name: 'restore', handler: restoreHandler });
+register({ name: 'reconcile', handler: reconcileHandler });

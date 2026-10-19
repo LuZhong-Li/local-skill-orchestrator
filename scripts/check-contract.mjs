@@ -30,6 +30,7 @@ const EXPECTED_COMMANDS = [
   'export',
   'import',
   'restore',
+  'reconcile',
 ];
 
 /** 结果封装的必填顶层字段 */

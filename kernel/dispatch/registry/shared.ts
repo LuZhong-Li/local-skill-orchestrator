@@ -62,6 +62,7 @@ const ACTION_LABELS: Readonly<Record<string, string>> = {
   update: '刷新',
   import: '导入',
   restore: '恢复',
+  reconcile: '对账动作',
 };
 /** 由预览结果与附加提示组装预期变更摘要 */
 export function planOf(

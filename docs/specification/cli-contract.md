@@ -141,6 +141,7 @@
 | 14 | `export` | 导出元信息与状态 | 是 | 无需 | 0 至 5 |
 | 15 | `import` | 从备份恢复 | 是 | 轻确认 | 0 至 6 |
 | 16 | `restore` | 从备份载体恢复内容 | 是 | 常规确认 | 0 至 5 |
+| 17 | `reconcile` | 对盘点后的宿主副本执行显式动作 | 是 | 常规确认 | 0 至 6 |
 
 指令名是契约的一部分：界面宿主与命令行必须使用同一套指令名，不做任何映射或改写。别名不属于契约，使用别名不得改变行为。
 
@@ -685,6 +686,55 @@
 
 **预演与确认**：常规确认；支持预演。目标位置已有原件时，确认内容必须写明将覆盖现有原件。`--list` 是只读选项，不参与确认流程。
 
+### 4.17 `reconcile`
+
+**用途**：把 `scan --inventory` 发现的宿主副本差异转为显式、可预览的动作。`scan --inventory` 仍然永远只读；本指令是唯一承接盘点动作的写入口。
+
+**语法**：
+
+```text
+skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
+  (--path <物理副本路径> | --id <Skill 标识> --host <宿主|all> |
+   --classification <分类> [--host <宿主|all>] [--root <根路径>...])
+  [--target <工作区目标标识>] [--apply] [--dry-run] [--yes]
+```
+
+**动作语义**：
+
+| 动作 | 方向 | 允许分类 | 写入位置 |
+|---|---|---|---|
+| `adopt` | 宿主 → 工作区 | `untracked`、无工作区的 orphaned 可读副本 | 中心库、合成元文件、索引、工作区目标、宿主账本 |
+| `track` | 宿主 → 账本 | `inferred_consistent` | 内置账本或插件 landings |
+| `repair` | 工作区 → 宿主 | `missing`、`not_distributed`、`drift`、`inferred_drift`、有工作区的 orphaned、可修复的 unreadable | 宿主副本、账本；不改中心库或索引 |
+| `accept` | 宿主 → 工作区 | 内容 / 可见性 drift；有工作区记录 | 中心库、索引、账本；不猜 source / ref |
+| `clean` | 宿主 → 删除 | 有明确物理副本的 orphaned / corrupt / 未纳管目录 | 宿主副本、账本 |
+| `forget` | 账本 → 孤儿 | 副本确认不存在的 `missing` | 账本 |
+
+**选择器与互斥**：
+
+1. `--path` 精确选择一个物理副本；不得与 `--id`、`--host`、`--classification` 混用。
+2. `--id` 必须与 `--host` 同时给出；`--host all` 选择该 Skill 的全部已知宿主副本。
+3. `--classification` 只用于允许分类批量的动作，且必须同时给出 `--host` 或 `--root`；`clean` / `forget` 不接受仅按分类批量。
+4. `--root` 是盘点根过滤器，不是删除授权；路径必须来自最近一次盘点结果。
+5. `--target` 只用于 `adopt`，指定工作区目标；省略时使用工作区默认目标，目标路径按 `skill_id` 推导。目标冲突返回明确错误并提示显式 `--target`。
+6. 本指令不接受裸 `--all`、`--kind` 或位置参数；其他指令专用选项按参数类错误拒绝。
+
+**预览与执行**：
+
+1. **默认是预览**：不带 `--apply` 时，基于只读盘点与对账生成动作计划，不写任何文件、锁、索引、账本或临时目录；
+2. `--apply` 才允许进入执行阶段；`--apply` 与 `--dry-run` 同时出现按参数错误拒绝；
+3. 非终端环境执行必须同时给出 `--apply` 与 `--yes`；缺少 `--yes` 时返回参数类错误；
+4. 执行前重新读取索引、两本账本与选中副本；物理摘要、分类、路径或账本状态变化时返回 `E-RECONCILE-002`，不应用旧计划；
+5. 共享物理副本按事务组处理；单宿主选择与仍被其他宿主消费的共享根冲突时返回 `E-RECONCILE-003`；
+6. `adopt` 的中心库来源是磁盘实际内容，不做反向解渲染；合成元文件的 `source.type` 为 `unknown`；
+7. `accept` 只接受内容和可见性；source / version 漂移不得由宿主副本反向推断，默认使用 `repair`。
+
+**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。T0 阶段始终返回 `applied: false`；带 `--apply` 时返回 `E-RECONCILE-001`，明确写入尚未实现。
+
+**退出码**：参数与选择器错误返回 `2`；动作不适配、尚未实现、计划过期与共享根选择冲突返回 `1`；写入失败按既有 IO / 备份 / 账本派生的退出码处理。
+
+**预演与确认**：常规确认；默认预览不需要确认，`--apply` 才进入确认流程。
+
 ---
 
 ## 5. 输出载荷汇总
@@ -708,6 +758,7 @@
 | `deps` | 依赖条目与检查结论、受影响对象列表 |
 | `export` | 备份路径、条目数量、被剥离项、格式版本 |
 | `import` | 新增、覆盖、冲突、跳过四类条目明细 |
+| `reconcile` | 动作、选择器、前后分类与证据、共享根事务组、写入 / 账本变更 / 备份与逐项状态 |
 
 ---
 
@@ -854,6 +905,7 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 | 39 | 2026-10-18 | 第 2.2 节新增对象类型入口 `--kind skill / plugin`：仅 `scan` / `list` / `inspect` / `install` / `uninstall` / `enable` / `disable` 七条既有指令接受；省略为 `skill`，插件操作必须显式 `--kind plugin`，重复给出按 `E-INPUT-002` 拒绝，其他指令不接受。指令总数仍为 16；插件字段与状态见第六份规范 `plugin-format.md` |
 | 40 | 2026-10-19 | 第 4.4 节新增 `scan --inventory` 只读盘点模式：与 `--kind` / `--root` / `--dry-run` 互斥，允许未初始化工作区；只展开内置与已启用 `x-` 宿主候选根，不读宿主目录、不发现技能、不写索引或 `last_scan_at`。`data.mode` 固定为 `inventory`，并给出 `workspace` 状态与统一根清单字段。指令总数仍为 16，属选项与输出扩展 |
 | 41 | 2026-10-19 | 第 4.4 节扩展 inventory 输出：根增加 state/readable/copy_count/corrupt_count；新增 copies/corrupt/summary。direct/recursive、rules、SKILL.md 识别、`.disabled`、realpath 去重与 corrupt 隔离按 M4c-2 实现；仍不输出对账分类 |
+| 42 | 2026-10-19 | **指令清单由 16 条增至 17 条**：新增第 4.17 节 `reconcile`（六动作、精确路径 / id+host / 分类批量选择、默认预览、`--apply` 才执行、常规确认）；`scan --inventory` 保持只读。T0 阶段 `--apply` 返回 `E-RECONCILE-001`，不执行写入；新增问题码 `E-RECONCILE-001/002/003` |
 | 42 | 2026-10-19 | 第 4.4 节接入 M4c-3 对账：copies/corrupt 增加 reconciliation；active 两账本反查 missing；degradation 显式给出账本状态；插件 content/source 保持 inferred/undetermined，不输出 M4c-4 聚合 |
 | 43 | 2026-10-19 | 第 4.4 节新增 M4c-4 聚合：summary.main / roles / classification_groups、hosts 层级与人类可读摘要；明确 user 主计数、unique_skills、共享根去重、corrupt 不计有效计数、missing 不计有效副本 |
 | 44 | 2026-10-19 | 第 4.4 节新增只读验证条款：静态 fs/写模块守卫与工作区、宿主根递归快照（文件清单、mtime、内容哈希）前后一致；覆盖未初始化、损坏账本、缺失/不可读根与大规模副本 |

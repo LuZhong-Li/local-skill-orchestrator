@@ -13,7 +13,7 @@
 
 ## 1. 功能面
 
-### 1.1 指令：16 条，与契约逐条对应
+### 1.1 指令：17 条，与契约逐条对应
 
 | 序 | 指令 | 类别 | 说明 |
 |---|---|---|---|
@@ -33,6 +33,7 @@
 | 14 | `export` | 备份 | 导出索引状态，剥离未知字段并登记清单 |
 | 15 | `import` | 备份 | 整体校验后逐条登记，既有标识跳过不覆盖 |
 | 16 | `restore` | 备份 | 从备份载体恢复内容：写回中心库、重分发副本、刷新或重建记录 |
+| 17 | `reconcile` | 盘点动作 | T0 已注册：选择器校验与只读动作计划；写入动作按 T1~T3 落地 |
 
 复核：`node kernel/entry/cli.ts --help`，或运行 `npm test` 里的契约测试（断言已注册指令是契约清单的子集）。
 
@@ -41,7 +42,7 @@
 | 项 | 状态 |
 |---|---|
 | Electron 主进程与窗口生命周期 | 已实现，开发模式与打包模式分别解析内核路径 |
-| G-02 内核桥接器 | 已实现：子进程调用、结果解析、十六条指令门面、预览 → 确认 → 执行 |
+| G-02 内核桥接器 | 已实现：子进程调用、结果解析、十六条既有指令门面、预览 → 确认 → 执行；`reconcile` GUI 入口待 T5 |
 | 预加载白名单 | 已实现：`contextBridge` 暴露内核四方法与 `updates` 白名单（检查、设置、确认后 update、提示订阅），构建为 CommonJS 以兼容沙箱 |
 | 渲染层页面 | 已实现：仪表盘卡片列表、详情、安装、校验报告、确认弹窗（含逐文件预览）、**备份管理页**（列出内核产出的备份并恢复）、空工作区引导、操作日志 |
 | 应用图标 | 已实现：程序化绘制、七档尺寸、内嵌进可执行文件与安装包 |
@@ -59,8 +60,8 @@
 | 界面设计 | `docs/ui-design.md` | 一期页面与视觉规范 |
 | 元数据规范 | `docs/specification/skill-meta-spec.md` | 字段定义、18 条校验规则 |
 | 索引格式规范 | `docs/specification/index-format.md` | 三区结构、投影规则、重建流程 |
-| 指令契约 | `docs/specification/cli-contract.md` | 16 条指令、确认强度、缺口登记表 |
-| 结果与退出码规范 | `docs/specification/result-and-exit-codes.md` | 结果封装 8 字段、问题码 66 个、退出码 7 档 |
+| 指令契约 | `docs/specification/cli-contract.md` | 17 条指令、确认强度、缺口登记表 |
+| 结果与退出码规范 | `docs/specification/result-and-exit-codes.md` | 结果封装 8 字段、问题码 69 个、退出码 7 档 |
 | 宿主注册表规范 | `docs/specification/host-registry.spec.md` | 宿主注册表字段与 15 条校验规则（HR-01 ~ HR-15）；`adapter_forms` / `landing_roots` / `inventory_roots` 单一来源；安全控制字段按宿主语义证据准入、外部消费方登记 |
 | 插件格式规范 | `docs/specification/plugin-format.md` | 声明式 host-profile 插件 manifest、独立插件索引、`x-` 命名空间与插件问题码 |
 | 内置宿主账本规范 | `docs/specification/host-landings.spec.md` | `host_landings.yaml` 字段、摘要、共享根、状态机与双源权威等级 |
@@ -68,7 +69,7 @@
 
 ### 2.1 问题码与退出码
 
-- 问题码 66 个，覆盖输入、环境、标识、字段、状态、时间、指纹、语法、依赖、运行时、校验、冲突、路径、索引、版本、来源、备份、宿主账本、锁与文件系统、通道等类别。
+- 问题码 69 个，覆盖输入、环境、标识、字段、状态、时间、指纹、语法、依赖、运行时、校验、冲突、路径、索引、版本、来源、备份、宿主账本、盘点动作、锁与文件系统、通道等类别。
 - 退出码 7 档（0 至 6），派生规则为「命中即停」。
 - **专属优先原则**：指令另有专属退出码规定时优先于通用派生。当前三条指令适用——`validate` 采用 0 至 3 的专属口径；`deps` 与 `enable` 的依赖类分支可达 6；`import` 的格式与指纹校验失败返回 3。
 
@@ -133,7 +134,7 @@
 |---|---|---|
 | 单元测试 | 校验规则、存储原语、生命周期编排、查询与导出、逐文件落位、配置写入、参数解析、桥接层 | `npm test` |
 | 契约测试 | 问题码登记、指令清单子集、选项登记、schema 样例校验与字段一致性 | 同上 |
-| 端到端测试 | 十六条指令的闭环、确认流程、只读断言、导入导出往返 | 同上 |
+| 端到端测试 | 十七条指令的闭环、确认流程、只读断言、导入导出往返 | 同上 |
 | 构建期检查 | 契约校验与分层校验 | `npm run check` |
 | 类型检查 | 内核与界面两侧 | `npm run typecheck` |
 | 界面冒烟 | 真实窗口与真实内核调用 | `npm run smoke:gui` |
@@ -286,7 +287,7 @@
 | 测试 | 新增 4 项契约测试；常规 569 → **573 项**（572 通过 + 1 平台跳过） |
 | 验证 | `npm run check`、`npm test`、typecheck、lint、format:check、build 全绿；`smoke:kernel` 通过，`smoke:gui` 28/28，慢测试 1 项通过 |
 
-> 本节起，当前契约面为 **七份规范 / 八份 schema / 66 个问题码**；第 7 章早期小结中的六份 / 七份表述为当时快照，不再代表当前状态。
+> 本节起，当前契约面为 **七份规范 / 八份 schema / 69 个问题码**；第 7 章早期小结中的六份 / 七份表述为当时快照，不再代表当前状态。
 
 ### 6.8 L-2 内置宿主账本写路径（2026-10-18）
 
@@ -599,10 +600,26 @@
 | 调研 | [`docs/research/m4c-inventory-actions-2026-10-19.md`](research/m4c-inventory-actions-2026-10-19.md)：现有写原语、五个真实缺口、同类工具惯例、`update --host` 契约边界漂移 |
 | 设计 | [`docs/design/m4c-inventory-actions.md`](design/m4c-inventory-actions.md)：六动作矩阵、推荐 `reconcile`、默认预览 + `--apply`、事务与共享根规则 |
 | 计划 | [`docs/plan/m4c-inventory-actions.md`](plan/m4c-inventory-actions.md)：T0 契约 / 只读计划 → T1 repair + forget → T2 adopt + track → T3 accept + clean → T4 插件 / 批量 → T5 GUI → T6 跨平台收口 |
-| 待评审 | 指令数 16 → 17；untracked 导入方向；drift 双向口径；adopt 的 workspace target；clean 的回滚快照 |
-| 边界 | 文档批次，不改代码、schema 或契约；测试基线保持 **668 项** |
+| 裁决 | 新增 17 条 `reconcile`；adopt 导入磁盘实际内容；drift 默认工作区 repair；target 默认按 `default_target + skill_id`；clean 使用临时快照；插件先限四动作 |
+| 边界 | 文档批次已完成；T0 随后落地 `reconcile` 注册与只读预览，详见 6.28 |
 
-> M4c 二期文档已产出，等待需求 / 设计评审后再进入实现。
+> M4c 二期文档已评审通过；T0 已实现。
+
+### 6.28 M4c 二期 T0：reconcile 注册与只读预览（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| 指令 | 新增第 17 条 `reconcile`；`scan --inventory` 保持只读，静态守卫扩展到 reconcile 预览路径 |
+| 选择器 | `--action` / `--path` / `--id + --host` / `--classification + --root|--host`；默认预览，`--apply` 才进入执行阶段 |
+| 计划 | `contract/src/reconcile.ts`：动作、选中副本、前后分类、证据、写入、账本变化、共享根事务组与汇总 |
+| 只读预览 | 复用 `inventorySnapshotOf` 与 L-4 对账；精确 path 只选一个物理副本；预览前后工作区与宿主字节不变 |
+| 未实现边界 | T0 带 `--apply` 返回 `E-RECONCILE-001`，`applied: false`，不伪造写入 |
+| update 对齐 | `update --host` 目标缺失时返回 `E-PATH-001`，引导 `reconcile --action repair`；不再隐式创建副本 |
+| 契约 | CLI 17 条；新增 `E-RECONCILE-001/002/003`；七份规范 / 八份 schema 不变 |
+| 结构 | `check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0 |
+| 测试 | 常规 **676 项**（675 通过 + 1 平台跳过） |
+
+> T0 已收口；下一批 T1 实现 `repair` + `forget`。
 
 ---
 

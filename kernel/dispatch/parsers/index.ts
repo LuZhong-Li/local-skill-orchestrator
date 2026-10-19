@@ -28,6 +28,7 @@ export const BOOLEAN_OPTIONS = new Set([
   'tree',
   'list',
   'inventory',
+  'apply',
 ]);
 
 /**
@@ -51,6 +52,10 @@ export const VALUE_OPTIONS = new Set([
   'ref',
   // 宿主分发入口：取值来自宿主注册表（含按路径类分条的取值，如 cursor / cursor-rules）
   'host',
+  'id',
+  'path',
+  'classification',
+  'action',
 ]);
 
 /**

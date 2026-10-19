@@ -39,6 +39,7 @@ export const CONFIRMATION_TABLE: Readonly<Record<string, ConfirmLevel>> = {
   export: 'none',
   import: 'light',
   restore: 'standard',
+  reconcile: 'standard',
 };
 
 /** 会把级别升档的选项：卸载带 `--hard` 时高于常规级别 */
