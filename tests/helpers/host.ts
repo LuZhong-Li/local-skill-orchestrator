@@ -28,10 +28,6 @@ export function writeHostSkill(root: string, id: string, options: HostSkillOptio
   return dir;
 }
 
-export function makeHostSkill(root: string, id: string, options: HostSkillOptions = {}): string {
-  return writeHostSkill(root, id, options);
-}
-
 export type CorruptHostKind = 'missing' | 'bad-yaml' | 'missing-name';
 
 /** 损坏 / 不可读 / 不合格宿主样本；目录存在但 SKILL.md 不符合识别条件。 */

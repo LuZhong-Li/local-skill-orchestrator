@@ -8,7 +8,7 @@ import { validateWorkspace } from '../../kernel/core/validation/index.ts';
 import { scanWorkspace } from '../../kernel/core/discovery/index.ts';
 import { createInitialIndex, saveIndex } from '../../kernel/core/index/index.ts';
 import { layoutOf, type WorkspaceLayout } from '../../kernel/store/workspace/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import type { SkillIndex } from '../../kernel/core/metadata/types.ts';
 
 const NOW = '2026-10-14T00:00:00Z';

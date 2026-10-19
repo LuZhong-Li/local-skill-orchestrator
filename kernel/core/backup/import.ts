@@ -1,7 +1,8 @@
 /** 导入索引清单。 */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { KernelError, toKernelError } from '../../store/errors.ts';
 import { isDirectory } from '../../store/library-fs/index.ts';
 import { resolveWithin } from '../../store/paths/index.ts';

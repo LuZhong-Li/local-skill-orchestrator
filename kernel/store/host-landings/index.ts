@@ -7,7 +7,8 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
-import { CODES, finding, type Finding } from '../contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../findings.ts';
 import { atomicWriteFile } from '../atomic/index.ts';
 import { parseYaml, stringifyYaml } from '../yaml/index.ts';
 import type { HostLanding, HostLandingIndex, HostLandingVisibility } from '@skill-manager/contract';

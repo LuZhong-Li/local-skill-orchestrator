@@ -12,7 +12,7 @@ import {
   type ProbeRunner,
 } from '../../kernel/core/dependency/runtime.ts';
 import { declaredRuntimeOf } from '../../kernel/core/metadata/read.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 interface Call {
   command: string;

@@ -200,5 +200,3 @@ export const HOST_ROOT_MODELS = {
     ],
   },
 } satisfies Record<string, HostRootModel>;
-
-export type HostRootModelId = keyof typeof HOST_ROOT_MODELS;

@@ -2,7 +2,7 @@
 import { spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, rmSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
-import { CODES } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { KernelError } from '../../store/errors.ts';
 import { META_FILE_NAME } from '../metadata/constants.ts';
 import {

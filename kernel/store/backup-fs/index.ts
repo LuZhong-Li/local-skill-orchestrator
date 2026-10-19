@@ -29,7 +29,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { atomicWriteFile } from '../atomic/index.ts';
-import { CODES } from '../contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { KernelError } from '../errors.ts';
 import { resolveWithin } from '../paths/index.ts';
 import { parseYaml, stringifyYaml } from '../yaml/index.ts';

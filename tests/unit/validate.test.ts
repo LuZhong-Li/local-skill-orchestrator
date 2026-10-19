@@ -6,7 +6,7 @@ import {
   validateMetaRecord,
   validateSource,
 } from '../../kernel/core/metadata/validate.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import type { SkillMeta } from '../../kernel/core/metadata/types.ts';
 
 const ctx = { dirName: 'code-review', dirPath: '/ws/skills/code-review' };

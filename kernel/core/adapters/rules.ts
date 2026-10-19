@@ -8,7 +8,8 @@
  * 说明：本形态是本批唯一新增的形态实现——其余宿主复用技能形态或指令文件形态，
  * 不写宿主专有代码（M5-R7）。
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { stringifyYaml } from '../../store/yaml/index.ts';
 import { hostById } from '../hosts/index.ts';
 import type { ArtifactFile, RenderOutcome, RenderSource } from '../render/types.ts';

@@ -1,7 +1,8 @@
 import { join } from 'node:path';
 import { TOOL_VERSION } from '../../../core/index/index.ts';
 import { layoutOf } from '../../../store/workspace/index.ts';
-import { CODES, finding } from '../../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
+import { finding } from '../../../store/findings.ts';
 import { loadHostRegistry } from '../../../core/hosts/index.ts';
 import { buildResult, type Result } from '../../result/index.ts';
 import { option, type ParsedArgs } from '../../parsers/index.ts';

@@ -25,11 +25,11 @@ import type {
   PluginHostRecord,
   PluginIndex,
   PluginRecord,
-} from '../../kernel/core/plugins/types.ts';
+} from '@skill-manager/contract';
 import { allAdapters } from '../../kernel/core/adapters/index.ts';
 import { hostIds, loadHostRegistry } from '../../kernel/core/hosts/index.ts';
 import { layoutOf } from '../../kernel/store/workspace/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { setConfig } from '../../kernel/core/index/index.ts';
 
 const NOW = '2026-10-17T00:00:00Z';

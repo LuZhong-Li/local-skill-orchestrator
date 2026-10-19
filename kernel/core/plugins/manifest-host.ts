@@ -1,6 +1,6 @@
 /** 插件 host profile 校验。 */
-import { CODES, type Finding } from '../../store/contract.ts';
-import type { PluginHostProfile, PluginRoot } from './types.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import type { PluginHostProfile, PluginRoot } from '@skill-manager/contract';
 import {
   add,
   checkKeys,

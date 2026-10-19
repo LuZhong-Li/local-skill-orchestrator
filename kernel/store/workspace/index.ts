@@ -10,7 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { KernelError } from '../errors.ts';
-import { CODES } from '../contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 export const WORKSPACE_DIR_NAME = '.skill-manager';
 export const INDEX_FILE_NAME = 'skill_index.yaml';

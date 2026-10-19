@@ -20,7 +20,8 @@ import {
 import { computeChecksum, computeDigests, hasHashableContent } from '../integrity/index.ts';
 import { parseYaml } from '../../store/yaml/index.ts';
 import { resolveWithin } from '../../store/paths/index.ts';
-import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
+import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { KernelError } from '../../store/errors.ts';
 import { resolveWorkspaceRoot, type WorkspaceLayout } from '../../store/workspace/index.ts';
 

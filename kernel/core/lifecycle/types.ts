@@ -1,5 +1,5 @@
 /** K-04 lifecycle 的稳定输入与输出类型；不含执行逻辑。 */
-import type { Change, Finding } from '../../store/contract.ts';
+import type { Change, Finding } from '@skill-manager/contract';
 import type { SkillIndex } from '../metadata/types.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 

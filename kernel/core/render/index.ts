@@ -15,7 +15,8 @@
  * 形态边界：本层实现「技能形态」（SKILL.md）与「指令文件降级形态」（AGENTS.md 片段）；
  * 规则路径形态（如 .mdc）属适配器层的逐宿主格式，由 T4 实现。
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { KernelError } from '../../store/errors.ts';
 import { stringifyYaml } from '../../store/yaml/index.ts';
 import { hostById, resolveDeclaredExtensions } from '../hosts/index.ts';

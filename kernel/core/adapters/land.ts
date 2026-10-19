@@ -13,7 +13,8 @@
  */
 import { copyFileSync, mkdirSync, rmdirSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
+import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { KernelError } from '../../store/errors.ts';
 import { atomicWriteFile } from '../../store/atomic/index.ts';
 import { createBackup } from '../../store/backup-fs/index.ts';

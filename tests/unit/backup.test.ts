@@ -13,7 +13,7 @@ import {
   timestampToDirName,
 } from '../../kernel/store/backup-fs/index.ts';
 import { parseYaml } from '../../kernel/store/yaml/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { layoutOf } from '../../kernel/store/workspace/index.ts';
 import { computeChecksum } from '../../kernel/core/integrity/index.ts';
 

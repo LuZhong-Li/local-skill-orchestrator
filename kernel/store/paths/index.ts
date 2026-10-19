@@ -7,7 +7,7 @@
  */
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { KernelError } from '../errors.ts';
-import { CODES } from '../contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 /** 判断 target 解析后是否落在 root 之内（含 root 自身） */
 export function isWithin(root: string, target: string): boolean {

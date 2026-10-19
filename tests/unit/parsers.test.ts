@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BOOLEAN_OPTIONS, parseArgs, VALUE_OPTIONS } from '../../kernel/dispatch/parsers/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 test('L2 参数解析：布尔选项与取值选项分别归位', () => {
   const { args, findings } = parseArgs([

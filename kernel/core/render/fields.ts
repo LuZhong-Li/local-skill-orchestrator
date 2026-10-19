@@ -14,7 +14,8 @@
  *   扩展元数据 ← 版本 / 作者 / 主页 / 标签 / Skill 依赖（标准要求字符串映射，列表转字符串）
  *   触发关键词 → 无标准字段，按降级规则并入描述
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { MAX_COMPATIBILITY_LENGTH, MAX_DESCRIPTION_LENGTH } from '../metadata/constants.ts';
 import type { RenderPolicyInput, RenderSource } from './types.ts';
 

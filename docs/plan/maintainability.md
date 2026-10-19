@@ -4,10 +4,10 @@
 |---|---|
 | 文档名称 | 可维护性建设实施计划 |
 | 文档路径 | `docs/plan/maintainability.md` |
-| 文档状态 | **执行中**（2026-10-18 批准；P0-a ~ P0-d、P1-a/P1-b/P1-c/P1-d、M4c-1 ~ M4c-7 已完成，2026-10-19） |
+| 文档状态 | **已完成**（2026-10-18 批准；P0-a ~ P0-d、P1-a ~ P1-d、P2-1 ~ P2-3、M4c-1 ~ M4c-7 已完成，2026-10-19） |
 | 依据 | [`docs/design/maintainability.md`](../design/maintainability.md)；需求第 10 章（MNT-R1 ~ R9）；`docs/research/maintainability-audit-2026-10-18.md`；M4c 设计 / 计划 |
 | 说明 | 只计划，不实现；每批可独立验证、独立提交；纯重构批不得夹带功能 |
-| 基线 | 计划基线 569（P0-d 后）；当前执行基线 664（P2-1 后：663 通过 + 1 项平台跳过）；0 循环；0 allowlist；94 个 complexity > 10 |
+| 基线 | 计划基线 569（P0-d 后）；最终基线 668（667 通过 + 1 项平台跳过）；0 循环；0 allowlist；94 个 complexity > 10；0 个超阈值文件 |
 
 ---
 
@@ -416,22 +416,31 @@
 | 结构 | 超阈值文件 **4 → 0**；`check:arch` 214 文件 / 800 边 / 0 循环 / 0 allowlist；complexity 保持 **94** |
 | 测试 | 常规 **664 项**（663 通过 + 1 平台跳过） |
 
-### P2-3 TD-06 + 架构依赖图 + 死代码
+### P2-3 TD-06 + 架构依赖图 + 死代码（已完成 2026-10-19）
 
-- 删除 contract 兼容 barrel，引用方直接指向单一来源；
-- 新增 `docs/architecture/dependency-graph.json`，`check:arch` 比较代码图与文档图；
-- 复核无用导出候选并清理；不改变公共 API。
+| 项 | 结果 |
+|---|---|
+| 兼容 barrel | 删除 `kernel/store/contract.ts`、`kernel/core/plugins/types.ts`；`metadata/constants.ts` 的 contract re-export 清零；`scan/types.ts` 不再转出盘点类型；引用方直接指向 `@skill-manager/contract`，finding helper 独立到 `store/findings.ts` |
+| 公共入口 | 仅 `kernel/index.ts` 与 `kernel/dispatch/result/index.ts` 保留显式 contract re-export，TD-06 结构测试锁定该边界 |
+| 依赖图 | `docs/architecture/dependency-graph.json` 由 `npm run arch:graph` 生成；`check:arch-graph` 已接入 `npm run check`，入库图与源码逐字节一致 |
+| 图规模 | 214 个源文件 + 1 个 CSS 资产节点、761 条相对 import、0 循环；`check:arch` 仍为 0 违例 / 0 allowlist |
+| 死代码 | 删除 4 个定义文件外零引用导出：`HostRootModelId`、`SecurityControlField`、`isDigestMap`、`makeHostSkill`；143 个仅文件内使用的 export 与公共契约保留 |
+| 孤立文件 | 除 7 个声明入口外，不存在无入边的源码文件；结构测试锁定入口清单 |
+| 行为 | 纯重构；16 指令、插件、盘点、GUI 行为不变 |
+| 结构 | complexity 保持 **94**；超阈值文件保持 **0** |
+| 测试 | 新增 TD-06 1 项、依赖图/孤立文件 3 项；常规 664 → **668 项**（667 通过 + 1 项平台跳过） |
 
-### P2 剩余基线热点
+### P2 收口基线
 
 - 超阈值文件基线已清零；后续新增代码仍受 core 500 / Vue 800 / tests 1000 / scripts 500 阈值约束；
-- complexity 94 个基线函数保持只减不增，P2-3 继续处理兼容 barrel、架构图与死代码。
+- complexity 94 个基线函数保持只减不增；P2-3 没有新增复杂函数；
+- 兼容 barrel 已清空；依赖图、TD-06 边界与孤立文件由机械测试守住。
 
 **契约 / 规范变更**：无。
 
-**测试**：664 项 + GUI 冒烟；纯重构批不新增功能测试。
+**测试**：668 项 + GUI 冒烟；纯重构批不新增功能测试。
 
-**验收**：文件行数下降；文档图一致；无新增违规；纯重构。
+**验收**：TD-06 关闭；文档图与代码图一致；无超阈值文件、无新增违规、无孤立源码文件；纯重构。
 
 ---
 
@@ -461,7 +470,7 @@ P0-a → P0-b → P0-c → P0-d
 
 | 项 | 计划值 |
 |---|---:|
-| 当前常规测试（P2-1 后） | 664 |
+| 当前常规测试（P2-3 后） | 668 |
 | 纯重构批 | 不新增功能测试；新增门禁 / 反例测试 |
 | 契约规范 | 保持 6，直到 L-1 增至 7 |
 | JSON Schema | 保持 7，直到 L-1 增至 8 |
@@ -469,7 +478,7 @@ P0-a → P0-b → P0-c → P0-d
 | P0 预计新增测试 | 10–12 |
 | P1 预计新增测试 | 7–9 |
 
-实际新增数在实现后回填；每个纯重构批必须至少保持当前基线全绿（664 项：663 通过 + 1 项平台跳过）。
+实际新增数在实现后回填；P2 收口基线为 668 项（667 通过 + 1 项平台跳过）。
 
 ### 5.2 版本
 
@@ -490,24 +499,24 @@ P0-a → P0-b → P0-c → P0-d
 | TD-03 | `W-DRIFT-001` 措辞批次 | 既有遗留 | 按 one-summary 既有登记处理 |
 | TD-04 | `--host all` 对历史无账本副本覆盖有限 | 已知边界 | M4c 标 inferred / untracked；二期处理 |
 | TD-05 | 工作区 + 宿主 + 账本单一事务 | 未闭环 | 当前保证宿主副本 + 账本；更大编排重构另立 |
-| TD-06 | 兼容 re-export barrel：`core/metadata/constants.ts`、`core/plugins/types.ts` | 技术债 | P1/P2 收口时删除，所有引用直接指向 contract |
+| TD-06 | 兼容 re-export barrel：`core/metadata/constants.ts`、`core/plugins/types.ts` | 技术债 | **已关闭（P2-3）**：兼容 barrel 删除，引用直接指向 contract；仅公共入口保留显式 re-export |
 
 ---
 
 ## 7. 验收映射
 
-| 需求 | 批次 | 验收 |
-|---|---|---|
-| MNT-R1 扩展点稳定 | P1-a / P1-b / P1-c / P1-d | 新增宿主 / scan 段 fixture；变更影响矩阵 |
-| MNT-R2 分层与依赖 | P0-a / P0-b | check:arch 0 违规、0 循环、3 条违例清零 |
-| MNT-R3 规模 / 复杂度 | P0-c / P1-c / P1-d / P2 | baseline 只减不增；热点下降 |
-| MNT-R4 单一来源 | P0-b | contract 唯一来源；GUI 无重复类型 / 常量 |
-| MNT-R5 公共 API / 内部边界 | P0-a / P0-b | barrel / deep import 检查 |
-| MNT-R6 架构文档 | P2-3 | 代码图与文档图一致 |
-| MNT-R7 死代码 / 重复 | P2-4 | 无用导出初筛复核；清理 |
-| MNT-R8 测试基建 | P0-d | 120 处 mkdtemp 锁定 / 复用 |
-| MNT-R9 审计与治理 | 全部 | 每批影响声明、基线、例外到期 |
-| M-R-21 结构改造回归 | 全部 | 664 项起逐批全绿、纯重构 |
+| 需求 | 批次 | 验收证据 | 最终状态 |
+|---|---|---|---|
+| MNT-R1 扩展点稳定 | P1-a / P1-b / P1-c / P1-d | 宿主单一注册表 synthetic 测试；scan / lifecycle / manifest 按职责拆分；新增宿主步骤由结构测试锁定 | 闭环 |
+| MNT-R2 分层与依赖 | P0-a / P0-b | `check:arch` 214 文件 / 761 边 / 0 违例 / 0 循环 / 0 allowlist | 闭环 |
+| MNT-R3 规模 / 复杂度 | P0-c / P1-c / P1-d / P2 | 超阈值文件 0；complexity 94；双向棘轮 `up` / `down` / `missing` 均拦截 | 闭环 |
+| MNT-R4 单一来源 | P0-b / P2-3 | contract 唯一来源；TD-06 兼容 barrel 清零；GUI 无重复契约类型 / 常量 | 闭环 |
+| MNT-R5 公共 API / 内部边界 | P0-a / P0-b | GUI / scripts 禁止 kernel 内部引用；公共入口 re-export 白名单由 TD-06 测试锁定 | 闭环 |
+| MNT-R6 架构文档 | P2-3 | `docs/architecture/dependency-graph.json` 可复现；`check:arch-graph` 逐字节比较源码图与入库图 | 闭环 |
+| MNT-R7 死代码 / 重复 | P2-3 | 删除 4 项零外部引用导出；143 个内部-only export 保守保留；入口外孤立源码文件断言 | 闭环 |
+| MNT-R8 测试基建 | P0-d | 直接 `mkdtemp` 82 → 0；`check:test-fixtures` 锁定基线 0；共享 helper 复用 | 闭环 |
+| MNT-R9 审计与治理 | 全部 | 每批影响声明、基线更新与 CHANGELOG 回填；allowlist 为空且循环永不进入 | 闭环 |
+| M-R-21 结构改造回归 | 全部 | 664 项起逐批全绿；P2-3 收口 668 项（667 + 1 跳过）、纯重构 | 闭环 |
 
 ---
 
@@ -516,7 +525,7 @@ P0-a → P0-b → P0-c → P0-d
 每批提交前：
 
 1. 本批只做一类变化；纯重构与功能严格分离；
-2. `npm test` 664 项全绿（663 + 1 跳过）；慢测试 / GUI 冒烟按口径；
+2. `npm test` 668 项全绿（667 + 1 跳过）；慢测试 / GUI 冒烟按口径；
 3. `check:arch` 0 未登记违规；
 4. complexity / max-lines 基线未放宽；
 5. `contract/` 无 kernel/gui import、零运行时依赖；

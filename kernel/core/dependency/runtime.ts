@@ -14,7 +14,8 @@
  */
 import { spawn } from 'node:child_process';
 import semver from 'semver';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { SkillRuntimeDependency } from '../metadata/types.ts';
 
 /** 探测结论：可用性、版本判定与各类失败 */

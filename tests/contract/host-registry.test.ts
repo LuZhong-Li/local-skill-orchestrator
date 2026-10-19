@@ -14,7 +14,7 @@ import {
 } from '../../kernel/core/hosts/index.ts';
 import { validateHostRegistry } from '../../kernel/core/hosts/validate.ts';
 import { SECURITY_CONTROL_FIELDS, type HostEntry } from '../../kernel/core/hosts/types.ts';
-import type { Finding } from '../../kernel/store/contract.ts';
+import type { Finding } from '@skill-manager/contract';
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 

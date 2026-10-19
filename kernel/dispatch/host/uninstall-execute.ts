@@ -1,7 +1,8 @@
 import { renameSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
+import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import { saveHostLandings } from '../../store/host-landings/index.ts';

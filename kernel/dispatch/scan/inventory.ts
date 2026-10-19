@@ -1,7 +1,7 @@
 /** scan --inventory：只读展开根清单并发现物理副本；不做对账。 */
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import type { InventoryRootView } from '@skill-manager/contract';
+import type { InventoryRootView, InventoryScanData } from '@skill-manager/contract';
 import { loadIndex, TOOL_VERSION } from '../../core/index/index.ts';
 import { inventoryRootsForAll } from '../../core/hosts/inventory.ts';
 import { loadHostRegistry } from '../../core/hosts/index.ts';
@@ -10,12 +10,13 @@ import { aggregateInventory } from './aggregate.ts';
 import { reconcileInventory } from './reconcile.ts';
 import { loadPluginCatalog } from '../../core/plugins/host.ts';
 import { inventoryRootsForPluginCatalog } from '../../core/plugins/inventory.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { layoutOf, type WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { ParsedArgs } from '../parsers/index.ts';
 import { buildResult, type Result } from '../result/index.ts';
-import type { InventoryScanData, InventoryScanPlan } from './types.ts';
+import type { InventoryScanPlan } from './types.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 
 const INVENTORY_ALLOWED_OPTIONS = new Set([

@@ -13,7 +13,8 @@
  *   强制二次确认 → standard（独立确认，逐条列出影响范围）；
  *   `--hard` 在卸载上再升一档 → strict（在常规之上单独指明永久删除）。
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 
 export type ConfirmLevel = 'none' | 'light' | 'standard' | 'strict';
 

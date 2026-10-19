@@ -1,5 +1,6 @@
 /** 宿主落位结果与内置账本写入。 */
-import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
+import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { join } from 'node:path';
 import { KernelError, toKernelError } from '../../store/errors.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';

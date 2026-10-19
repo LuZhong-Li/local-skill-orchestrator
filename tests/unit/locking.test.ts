@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resetLocks, withLock, withProcessLock } from '../../kernel/store/locking/index.ts';
 import { KernelError } from '../../kernel/store/errors.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 test('S-04 同一 key 的调用串行执行', async () => {
   resetLocks();

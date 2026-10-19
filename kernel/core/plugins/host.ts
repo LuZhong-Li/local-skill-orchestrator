@@ -7,7 +7,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { isWithin } from '../../store/paths/index.ts';
 import { stringifyYaml } from '../../store/yaml/index.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
@@ -23,7 +24,7 @@ import type {
   PluginLanding,
   PluginManifest,
   PluginRecord,
-} from './types.ts';
+} from '@skill-manager/contract';
 import { loadPluginIndex } from '../../store/plugin-registry/index.ts';
 
 export interface LoadedPluginCatalog {

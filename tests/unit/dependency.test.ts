@@ -7,7 +7,7 @@ import {
   splitDeclaration,
   type Availability,
 } from '../../kernel/core/dependency/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 function graphOf(entries: Record<string, string[]>): Map<string, string[]> {
   return new Map(Object.entries(entries));

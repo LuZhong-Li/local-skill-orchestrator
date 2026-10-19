@@ -1,21 +1,7 @@
 /** scan 指令的稳定计划与结果类型；不包含执行逻辑。 */
 import type { ScanSummary } from '../../core/discovery/index.ts';
-import type { PluginIndex } from '../../core/plugins/types.ts';
+import type { PluginIndex } from '@skill-manager/contract';
 import type { ParsedArgs } from '../parsers/index.ts';
-
-export type {
-  InventoryCopyObservation,
-  InventoryCopySource,
-  InventoryCorruptCopy,
-  InventoryDiscoveryResult,
-  InventoryDiscoverySummary,
-  InventoryRootObservation,
-  InventoryRootState,
-  InventoryScanData,
-  MissingInventoryCopy,
-  ReconciledInventoryCopy,
-  ReconciledInventoryCorruptCopy,
-} from '@skill-manager/contract';
 
 /** M4c-1 将增加 inventory；本批只生成 workspace 计划。 */
 export type ScanMode = 'workspace' | 'inventory';

@@ -27,7 +27,8 @@ import {
   listBackups,
   verifyBackup,
 } from '../../store/backup-fs/index.ts';
-import { CODES, finding, type Change } from '../../store/contract.ts';
+import { CODES, type Change } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import type { LifecycleOutcome, RestoreInput } from './types.ts';
 import { planOf, projectRecord, rebuildRecord, safeDigests, toFinding } from './shared.ts';

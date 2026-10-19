@@ -8,7 +8,8 @@
  * 本模块只做路径展开与声明组装，不含任何写盘动作：写盘由 T5 的落位扩展执行。
  */
 import { basename, join } from 'node:path';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { hostById } from '../hosts/index.ts';
 import type { RootKind } from '../hosts/types.ts';
 import type { ArtifactFile } from '../render/types.ts';

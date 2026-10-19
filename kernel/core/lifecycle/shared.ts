@@ -12,7 +12,8 @@ import {
 } from '../targets/resolver/index.ts';
 import { parseYaml, stringifyYaml } from '../../store/yaml/index.ts';
 import { atomicWriteFile } from '../../store/atomic/index.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { KernelError, toKernelError } from '../../store/errors.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { LifecycleOutcome } from './types.ts';

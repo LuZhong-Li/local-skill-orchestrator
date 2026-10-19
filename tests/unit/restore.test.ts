@@ -14,7 +14,7 @@ import { createInitialIndex } from '../../kernel/core/index/index.ts';
 import { scanWorkspace } from '../../kernel/core/discovery/index.ts';
 import { computeChecksum, computeDigests } from '../../kernel/core/integrity/index.ts';
 import { layoutOf, ensureWorkspaceDirs } from '../../kernel/store/workspace/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import {
   BACKUP_CONTENT_DIR_NAME,
   BACKUP_META_FILE_NAME,

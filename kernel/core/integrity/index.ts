@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { META_FILE_NAME } from '../metadata/constants.ts';
-import { CODES } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { KernelError } from '../../store/errors.ts';
 import { DISABLED_SUFFIX, SKILL_MD_NAME } from '@skill-manager/contract';
 
@@ -143,14 +143,6 @@ export function computeDigests(skillDir: string): Record<string, string> {
       .digest('hex')}`;
   }
   return digests;
-}
-
-/** 逐文件摘要的取值是否合规 */
-export function isDigestMap(value: unknown): value is Record<string, string> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-  return Object.entries(value as Record<string, unknown>).every(
-    ([key, digest]) => key !== '' && typeof digest === 'string' && isChecksumFormat(digest),
-  );
 }
 
 /** 校验指纹的表示形式是否合规 */

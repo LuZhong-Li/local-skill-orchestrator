@@ -10,7 +10,8 @@
  *
  * 边界：本模块不含任何渲染、落位与适配器逻辑（属 T3 / T4 / T5）。
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { KernelError } from '../../store/errors.ts';
 import { HOST_REGISTRY_DATA } from './registry-data.ts';
 import { asHostRegistry, errorsOf, isSelectable, validateHostRegistry } from './validate.ts';

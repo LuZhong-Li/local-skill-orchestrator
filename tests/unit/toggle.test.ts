@@ -7,7 +7,7 @@ import { disableSkill, enableSkill, updateSkill } from '../../kernel/core/lifecy
 import { scanWorkspace } from '../../kernel/core/discovery/index.ts';
 import { createInitialIndex } from '../../kernel/core/index/index.ts';
 import { layoutOf, ensureWorkspaceDirs } from '../../kernel/store/workspace/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import type { SkillIndex } from '../../kernel/core/metadata/types.ts';
 
 const NOW = '2026-10-15T00:00:00Z';

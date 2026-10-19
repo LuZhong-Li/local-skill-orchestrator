@@ -6,7 +6,8 @@ import { createInitialHostLandings, saveHostLandings } from '../../../store/host
 import { ensureWorkspaceDirs, layoutOf } from '../../../store/workspace/index.ts';
 import { withLock } from '../../../store/locking/index.ts';
 import { toKernelError } from '../../../store/errors.ts';
-import { CODES, finding } from '../../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
+import { finding } from '../../../store/findings.ts';
 import { buildResult, type Change } from '../../result/index.ts';
 import { workspaceRootOf } from '../../shared/options.ts';
 import type { CommandHandler } from '../types.ts';

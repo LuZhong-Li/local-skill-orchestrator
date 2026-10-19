@@ -17,7 +17,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SOURCE_TYPE_VALUES } from '../metadata/constants.ts';
-import { CODES } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { KernelError } from '../../store/errors.ts';
 import { SOURCE_MAX_OUTPUT_BYTES, SOURCE_TIMEOUT_MS } from '@skill-manager/contract';
 

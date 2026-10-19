@@ -10,7 +10,8 @@
  *   影响面分析是本模块自己的职责，但同样建立在 K-01 给出的判定结果之上。
  * 本模块只分析、只报告，不自动安装任何依赖，只接收纯数据，不读写文件。
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { findCycles, judgeDependency, type AvailabilityMap } from '../metadata/validate.ts';
 
 /** 依赖目标的可用性：在索引中且运行期结论为校验通过 */

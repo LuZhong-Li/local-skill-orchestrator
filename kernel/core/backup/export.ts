@@ -2,7 +2,8 @@
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { atomicWriteFile } from '../../store/atomic/index.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { KernelError, toKernelError } from '../../store/errors.ts';
 import { resolveWithin } from '../../store/paths/index.ts';
 import { stringifyYaml } from '../../store/yaml/index.ts';

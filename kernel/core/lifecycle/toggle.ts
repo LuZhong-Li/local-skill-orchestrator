@@ -7,7 +7,8 @@ import {
   pathExists,
   setCopyVisibility,
 } from '../../store/library-fs/index.ts';
-import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
+import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import type { LifecycleOutcome, ToggleInput } from './types.ts';
 import { notRegistered, planOf, targetsOfRecord, toFinding, withTargets } from './shared.ts';

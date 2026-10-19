@@ -1,7 +1,7 @@
 /** 宿主分发通道的公共入口。 */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { Change, Finding } from '../../store/contract.ts';
+import type { Change, Finding } from '@skill-manager/contract';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import { META_FILE_NAME } from '../../core/metadata/constants.ts';

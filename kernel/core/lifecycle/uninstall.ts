@@ -14,7 +14,8 @@ import {
   removeTree,
 } from '../../store/library-fs/index.ts';
 import { toPortablePath } from '../../store/paths/index.ts';
-import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
+import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import type { LifecycleOutcome, UninstallInput } from './types.ts';
 import { toFinding } from './shared.ts';

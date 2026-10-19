@@ -81,11 +81,16 @@ test('契约：未初始化工作区有盘点入口，只读占位与角色折�
 
 test('契约：盘点结果类型只来自 contract', () => {
   const scanTypes = read('kernel/dispatch/scan/types.ts');
-  assert.match(
-    scanTypes,
-    /export type \{[\s\S]*InventoryScanData,[\s\S]*\} from '@skill-manager\/contract';/,
+  assert.equal(
+    /export\s+type\s*\{[\s\S]*\}\s+from\s+['"]@skill-manager\/contract['"]/.test(scanTypes),
+    false,
   );
   assert.equal(scanTypes.includes('export interface InventoryScanData'), false);
+  const inventory = read('kernel/dispatch/scan/inventory.ts');
+  assert.match(
+    inventory,
+    /InventoryRootView,\s*InventoryScanData\s*\} from '@skill-manager\/contract';/,
+  );
   const contract = read('contract/src/host-inventory.ts');
   assert.match(contract, /export interface InventoryScanData/);
 });

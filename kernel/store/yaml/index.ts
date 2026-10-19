@@ -7,7 +7,7 @@
  */
 import { parse, stringify } from 'yaml';
 import { KernelError } from '../errors.ts';
-import { CODES } from '../contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 export interface YamlContext {
   source: string;

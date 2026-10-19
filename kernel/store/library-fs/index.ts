@@ -11,7 +11,7 @@
 import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { KernelError } from '../errors.ts';
-import { CODES } from '../contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { DISABLED_SUFFIX, SKILL_MD_NAME } from '@skill-manager/contract';
 
 /** 副本内被改名的文件：技能元数据文件本身 */

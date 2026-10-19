@@ -1,7 +1,8 @@
 import { saveIndex } from '../../../core/index/index.ts';
 import { importIndex } from '../../../core/backup/index.ts';
 import { layoutOf } from '../../../store/workspace/index.ts';
-import { CODES, finding } from '../../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
+import { finding } from '../../../store/findings.ts';
 import { buildResult } from '../../result/index.ts';
 import { flag, option } from '../../parsers/index.ts';
 import { workspaceRootOf } from '../../shared/options.ts';

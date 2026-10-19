@@ -7,7 +7,7 @@
  * 渲染与落位解耦：本层的产物是**内存中的文件集合**（路径 + 文本），一律不写盘；
  * 落盘与受控副本由 T5 的落位扩展处理，适配器不自己写盘。
  */
-import type { Finding } from '../../store/contract.ts';
+import type { Finding } from '@skill-manager/contract';
 import type { DegradeForm, FieldMode, SecurityControlEvidence } from '../hosts/types.ts';
 
 /** 规范化的内部技能表示：渲染层的唯一输入形态 */

@@ -10,10 +10,10 @@ import { installSkill, updateSkill } from '../../kernel/core/lifecycle/index.ts'
 import { validateWorkspace } from '../../kernel/core/validation/index.ts';
 import { exportIndex, importIndex } from '../../kernel/core/backup/index.ts';
 import { layoutOf } from '../../kernel/store/workspace/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { parseYaml } from '../../kernel/store/yaml/index.ts';
 import { readFileSync } from 'node:fs';
-import type { Finding } from '../../kernel/store/contract.ts';
+import type { Finding } from '@skill-manager/contract';
 import type { IndexRecord, SkillIndex } from '../../kernel/core/metadata/types.ts';
 
 const NOW = '2026-10-15T00:00:00Z';

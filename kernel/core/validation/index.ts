@@ -1,5 +1,6 @@
 /** K-05 校验引擎入口：工作区编排与公共导出。 */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { SkillMeta } from '../metadata/types.ts';
 import {
   validateDependencies,

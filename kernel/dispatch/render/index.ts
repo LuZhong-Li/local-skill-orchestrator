@@ -4,7 +4,7 @@
  * 三种通道承载同一份信息：人类可读文本、机器可读结构、机器表格。
  * 结构化输出是权威形态，其余两种由它派生，不得增删语义。
  */
-import type { Result } from '../../store/contract.ts';
+import type { Result } from '@skill-manager/contract';
 import type { InventoryHostNode, InventorySummary } from '@skill-manager/contract';
 
 export interface RenderOptions {

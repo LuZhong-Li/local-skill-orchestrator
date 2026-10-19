@@ -4,7 +4,7 @@
  * 只把已校验 manifest 转成插件索引记录；默认 disabled，不启用、不落位、不读盘。
  */
 import { canonicalHostId } from './manifest.ts';
-import type { PluginManifest, PluginRecord, PluginState } from './types.ts';
+import type { PluginManifest, PluginRecord, PluginState } from '@skill-manager/contract';
 
 export function createPluginRecord(input: {
   manifest: PluginManifest;

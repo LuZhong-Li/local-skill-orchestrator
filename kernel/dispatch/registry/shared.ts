@@ -4,7 +4,8 @@ import { loadIndex } from '../../core/index/index.ts';
 import { type LifecycleOutcome } from '../../core/lifecycle/index.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import { layoutOf } from '../../store/workspace/index.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { buildResult, type Result } from '../result/index.ts';
 import { flag, type ParsedArgs } from '../parsers/index.ts';
 import {

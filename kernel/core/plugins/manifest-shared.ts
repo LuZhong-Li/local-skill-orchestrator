@@ -6,8 +6,9 @@
  * 本模块负责 schema 无法表达的跨字段约束（form/kind、占位符、禁用字段）。
  */
 import semver from 'semver';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
-import type { PluginManifest } from './types.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
+import type { PluginManifest } from '@skill-manager/contract';
 
 export const PLUGIN_MANIFEST_VERSION = '1' as const;
 export const PLUGIN_API_VERSION = '1' as const;

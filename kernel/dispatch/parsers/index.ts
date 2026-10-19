@@ -4,7 +4,8 @@
  * 只做参数层面的处理：识别全局选项、区分位置参数、产出结构性错误。
  * 不包含任何领域规则。
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 
 /** 选项规格：布尔选项不带取值，取值选项必须带一个值 */
 export const BOOLEAN_OPTIONS = new Set([

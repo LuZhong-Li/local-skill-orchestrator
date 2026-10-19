@@ -26,7 +26,8 @@ import {
 } from './constants.ts';
 import type { SkillMeta } from './types.ts';
 import { copyPathOf, matchesConvention } from './targets.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { isChecksumFormat } from '../integrity/index.ts';
 
 export interface MetaContext {

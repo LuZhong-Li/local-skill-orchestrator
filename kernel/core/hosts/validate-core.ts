@@ -1,5 +1,6 @@
 /** host 注册表顶层、身份、状态与消费关系校验。 */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import {
   EVIDENCE_LEVELS,
   FIRST_HAND_EVIDENCE_LEVELS,

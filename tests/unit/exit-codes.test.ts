@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { exitCodeFor } from '../../kernel/dispatch/result/index.ts';
-import type { Finding } from '../../kernel/store/contract.ts';
+import type { Finding } from '@skill-manager/contract';
 
 const error = (code: string, source: string, target = 'x'): Finding => ({
   code,

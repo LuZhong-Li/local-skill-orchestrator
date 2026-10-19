@@ -1,7 +1,7 @@
 /** 插件 manifest 顶层校验。 */
 import semver from 'semver';
-import { CODES, type Finding } from '../../store/contract.ts';
-import type { PluginHostProfile, PluginManifest, PluginSource } from './types.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import type { PluginHostProfile, PluginManifest, PluginSource } from '@skill-manager/contract';
 import {
   add,
   checkKeys,

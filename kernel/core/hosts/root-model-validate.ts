@@ -1,5 +1,6 @@
 /** 宿主注册表扩展结构校验：adapter_forms / landing_roots / inventory_roots。 */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 
 const SOURCE = 'host-registry';
 const ADAPTER_FORMS = ['skill', 'rules', 'entry'];

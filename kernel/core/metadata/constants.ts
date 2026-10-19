@@ -4,7 +4,6 @@
  */
 
 export const META_FILE_NAME = 'skill_meta.yaml';
-export { DISABLED_SUFFIX, SKILL_MD_NAME } from '@skill-manager/contract';
 
 /** 名称长度上限 */
 export const MAX_NAME_LENGTH = 64;

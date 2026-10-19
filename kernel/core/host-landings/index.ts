@@ -5,7 +5,7 @@
  * 调用调用方提供的物理回滚。物理副本的写盘与摘要计算仍由 adapters /
  * integrity 承担，本模块不直接写宿主目录。
  */
-import { CODES } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { KernelError, toKernelError } from '../../store/errors.ts';
 import {
   findHostLanding,

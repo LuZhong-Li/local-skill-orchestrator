@@ -8,7 +8,7 @@ import { closeSync, fsyncSync, openSync, renameSync, rmSync, writeFileSync } fro
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { KernelError } from '../errors.ts';
-import { CODES } from '../contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 export interface AtomicWriteOptions {
   /** 注入点：写入临时文件之后、替换目标之前调用，用于测试中断路径 */

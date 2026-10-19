@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isWithin, resolveWithin, toPortablePath } from '../../kernel/store/paths/index.ts';
 import { KernelError } from '../../kernel/store/errors.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 const root = process.platform === 'win32' ? 'C:\\workspace' : '/workspace';
 

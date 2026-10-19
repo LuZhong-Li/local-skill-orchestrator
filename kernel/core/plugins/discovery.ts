@@ -7,10 +7,11 @@
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { isWithin } from '../../store/paths/index.ts';
 import { validatePluginManifest } from './manifest.ts';
-import type { PluginManifest } from './types.ts';
+import type { PluginManifest } from '@skill-manager/contract';
 
 export const PLUGIN_MANIFEST_FILE = 'plugin.json';
 export const PLUGIN_MANIFEST_MAX_BYTES = 256 * 1024;

@@ -6,7 +6,8 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { KernelError } from '../../store/errors.ts';
 import { parseYaml } from '../../store/yaml/index.ts';
 import { META_FILE_NAME } from './constants.ts';

@@ -1,5 +1,6 @@
 /** 宿主分发通道的取值解析与落位计划组装。 */
-import { CODES, finding, type Change, type Finding } from '../../store/contract.ts';
+import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import { adapterFor } from '../../core/adapters/index.ts';

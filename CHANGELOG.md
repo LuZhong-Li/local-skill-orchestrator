@@ -38,6 +38,17 @@
 - **验证**：664 项测试、`smoke:gui` 40/40、bench 实跑通过。
 - **边界**：纯重构，不发版；下一批 P2-3。
 
+### P2-3：TD-06、依赖图与死代码收口（2026-10-19）
+
+- **TD-06**：删除 `kernel/store/contract.ts`、`kernel/core/plugins/types.ts`；`metadata/constants.ts` 的 contract re-export 清零，`scan/types.ts` 不再转出盘点类型；finding helper 独立到 `store/findings.ts`。
+- **引用迁移**：内核 / GUI / scripts / tests 直接引用 `@skill-manager/contract`；仅 `kernel/index.ts` 与 `kernel/dispatch/result/index.ts` 保留公共入口 re-export。
+- **依赖图**：新增 `docs/architecture/dependency-graph.json` 与 `npm run arch:graph`；`check:arch-graph` 接入 `npm run check`，逐字节比较入库图与源码生成结果。当前 214 源文件 + 1 资产节点、761 条相对 import、0 循环、0 allowlist。
+- **死代码**：删除定义文件外零引用的 `HostRootModelId`、`SecurityControlField`、`isDigestMap`、`makeHostSkill`；143 个仅文件内使用的 export 与公共契约保留。
+- **孤立文件**：除 7 个声明入口外，结构测试确认不存在无入边的源码文件。
+- **结构**：complexity 保持 **94**；超阈值文件保持 **0**；无新增复杂函数。
+- **验证**：新增 4 项结构/契约测试；常规 **668 项**（667 通过 + 1 平台跳过）、慢测试、`smoke:kernel`、`smoke:gui` 与全门禁通过。
+- **边界**：纯重构，不发版；第 10 章 MNT-R1 ~ R9 全部闭环。
+
 ## 0.4.0
 
 > 状态：**已发布为 latest**（[v0.4.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.4.0)）。范围见 [`docs/plan/v0.4.0-acceptance.md`](docs/plan/v0.4.0-acceptance.md)。

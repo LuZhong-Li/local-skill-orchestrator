@@ -1,6 +1,7 @@
 /** scan 结果组装：保持既有 8 字段封装、数据字段与预览标记。 */
 import type { ScanOutcome } from '../../core/discovery/index.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { WORKSPACE_ENV, type WorkspaceLayout } from '../../store/workspace/index.ts';
 import { buildResult, type Result } from '../result/index.ts';

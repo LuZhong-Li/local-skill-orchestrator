@@ -4,7 +4,8 @@
  * 各命令处理器、宿主切换与共享确认逻辑已拆分到本目录模块；
  * 本文件只保留指令清单、注册表和统一路由。
  */
-import { CODES, finding } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { buildResult, type Result } from '../result/index.ts';
 import { option } from '../parsers/index.ts';
 import { scanHandler } from '../scan/index.ts';

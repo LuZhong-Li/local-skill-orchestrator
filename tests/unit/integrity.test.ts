@@ -10,7 +10,7 @@ import {
   isChecksumFormat,
 } from '../../kernel/core/integrity/index.ts';
 import { META_FILE_NAME } from '../../kernel/core/metadata/constants.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 function skillDir(files: Record<string, string>): string {
   const dir = makeTempDir('sm-hash-');

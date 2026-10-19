@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { REGISTERED_COMMANDS } from '../../kernel/dispatch/registry/index.ts';
 import { BOOLEAN_OPTIONS, VALUE_OPTIONS } from '../../kernel/dispatch/parsers/index.ts';
 

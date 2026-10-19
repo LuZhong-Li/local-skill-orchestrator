@@ -1,9 +1,10 @@
 /** 插件索引的指令层读取状态；不承载插件业务逻辑。 */
 import { existsSync } from 'node:fs';
 import { TOOL_VERSION } from '../../core/index/index.ts';
-import type { PluginIndex } from '../../core/plugins/types.ts';
+import type { PluginIndex } from '@skill-manager/contract';
 import { createInitialPluginIndex, loadPluginIndex } from '../../store/plugin-registry/index.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import { buildResult, type Result } from '../result/index.ts';
 

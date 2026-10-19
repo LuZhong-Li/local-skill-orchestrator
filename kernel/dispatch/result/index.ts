@@ -1,15 +1,16 @@
 /**
  * 结果装配与退出码派生。
  *
- * 结构定义与问题码见内核契约词汇表 kernel/store/contract.ts，
+ * 结构定义与问题码见 `@skill-manager/contract`，
  * 权威契约见 docs/specification/result-and-exit-codes.md。
  *
  * 本模块只负责两件事：按规则派生退出码、组装结果封装。
  * 所有失败路径都必须经由 buildResult 产出结果，不得让异常穿透到调用方。
  */
-import { categoryOf, type Change, type Finding, type Result } from '../../store/contract.ts';
+import { type Change, type Finding, type Result } from '@skill-manager/contract';
+import { categoryOf } from '../../store/findings.ts';
 
-export type { Change, Finding, Result } from '../../store/contract.ts';
+export type { Change, Finding, Result } from '@skill-manager/contract';
 
 /**
  * 由问题列表派生退出码。

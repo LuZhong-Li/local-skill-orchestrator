@@ -11,7 +11,8 @@
  * 四、根位于工作区之外时标记 external，供落位与确认使用。
  */
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { isDirectory, pathExists } from '../../store/library-fs/index.ts';
 import { hostById } from '../hosts/index.ts';
 import type { RootKind } from '../hosts/types.ts';

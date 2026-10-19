@@ -1,5 +1,6 @@
 /** 依赖可用性、环检测与依赖规则。 */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { SkillMeta } from './types.ts';
 import { judgeDependency, type AvailabilityMap } from './validate-meta.ts';
 

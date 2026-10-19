@@ -10,7 +10,7 @@ import {
   type Interaction,
 } from '../../kernel/dispatch/policy/index.ts';
 import { REGISTERED_COMMANDS } from '../../kernel/dispatch/registry/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 const PLAN: ConfirmPlan = {
   action: '卸载',

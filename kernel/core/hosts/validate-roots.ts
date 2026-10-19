@@ -1,5 +1,6 @@
 /** host 分类与落位根校验。 */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { isNonEmptyString, isRecord, ROOT_KINDS, SOURCE } from './validate-shared.ts';
 
 export function checkClassificationAndRoots(

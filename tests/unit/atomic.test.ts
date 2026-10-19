@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { atomicWriteFile } from '../../kernel/store/atomic/index.ts';
 import { KernelError } from '../../kernel/store/errors.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 function tempDir(): string {
   return makeTempDir('sm-atomic-');

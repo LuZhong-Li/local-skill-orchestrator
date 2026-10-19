@@ -8,7 +8,7 @@ import * as tar from 'tar';
 import { installSkill, updateSkill } from '../../kernel/core/lifecycle/index.ts';
 import { createInitialIndex } from '../../kernel/core/index/index.ts';
 import { layoutOf, ensureWorkspaceDirs } from '../../kernel/store/workspace/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { copyPathOf } from '../../kernel/core/metadata/targets.ts';
 
 const NOW = '2026-10-15T00:00:00Z';

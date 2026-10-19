@@ -8,7 +8,7 @@
  * 要么新增一个形态实现（例如 Cursor 的规则路径）。因此「新增宿主 = 注册表一行 + 适配器」
  * 成立，但**复用形态的宿主不写任何宿主专有代码**（M5-R7）。
  */
-import type { Finding } from '../../store/contract.ts';
+import type { Finding } from '@skill-manager/contract';
 import type { RootKind } from '../hosts/types.ts';
 import type { RenderOutcome, RenderSource, ArtifactKind } from '../render/types.ts';
 

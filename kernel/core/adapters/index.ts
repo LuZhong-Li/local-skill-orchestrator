@@ -12,7 +12,8 @@
  * 边界：本层不写盘。render 产出文本，plan 产出落位计划，verify 只读校验；
  * 落盘、受控副本衔接与清理由 T5 承担。
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { parse as parseYamlText } from 'yaml';
 import { hostById, hostIds } from '../hosts/index.ts';
 import { renderEntry, renderSkill } from '../render/index.ts';

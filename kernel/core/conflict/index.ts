@@ -10,7 +10,8 @@
  */
 import { isAbsolute } from 'node:path';
 import { isDirectory, pathExists } from '../../store/library-fs/index.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { ResolvedTarget } from '../targets/resolver/index.ts';
 
 /**

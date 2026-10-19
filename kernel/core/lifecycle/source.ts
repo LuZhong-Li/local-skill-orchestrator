@@ -1,7 +1,7 @@
 /** K-04 来源获取入口：本地、仓库、归档。 */
 import { existsSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { CODES } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { META_FILE_NAME, SOURCE_TYPE_VALUES } from '../metadata/constants.ts';
 import { parseYaml } from '../../store/yaml/index.ts';
 import {

@@ -13,5 +13,5 @@ export { createBackup } from './store/backup-fs/index.ts';
 
 export type { CommandContext, CommandHandler } from './dispatch/registry/index.ts';
 export type { ParsedArgs } from './dispatch/parsers/index.ts';
-export type { Result, Finding, Change } from './store/contract.ts';
+export type { Result, Finding, Change } from '@skill-manager/contract';
 export type { SkillIndex, IndexRecord, SkillMeta } from './core/metadata/types.ts';

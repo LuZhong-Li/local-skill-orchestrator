@@ -1,5 +1,5 @@
 /** 宿主卸载计划/执行结果类型；独立文件用于断开 plan 与 execute 的循环依赖。 */
-import type { Change, Finding } from '../../store/contract.ts';
+import type { Change, Finding } from '@skill-manager/contract';
 import type { HostLandingIndex, PluginIndex } from '@skill-manager/contract';
 import type { UnifiedFormat, UnifiedLanding } from '../../core/host-landings/uninstall.ts';
 

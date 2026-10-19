@@ -8,9 +8,9 @@ import {
   isCopyDisabled,
   setCopyVisibility,
 } from '../../kernel/store/library-fs/index.ts';
-import { SKILL_MD_NAME } from '../../kernel/core/metadata/constants.ts';
+import { SKILL_MD_NAME } from '@skill-manager/contract';
 import { KernelError } from '../../kernel/store/errors.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 function copyDir(): string {
   const dir = makeTempDir('sm-copy-');

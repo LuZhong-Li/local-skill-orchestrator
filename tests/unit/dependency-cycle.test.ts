@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { validateDependencies } from '../../kernel/core/metadata/validate.ts';
 
 type Meta = Parameters<typeof validateDependencies>[0][number];

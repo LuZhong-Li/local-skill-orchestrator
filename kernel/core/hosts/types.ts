@@ -179,9 +179,6 @@ export const HOST_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
  */
 export const SECURITY_CONTROL_FIELDS = ['disable-model-invocation'] as const;
 
-/** 安全控制字段名 */
-export type SecurityControlField = (typeof SECURITY_CONTROL_FIELDS)[number];
-
 /** 判定某字段是否为安全控制字段（HR-09 的适用对象） */
 export function isSecurityControlField(field: string): boolean {
   return (SECURITY_CONTROL_FIELDS as readonly string[]).includes(field);

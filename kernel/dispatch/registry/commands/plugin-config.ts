@@ -1,9 +1,10 @@
 import { isAbsolute, resolve } from 'node:path';
 import { savePluginIndex } from '../../../store/plugin-registry/index.ts';
 import { layoutOf } from '../../../store/workspace/index.ts';
-import { CODES, finding } from '../../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
+import { finding } from '../../../store/findings.ts';
 import { buildResult, type Result } from '../../result/index.ts';
-import type { PluginIndex } from '../../../core/plugins/types.ts';
+import type { PluginIndex } from '@skill-manager/contract';
 import { workspaceRootOf } from '../../shared/options.ts';
 import { loadPluginsForWrite, pluginUnreadable } from '../../plugins/state.ts';
 import type { CommandContext } from '../types.ts';

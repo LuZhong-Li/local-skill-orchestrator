@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseYaml, stringifyYaml } from '../../kernel/store/yaml/index.ts';
 import { KernelError } from '../../kernel/store/errors.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 const ctx = { source: 'test', target: 'test.yaml' };
 

@@ -304,6 +304,21 @@ flowchart TB
 | R-MOD-09 | 目标适配服务只产出计划，不执行落位 | 适配模块自行把文件复制到目标目录 |
 | R-MOD-10 | 指令调度层不得包含领域规则 | 在参数校验里硬编码「哪些 Skill 名称合法」的业务规则 |
 
+### 2.4 自动依赖图（生成物）
+
+架构依赖图由 `npm run arch:graph` 从 `scripts/check-layer.mjs` 的同一份相对 import 解析生成，入库于
+[`docs/architecture/dependency-graph.json`](architecture/dependency-graph.json)。图包含每个源码文件的
+`layer` / `region`、解析到的非源码资产叶节点（例如 renderer 的 CSS）、每条 import 的
+`from` / `to` / `specifier`，以及按层汇总的文件数与跨层边数；不包含时间戳或绝对路径，
+同一棵源码树在三个平台上生成相同字节。
+
+图的层标签为 `contract`、`store`、`core`、`dispatch`、`entry`、`public`、`gui`、`scripts`。其中 kernel 的
+`store → core` 反向边、GUI 对 kernel 内部的引用和 scripts 对 kernel 内部的引用仍是 `check:arch` 的
+失败条件；图中的跨层边只用于审阅，不构成放行名单。
+
+`npm run check` 调用 `npm run check:arch-graph` 比较入库图与当前源码生成结果；源码改动后未重新生成、
+或手工修改生成物都会失败。生成物因此**不手工维护**：改动 import 后运行生成命令并审阅 diff。
+
 ---
 
 ## 3. 核心数据流
@@ -1832,6 +1847,31 @@ flowchart TB
 | 测试总数 | 658 → **661 项**（单元 412、契约 133、端到端 116；660 通过 + 1 项平台条件跳过） |
 | CI 探针 | [run 39189852362](https://github.com/LuZhong-Li/skill-manager/actions/runs/39189852362) 三平台 `PROBE_RESULT=ok`，35 项断言/平台 |
 | 待处理项 | TD-02 真实工具目录、TD-07 Codex 官方分发根口径 |
+
+### 补充记录 2026-10-19（P2-3 依赖图与 TD-06）
+
+来源：P2-3 可维护性收口。纯重构，不改变架构边界或产品行为。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/store/contract.ts`、`kernel/core/plugins/types.ts` | 删除兼容 barrel；引用方直接指向 `@skill-manager/contract` | kernel store / core | TD-06 |
+| 2 | `kernel/store/findings.ts` | 承载 `severityOf` / `categoryOf` / `finding` 纯函数，不复制契约类型或问题码 | kernel store | P2-3 |
+| 3 | `scripts/generate-architecture-graph.mjs` | 从 `check-layer` 的 import 图生成确定性 JSON；`--check` 校验入库图新鲜度 | 构建脚本 | MNT-R6 |
+| 4 | `docs/architecture/dependency-graph.json` | 214 源文件 + 1 资产节点、761 条相对 import、0 循环的机器可读依赖图 | 架构文档生成物 | MNT-R6 |
+| 5 | `package.json` | 新增 `arch:graph` / `check:arch-graph`，后者接入 `npm run check` | 构建入口 | MNT-R6 |
+| 6 | `tests/contract/contract-barrel-cleanup.test.ts`、`tests/contract/dependency-graph.test.ts` | 锁定 TD-06 边界、依赖图新鲜度与孤立源码文件入口清单 | 契约测试 | MNT-R6 / MNT-R7 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 分层检查 | `check:arch` 214 文件 / 761 条相对 import 边 / 0 循环 / 0 allowlist |
+| 架构依赖图 | 214 源文件 + 1 资产节点 / 761 边 / 0 循环 |
+| 复杂函数基线 | 保持 **94** |
+| 测试总数 | 664 → **668 项**（667 通过 + 1 项平台条件跳过） |
+| 超阈值文件 | **0** |
 
 ---
 

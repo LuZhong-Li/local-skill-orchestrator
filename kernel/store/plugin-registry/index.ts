@@ -8,7 +8,8 @@
 import { readFileSync } from 'node:fs';
 import { atomicWriteFile } from '../atomic/index.ts';
 import { parseYaml, stringifyYaml } from '../yaml/index.ts';
-import { CODES, finding, type Finding } from '../contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../findings.ts';
 import { KernelError } from '../errors.ts';
 import type { PluginIndex, PluginLanding, PluginRecord } from '@skill-manager/contract';
 

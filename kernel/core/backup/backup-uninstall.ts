@@ -1,6 +1,7 @@
 /** 卸载前备份。 */
 import { createBackup, type BackupResult } from '../../store/backup-fs/index.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { isDirectory } from '../../store/library-fs/index.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';

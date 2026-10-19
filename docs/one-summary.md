@@ -576,6 +576,21 @@
 
 > P2-2 已收口；下一批 P2-3 处理 TD-06、架构依赖图与死代码。
 
+### 6.26 P2-3 TD-06、架构依赖图与死代码收口（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| TD-06 | 删除 `kernel/store/contract.ts` 与 `kernel/core/plugins/types.ts`；`metadata/constants.ts` 与 `scan/types.ts` 不再转出 contract 类型/常量；finding helper 独立到 `store/findings.ts` |
+| 引用迁移 | 内核 / GUI / scripts / tests 全部直接 import `@skill-manager/contract`；仅 `kernel/index.ts` 与 `kernel/dispatch/result/index.ts` 作为公共入口保留显式 re-export |
+| 依赖图 | `npm run arch:graph` 生成 `docs/architecture/dependency-graph.json`；`check:arch-graph` 接入 `npm run check`，源码与入库图逐字节比对 |
+| 图规模 | 214 源文件 + 1 资产节点、761 条相对 import、0 循环、0 allowlist |
+| 死代码 | 删除零外部引用的 `HostRootModelId`、`SecurityControlField`、`isDigestMap`、`makeHostSkill`；143 个仅文件内使用的 export 保留 |
+| 孤立文件 | 除 7 个声明入口外无无入边源码；依赖图测试锁定入口清单 |
+| 结构 | complexity 保持 **94**；超阈值文件保持 **0**；P2-3 未新增复杂函数 |
+| 测试 | 新增 4 项结构/契约断言；常规 664 → **668 项**（667 通过 + 1 平台跳过） |
+
+> P2-3 已收口。第 10 章 MNT-R1 ~ R9 全部闭环；代码库达到 0 架构违例、0 循环、0 超阈值文件、单一 contract 来源与完整机械护栏。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

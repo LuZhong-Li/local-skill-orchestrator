@@ -1,5 +1,6 @@
 /** host 渲染策略、安全字段与外部消费方校验。 */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import {
   ADAPTER_STATES,
   FIRST_HAND_EVIDENCE_LEVELS,

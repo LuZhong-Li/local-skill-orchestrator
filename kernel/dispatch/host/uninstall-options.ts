@@ -1,6 +1,7 @@
 /** uninstall --host 的参数与工作区前置校验。 */
 import { existsSync } from 'node:fs';
-import { CODES, finding } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import { buildResult, type Result } from '../result/index.ts';
 

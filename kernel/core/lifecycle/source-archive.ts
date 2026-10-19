@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, relative } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import * as tar from 'tar';
 import StreamZip from 'node-stream-zip';
-import { CODES } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 import { KernelError } from '../../store/errors.ts';
 import { META_FILE_NAME } from '../metadata/constants.ts';
 import { sourceError } from './source-shared.ts';

@@ -1,6 +1,7 @@
 /** 指令层共享的参数辅助：工作区定位与插件分支选项拒绝。 */
 import { resolveWorkspaceRoot } from '../../store/workspace/index.ts';
-import { CODES, finding } from '../../store/contract.ts';
+import { CODES } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { buildResult, type Result } from '../result/index.ts';
 import { flag, option, type ParsedArgs } from '../parsers/index.ts';
 

@@ -11,7 +11,8 @@ import { META_FILE_NAME } from '../metadata/constants.ts';
 import { readMetaFile } from '../metadata/read.ts';
 import type { IndexConfig, IndexRecord, SkillIndex } from '../metadata/types.ts';
 import { validateMetaRecord, type MetaContext } from '../metadata/validate.ts';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { isDirectory } from '../../store/library-fs/index.ts';
 import { SKILLS_DIR_NAME, type WorkspaceLayout } from '../../store/workspace/index.ts';
 

@@ -1,7 +1,7 @@
 /** 校验共享类型、投影字段与结果工具。 */
 import { statSync } from 'node:fs';
 import type { SkillIndex, ValidationStatus } from '../metadata/types.ts';
-import type { Finding } from '../../store/contract.ts';
+import type { Finding } from '@skill-manager/contract';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import { computeChecksum } from '../integrity/index.ts';
 

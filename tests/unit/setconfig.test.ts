@@ -5,7 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInitialIndex, setConfig } from '../../kernel/core/index/index.ts';
 import { layoutOf } from '../../kernel/store/workspace/index.ts';
-import { CODES } from '../../kernel/store/contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 const NOW = '2026-10-15T00:00:00Z';
 

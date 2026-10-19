@@ -10,7 +10,7 @@ import { atomicWriteFile } from '../atomic/index.ts';
 import { stringifyYaml } from '../yaml/index.ts';
 import { parseYaml } from '../yaml/index.ts';
 import { KernelError } from '../errors.ts';
-import { CODES } from '../contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 export interface RawIndexRead {
   exists: boolean;

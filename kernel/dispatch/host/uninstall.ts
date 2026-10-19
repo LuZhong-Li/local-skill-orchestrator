@@ -1,5 +1,6 @@
 /** 宿主技能副本卸载：单宿主 / all、共享根保护、两账本孤儿化与原件卸载阻断。 */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import {

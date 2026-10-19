@@ -1,6 +1,7 @@
 /** 内容漂移、派生区与跨文件投影校验。 */
 import { statSync } from 'node:fs';
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { IndexRecord } from '../metadata/types.ts';
 import { META_ALLOWED_FIELDS } from '../metadata/constants.ts';
 import type { MetaContext } from '../metadata/validate.ts';

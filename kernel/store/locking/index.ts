@@ -5,7 +5,7 @@
  * 调用 withLock 的跨进程模式会返回 E-LOCK-001 而不是静默降级。
  */
 import { KernelError } from '../errors.ts';
-import { CODES } from '../contract.ts';
+import { CODES } from '@skill-manager/contract';
 
 const chains = new Map<string, Promise<unknown>>();
 

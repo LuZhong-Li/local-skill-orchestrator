@@ -436,7 +436,9 @@ function main() {
 
 export {
   BASELINE_ALLOWLIST,
+  buildGraph,
   classifyRegion,
+  collectSourceFiles,
   evaluateArchitecture,
   findCycles,
   importSpecifiers,

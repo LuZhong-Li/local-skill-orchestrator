@@ -4,7 +4,8 @@
  * 输入是内置注册表快照与已校验的插件条目；输出只读视图。
  * 不读盘、不写盘、不修改内置对象、不把插件写入内置宿主形态绑定。
  */
-import { CODES, finding, type Finding } from '../../store/contract.ts';
+import { CODES, type Finding } from '@skill-manager/contract';
+import { finding } from '../../store/findings.ts';
 import type { HostEntry } from '../hosts/types.ts';
 import { canonicalHostId } from './manifest.ts';
 import type {
@@ -12,7 +13,7 @@ import type {
   PluginCatalogEntry,
   PluginHostRecord,
   PluginHostProfile,
-} from './types.ts';
+} from '@skill-manager/contract';
 
 function copyProfile(profile: PluginHostProfile, hostId: string): PluginHostRecord {
   return {
