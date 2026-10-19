@@ -266,8 +266,7 @@ function checkDiscovery(fixture, data) {
 function checkClassification(fixture, workspace, source) {
   const before = scan(fixture, workspace);
   expect('未纳管分类存在', before.summary.classification_groups.untracked > 0);
-  runCli(fixture, ['install', source, '--workspace', workspace, '--yes']);
-  runCli(fixture, ['update', 'probe-skill', '--host', 'claude', '--workspace', workspace, '--yes']);
+  runCli(fixture, ['install', source, '--host', 'claude', '--workspace', workspace, '--yes']);
   const managed = scan(fixture, workspace);
   const managedCopy = copyOf(managed, (copy) => copy.path === join(fixture.shared, 'probe-skill'));
   expect(
@@ -337,10 +336,9 @@ function checkPluginRules(fixture, workspace) {
   ]);
   runCli(fixture, ['enable', 'probe-tools', '--kind', 'plugin', '--workspace', workspace, '--yes']);
   writeSource(fixture.pluginSkill, 'plugin-skill');
-  runCli(fixture, ['install', fixture.pluginSkill, '--workspace', workspace, '--yes']);
   runCli(fixture, [
-    'update',
-    'plugin-skill',
+    'install',
+    fixture.pluginSkill,
     '--host',
     'x-probe-tools-zed',
     '--workspace',
