@@ -510,6 +510,22 @@
 
 > M4c-7 已收口，M4c 功能与验证全部完成；下一批为 v0.4.0 总验收与发版准备。
 
+### 6.21 v0.4.0 发布与发布后验证（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| tag | `v0.4.0` → `4711cc0`；annotated tag 已推送 |
+| 发布 run | [39194534164](https://github.com/LuZhong-Li/skill-manager/actions/runs/39194534164)：四 leg + release job Success |
+| Release | [v0.4.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.4.0)：latest、非 draft、非 prerelease，6 资产齐备 |
+| 资产复算 | 回下载 5 个交付物 `sha256sum -c` 全部 OK；6 个资产与 SHA256SUMS.txt 一致 |
+| Windows 生产 GUI | Release portable + 生产 `resources/app.asar/out/renderer`；`smoke:gui` **40/40**；空工作区盘点、主计数、宿主分区、共享根、分类与只读均实测 |
+| 发布物内核 | `--version=0.4.0`；`PRODUCTION_KERNEL_RESULT=ok managed=2 missing=2`，覆盖 init → 分发 → scan --inventory → missing → untracked；大 JSON 管道输出不截断 |
+| macOS C 组 | arm64 / x64 dmg 内内核 `0.4.0`、`Signature=adhoc`、init → scan → list 全通过 |
+| 历史版本 | v0.1.0 已知问题提示已幂等指向 v0.4.0；v0.1.1/v0.1.2/v0.2.0/v0.3.0 未改动 |
+| 远端 | 仅 `main` 与 tags `v0.1.0` ~ `v0.4.0`；临时分支已删除 |
+
+> v0.4.0 已发布；M1 ~ M5 与 M4c、可维护性横切批次全部落地。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

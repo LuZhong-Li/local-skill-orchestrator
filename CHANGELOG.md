@@ -2,7 +2,7 @@
 
 ## 0.4.0
 
-> 状态：发版准备完成，等待授权；未创建 tag / Release。范围见 [`docs/plan/m4c-host-inventory.md`](docs/plan/m4c-host-inventory.md)。
+> 状态：**已发布为 latest**（[v0.4.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.4.0)）。范围见 [`docs/plan/v0.4.0-acceptance.md`](docs/plan/v0.4.0-acceptance.md)。
 
 ### 【新增】全机盘点
 
@@ -32,7 +32,7 @@
 
 - 常规测试 **661 项**（660 通过 + 1 平台跳过）；Windows / Ubuntu 全量 verify；Windows / macOS / Linux 三平台 `inventory-probe` 35 项断言/平台；Bench 三平台通过。
 - 慢测试 1 项、`smoke:kernel`、`smoke:gui` 40/40、check / typecheck / lint / format / build 全绿。
-- Pack run [39191567818](https://github.com/LuZhong-Li/skill-manager/actions/runs/39191567818) 四 leg 全部 Success；Release Smoke run [39192890970](https://github.com/LuZhong-Li/skill-manager/actions/runs/39192890970) 验证生产 GUI 40/40、发布物内核 0.4.0 盘点闭环，5 个交付物 SHA256 全部复核通过。
+- 发布 run [39194534164](https://github.com/LuZhong-Li/skill-manager/actions/runs/39194534164) 四 leg + release job 全部 Success；Release 资产回下载验证 run [39195860498](https://github.com/LuZhong-Li/skill-manager/actions/runs/39195860498) 通过 SHA 复算、Windows portable 40/40、发布物内核盘点与 macOS arm64/x64 C 组。
 
 ### 【明确不做】
 

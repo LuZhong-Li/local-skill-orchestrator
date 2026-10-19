@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M4c 宿主盘点实施计划 |
 | 文档路径 | `docs/plan/m4c-host-inventory.md` |
-| 文档状态 | **执行中**（2026-10-18 批准；L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-7 已完成，2026-10-19） |
+| 文档状态 | **已完成**（2026-10-18 批准；L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-7 已完成；v0.4.0 已发布，2026-10-19） |
 | 依据 | [`docs/design/m4c-host-inventory.md`](../design/m4c-host-inventory.md)；需求 9.3.7（M4c-R1 ~ R9）、9.4.7、9.5、9.6；第 10 章；两份调研报告 |
 | 说明 | 只计划，不实现；账本批次先于 M4c；纯重构与功能批严格分离；每批独立可验 |
 | 基线 | 常规测试 661（M4c-7 后；660 通过 + 1 项平台跳过）；16 条指令；7 份规范 / 8 份 schema |
@@ -54,7 +54,9 @@
 
 > 任务展开：P0 / P1 / P2 见 [`docs/plan/maintainability.md`](maintainability.md)；本文件展开 L / M4c。
 
-**执行状态（2026-10-19）**：P0-a ~ P0-d、L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-7 已完成；下一批为 v0.4.0 总验收与发版准备。M4c-7 已在 Windows / macOS / Linux CI runner 上跑通 fixture 探针，真实工具目录继续登记 TD-02。逐批证据见 [`maintainability.md`](maintainability.md) 与 `docs/one-summary.md` 6.4 ~ 6.20。
+**执行状态（2026-10-19）**：P0-a ~ P0-d、L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-7 已完成；v0.4.0 已发布为 latest。M4c-7 已在 Windows / macOS / Linux CI runner 上跑通 fixture 探针，真实工具目录继续登记 TD-02。逐批证据见 [`maintainability.md`](maintainability.md) 与 `docs/one-summary.md` 6.4 ~ 6.21。
+
+**发布记录（2026-10-19）**：tag `v0.4.0` → `4711cc0`；Pack run [39194534164](https://github.com/LuZhong-Li/skill-manager/actions/runs/39194534164) 四 leg + release job Success；Release Verify run [39195860498](https://github.com/LuZhong-Li/skill-manager/actions/runs/39195860498) 完成 Release 资产 SHA 复算、Windows portable 40/40、发布物内核盘点与 macOS arm64/x64 C 组。Release 为 latest、非 draft、非 prerelease。
 
 ---
 
@@ -769,6 +771,8 @@ P0-a → P0-b → P0-c → P0-d
 ---
 
 ## 6. v0.4.0 范围与发版
+
+**发布状态**：已发布为 latest（tag `v0.4.0`，commit `4711cc0`）；Release、资产 SHA 与生产形态验证见 `docs/one-summary.md` 6.21。
 
 ### 6.1 v0.4.0 范围
 
