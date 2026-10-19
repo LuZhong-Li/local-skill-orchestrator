@@ -2,13 +2,7 @@
 import { join } from 'node:path';
 import type {
   InventoryClassificationKey,
-  InventoryCopyVisibility,
-  MissingInventoryCopy,
-  ReconciliationFormat,
   ReconciliationLedgerSource,
-  ReconciliationOutput,
-  ReconciledInventoryCopy,
-  ReconciledInventoryCorruptCopy,
   ReconcileAction,
   ReconcileLedgerChange,
   ReconcileLedgerState,
@@ -22,19 +16,7 @@ import type {
 import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
 import type { InventoryRootView } from '@skill-manager/contract';
 import type { InventorySnapshot } from '../scan/inventory.ts';
-
-interface Candidate {
-  physical_key: string;
-  target_path: string;
-  host_ids: string[];
-  consumed_by: string[];
-  format: ReconciliationFormat;
-  visibility?: InventoryCopyVisibility;
-  skill_id?: string;
-  root_ids: string[];
-  reconciliation: ReconciliationOutput;
-  is_plugin: boolean;
-}
+import { allCandidates, notDistributedCandidates, unique, type Candidate } from './candidates.ts';
 
 interface ActionShape {
   status: 'planned' | 'skipped';
@@ -43,71 +25,6 @@ interface ActionShape {
   after: ReconcilePlanItem['after'];
   writes: ReconcilePlanItem['writes'];
   ledger_changes: ReconcileLedgerChange[];
-}
-
-function unique(values: readonly (string | undefined)[]): string[] {
-  return [
-    ...new Set(values.filter((value): value is string => value !== undefined && value !== '')),
-  ];
-}
-
-function candidateOfCopy(
-  copy: ReconciledInventoryCopy | ReconciledInventoryCorruptCopy,
-): Candidate {
-  return {
-    physical_key: copy.physical_key,
-    target_path: copy.path,
-    host_ids: unique([copy.host_id, ...copy.sources.map((item) => item.host_id)]),
-    consumed_by: unique(copy.consumed_by),
-    format: copy.format,
-    ...(copy.visibility === 'unknown' ? {} : { visibility: copy.visibility }),
-    ...(copy.skill_id === undefined ? {} : { skill_id: copy.skill_id }),
-    root_ids: unique([copy.root_id, ...copy.root_ids]),
-    reconciliation: copy.reconciliation,
-    is_plugin: copy.host_group === 'plugin',
-  };
-}
-
-function candidateOfMissing(copy: MissingInventoryCopy): Candidate {
-  return {
-    physical_key: inventoryPhysicalKey(copy.target_path),
-    target_path: copy.target_path,
-    host_ids: [copy.host_id],
-    consumed_by: unique(copy.consumed_by),
-    format: copy.format ?? 'unknown',
-    ...(copy.visibility === undefined ? {} : { visibility: copy.visibility }),
-    ...(copy.skill_id === undefined ? {} : { skill_id: copy.skill_id }),
-    root_ids: unique([copy.root_id]),
-    reconciliation: copy,
-    is_plugin: copy.host_group === 'plugin',
-  };
-}
-
-function mergeCandidate(left: Candidate | undefined, right: Candidate): Candidate {
-  if (left === undefined) return right;
-  return {
-    ...left,
-    host_ids: unique([...left.host_ids, ...right.host_ids]),
-    consumed_by: unique([...left.consumed_by, ...right.consumed_by]),
-    root_ids: unique([...left.root_ids, ...right.root_ids]),
-  };
-}
-
-function allCandidates(snapshot: InventorySnapshot): Candidate[] {
-  const map = new Map<string, Candidate>();
-  for (const copy of snapshot.reconciled.copies) {
-    const candidate = candidateOfCopy(copy);
-    map.set(candidate.physical_key, mergeCandidate(map.get(candidate.physical_key), candidate));
-  }
-  for (const copy of snapshot.reconciled.corrupt) {
-    const candidate = candidateOfCopy(copy);
-    map.set(candidate.physical_key, mergeCandidate(map.get(candidate.physical_key), candidate));
-  }
-  for (const copy of snapshot.reconciled.missing) {
-    const candidate = candidateOfMissing(copy);
-    map.set(candidate.physical_key, mergeCandidate(map.get(candidate.physical_key), candidate));
-  }
-  return [...map.values()];
 }
 
 function classificationKeyOf(candidate: Candidate): InventoryClassificationKey {
@@ -156,6 +73,16 @@ function classificationMatches(candidate: Candidate, classification: string): bo
 
 function selectCandidates(snapshot: InventorySnapshot, selection: ReconcileSelection): Candidate[] {
   const candidates = allCandidates(snapshot);
+  const selected = selectObservedCandidates(candidates, snapshot, selection);
+  if (selected.length > 0 || selection.mode === 'path') return selected;
+  return [...selected, ...notDistributedCandidates(snapshot, selection, selected)];
+}
+
+function selectObservedCandidates(
+  candidates: Candidate[],
+  snapshot: InventorySnapshot,
+  selection: ReconcileSelection,
+): Candidate[] {
   if (selection.mode === 'path') {
     const key = inventoryPhysicalKey(selection.path ?? '');
     return candidates.filter((item) => item.physical_key === key);
@@ -376,12 +303,34 @@ function unsupportedReason(candidate: Candidate, action: ReconcileAction): strin
   return ACTION_RULES[action](candidate, actionableKeyOf(candidate));
 }
 
+function t1EligibilityReason(
+  snapshot: InventorySnapshot,
+  candidate: Candidate,
+  action: ReconcileAction,
+): string | undefined {
+  if (action !== 'repair' && action !== 'forget') return undefined;
+  if (candidate.is_plugin) return 'plugin_host_t4';
+  if (candidate.consumed_by.length > 1 || candidate.host_ids.length > 1) {
+    return 'shared_root_t4';
+  }
+  if (action === 'repair') {
+    const record =
+      snapshot.workspace.index === null || candidate.skill_id === undefined
+        ? undefined
+        : snapshot.workspace.index.skills.find((item) => item.id === candidate.skill_id);
+    if (record === undefined) return 'workspace_baseline_missing';
+  }
+  return undefined;
+}
+
 function actionShape(
   snapshot: InventorySnapshot,
   selection: ReconcileSelection,
   candidate: Candidate,
 ): ActionShape {
-  const reason = unsupportedReason(candidate, selection.action);
+  const reason =
+    t1EligibilityReason(snapshot, candidate, selection.action) ??
+    unsupportedReason(candidate, selection.action);
   const ledger = ledgerSourceOf(candidate, selection.action);
   if (reason !== undefined) {
     return {
@@ -414,6 +363,7 @@ function itemOf(
     item_id: `reconcile-${index + 1}`,
     physical_key: candidate.physical_key,
     target_path: candidate.target_path,
+    ...(candidate.skill_id === undefined ? {} : { skill_id: candidate.skill_id }),
     host_ids: candidate.host_ids,
     consumed_by: candidate.consumed_by,
     format: candidate.format,
@@ -427,6 +377,11 @@ function itemOf(
       ledger_source: candidate.reconciliation.ledger_source,
       evidence: candidate.reconciliation.evidence,
       drift_reasons: candidate.reconciliation.drift_reasons,
+      exists: candidate.exists,
+      ...(candidate.content_digest === undefined
+        ? {}
+        : { content_digest: candidate.content_digest }),
+      ...(candidate.visibility === undefined ? {} : { visibility: candidate.visibility }),
     },
     action: selection.action,
     source_of_truth: shape.source_of_truth,
@@ -459,6 +414,19 @@ function transactionGroups(items: ReconcilePlanItem[]): ReconcileTransactionGrou
     groups.set(item.transaction_group, current);
   }
   return [...groups.values()];
+}
+
+/** 预览与执行间的计划指纹；任一选中副本事实变化都会改变结果。 */
+export function reconcilePlanSignature(plan: ReconcilePreviewData): string {
+  return JSON.stringify(
+    plan.items.map((item) => ({
+      item_id: item.item_id,
+      action: item.action,
+      target_path: item.target_path,
+      status: item.status,
+      before: item.before,
+    })),
+  );
 }
 
 /** 生成动作预览；调用方必须只读消费结果。 */

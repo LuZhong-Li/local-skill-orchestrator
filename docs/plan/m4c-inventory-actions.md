@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作实施计划 |
 | 文档路径 | `docs/plan/m4c-inventory-actions.md` |
-| 文档状态 | **评审通过，T0 已完成；T1 待启动**（2026-10-19） |
+| 文档状态 | **评审通过，T0 / T1 已完成；T2 待启动**（2026-10-19） |
 | 依据 | [`docs/design/m4c-inventory-actions.md`](../design/m4c-inventory-actions.md)；需求 9.3.8、9.3.7；[`docs/research/m4c-inventory-actions-2026-10-19.md`](../research/m4c-inventory-actions-2026-10-19.md) |
 | 基线 | T0 后常规测试 **676 项**（675 通过 + 1 项平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0 |
 | 边界 | 本文不修改代码、契约或 schema；评审批准后才进入 T0 实现 |
@@ -85,7 +85,7 @@
 
 ---
 
-## 3. T1：repair 与 forget
+## 3. T1：repair 与 forget（已完成 2026-10-19）
 
 **目标**：先交付工作区 → 宿主的安全修复闭环，以及缺失副本的账本清理。
 
@@ -98,7 +98,7 @@
    - 工作区可解释的 `drift` / `inferred_drift`；
 2. 复用 `adapterFor` / `buildHostChannel` / `renderSourceOf` / `landPlan`；
 3. `repair` 不访问网络，不调用 `update` 的来源刷新；
-4. 账本写入复用内置 / 插件 commit；
+4. 内置账本写入复用 `commitHostLandings`；插件 `x-` 留 T4；
 5. `forget` 将确认不存在的 active 记录转为 `orphaned`；
 6. 失败注入：备份失败、宿主写失败、账本失败、共享根部分失败、回滚失败；
 7. 覆盖未选中路径字节不变与 preview stale 拒绝。
@@ -109,6 +109,19 @@
 - `repair` 前后 `skill_index.yaml`、中心库与未选中宿主字节不变；
 - `forget` 不改变磁盘，只改账本；
 - 既有 16 指令行为与退出码不变。
+
+**落地记录**：
+
+| 项 | 结果 |
+|---|---|
+| repair | missing / not_distributed 创建、content / visibility drift 恢复、orphaned 再激活、有基线的 corrupt 路径修复 |
+| 重渲染 | 直接读取中心库元文件与内容，经现有 adapter / `runHostLanding` / `landPlan`，不访问网络、不新增渲染实现 |
+| 执行 | `--apply` 通过工作区锁、计划签名复查、标准确认；逐项返回 succeeded / failed / skipped |
+| stale | 预览后摘要、路径、分类或账本状态变化返回 `E-RECONCILE-002` |
+| forget | 仅把 active 账本转 orphaned；验证 `skill_index.yaml` 字节不变、无物理副本写入 |
+| 边界 | 共享根 `shared_root_t4`、插件 `plugin_host_t4` 跳过；占用路径失败保持原账本与文件 |
+| 测试 | 新增 8 项 T1 e2e；常规 676 → **684 项**（683 通过 + 1 平台跳过） |
+| 结构 | 新增 landing visibility / result builder / reconcile candidate 模块均低于 500 行；`check:arch` 222 文件 / 807 边 / 0 循环；complexity 94 |
 
 ---
 

@@ -621,6 +621,21 @@
 
 > T0 已收口；下一批 T1 实现 `repair` + `forget`。
 
+### 6.29 M4c 二期 T1：repair 与 forget（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| repair | missing / not_distributed 创建，content / visibility drift 恢复，orphaned 再激活，有工作区基线的 corrupt 副本修复 |
+| 渲染 | 从中心库本地重渲染，复用 `runHostLanding` / `landPlan` / adapter；不访问网络，不新增第二套渲染 |
+| 事务 | `--apply` 获取工作区锁、复查计划签名、标准确认；单副本逐项执行并返回 succeeded / failed / skipped |
+| stale | 预览后宿主内容或分类变化返回 `E-RECONCILE-002`，不执行旧计划 |
+| forget | missing active 记录转 orphaned；宿主无副本、skill 索引字节不变，不触碰磁盘 |
+| 边界 | 共享根 `shared_root_t4` 与插件 `plugin_host_t4` 跳过；目标被文件占用时失败且账本保持原状 |
+| 测试 | 新增 8 项 T1 e2e；常规 676 → **684 项**（683 通过 + 1 平台跳过） |
+| 结构 | landing visibility / result builder / reconcile candidates 独立模块；check:arch 222 文件 / 807 边 / 0 循环；complexity 94 |
+
+> T1 已收口；下一批 T2 实现 `adopt` + `track`。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

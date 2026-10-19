@@ -1898,6 +1898,29 @@ flowchart TB
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
 | 测试总数 | 668 → **676 项**（675 通过 + 1 项平台条件跳过） |
 
+### 补充记录 2026-10-19（M4c 二期 T1：repair / forget）
+
+来源：M4c 二期 T1。执行层只接入内置宿主、单物理副本；共享根与插件 x- 留 T4。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/dispatch/reconcile/execute.ts` | `repair` / `forget` 执行与逐项结果；repair 复用 `runHostLanding` / `landPlan`，forget 只改账本 | dispatch | M4c2-R2 / R4 / R6 |
+| 2 | `kernel/dispatch/host/landing-visibility.ts` | repair 的可见性准备 / 恢复，不改变正常 install/update 默认行为 | dispatch | M4c2-R4 |
+| 3 | `kernel/dispatch/host/landing-result-builder.ts` | 落位结果装配与通用回滚，控制单文件规模 | dispatch | P2 结构约束 |
+| 4 | `kernel/dispatch/reconcile/candidates.ts` | 物理副本候选与 not_distributed 合成项，继续复用 L-4 对账 | dispatch | M4c2-R2 |
+| 5 | `kernel/dispatch/reconcile/index.ts` | 默认预览、标准确认、工作区锁、计划签名复查与 stale 拦截 | dispatch | M4c2-R3 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 17；`reconcile --apply` 支持 repair / forget |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 问题码 | 69，未新增 |
+| 分层检查 | `check:arch` 222 文件 / 807 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
+| 测试总数 | 676 → **684 项**（683 通过 + 1 项平台条件跳过） |
+
 ---
 
 **文档结束。** 本文档只定义架构、模块、数据流与接口契约，不包含实现代码。

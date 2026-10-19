@@ -1,11 +1,15 @@
 /** 宿主落位结果与内置账本写入。 */
-import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import {
+  CODES,
+  type Change,
+  type Finding,
+  type HostLandingVisibility,
+} from '@skill-manager/contract';
 import { finding } from '../../store/findings.ts';
 import { join } from 'node:path';
 import { KernelError, toKernelError } from '../../store/errors.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { HostChannel } from './channel.ts';
-import { hostWritesOutside } from './channel.ts';
 import {
   isHostSkillDisabled,
   landPlan,
@@ -32,6 +36,8 @@ import {
   recordAdoptedVisibility,
   sourceMetaOf,
 } from '../../core/host-landings/index.ts';
+import { applyLandingVisibility, prepareLandingVisibility } from './landing-visibility.ts';
+import { buildLandingResult, rollbackLandingErrors } from './landing-result-builder.ts';
 import { savePluginIndex } from '../../store/plugin-registry/index.ts';
 import { upsertPluginLanding } from '../../core/plugins/host.ts';
 import type { DeliveryPlanEntry } from '../../store/library-fs/index.ts';
@@ -162,6 +168,7 @@ export function commitBuiltinLanding(input: {
   sourceMeta: Record<string, unknown>;
   context: BuiltinLandingContext;
   writes: readonly LandWrite[];
+  visibility?: HostLandingVisibility;
 }): { recorded: boolean; findings: Finding[] } {
   try {
     return commitBuiltinLandingUnchecked(input);
@@ -193,6 +200,7 @@ function commitBuiltinLandingUnchecked(input: {
   sourceMeta: Record<string, unknown>;
   context: BuiltinLandingContext;
   writes: readonly LandWrite[];
+  visibility?: HostLandingVisibility;
 }): { recorded: boolean; findings: Finding[] } {
   const sourceChecksum = computeChecksum(input.sourceDir);
   const contentDigest = computeLandingChecksum({
@@ -206,7 +214,7 @@ function commitBuiltinLandingUnchecked(input: {
       hostId,
       targetPath: input.context.targetPath,
       format: input.context.format,
-      visibility: 'visible',
+      visibility: input.visibility ?? 'visible',
       origin: 'distributed',
       sourceChecksum,
       contentDigest,
@@ -343,6 +351,27 @@ function rollbackVisibilityState(input: {
 }
 
 /** 把落位执行结果转换为结果封装的变更与数据 */
+function channelRoot(channel: HostChannel): string {
+  return channel.resolution?.path ?? '';
+}
+
+function changeDetail(item: Change, hostId: string): string {
+  return `${item.detail ?? ''}（宿主分发：${hostId}）`.trim();
+}
+
+function landingFailure(
+  input: { command: string; channel: HostChannel },
+  findings: Finding[],
+): Result<unknown> {
+  return buildResult(input.command, findings, [], {
+    data: {
+      host: input.channel.hostId,
+      host_root: channelRoot(input.channel),
+      ledger_recorded: false,
+    },
+  });
+}
+
 export function hostLandingResult(input: {
   command: string;
   channel: HostChannel;
@@ -353,16 +382,15 @@ export function hostLandingResult(input: {
   sourceDir?: string;
   fileMap?: DeliveryPlanEntry[];
   dryRun: boolean;
+  visibility?: HostLandingVisibility;
 }): Result<unknown> {
   const prepared = prepareBuiltinLanding(input);
   if (prepared.findings.some((item) => item.severity === 'error')) {
-    return buildResult(input.command, prepared.findings, [], {
-      data: {
-        host: input.channel.hostId,
-        host_root: input.channel.resolution?.path ?? '',
-        ledger_recorded: false,
-      },
-    });
+    return landingFailure(input, prepared.findings);
+  }
+  const visibilityFindings: Finding[] = [];
+  if (!prepareLandingVisibility(input, visibilityFindings)) {
+    return landingFailure(input, visibilityFindings);
   }
   const landed = landPlan({
     plan: input.channel.plan,
@@ -374,9 +402,13 @@ export function hostLandingResult(input: {
   });
   const changes: Change[] = landed.changes.map((item) => ({
     ...item,
-    detail: `${item.detail ?? ''}（宿主分发：${input.channel.hostId}）`.trim(),
+    detail: changeDetail(item, input.channel.hostId),
   }));
   const findings = [...landed.findings];
+  const visibilityFailure = applyLandingVisibility(input, landed.writes, findings);
+  if (visibilityFailure !== undefined) {
+    return landingFailure(input, visibilityFailure);
+  }
   rollbackLandingErrors(input.dryRun, landed.writes, findings);
   const ledger = commitLedger(input, prepared.context, landed.writes, findings);
   return buildLandingResult(
@@ -388,19 +420,6 @@ export function hostLandingResult(input: {
   );
 }
 
-function rollbackLandingErrors(
-  dryRun: boolean,
-  writes: readonly LandWrite[],
-  findings: Finding[],
-): void {
-  if (dryRun || !findings.some((item) => item.severity === 'error')) return;
-  try {
-    rollbackLandWrites(writes);
-  } catch (rollbackCause) {
-    findings.push(rollbackFinding(toKernelError(rollbackCause, CODES.LANDING_LEDGER_INVALID)));
-  }
-}
-
 function commitLedger(
   input: {
     channel: HostChannel;
@@ -410,6 +429,7 @@ function commitLedger(
     sourceMeta: Record<string, unknown>;
     sourceDir?: string;
     dryRun: boolean;
+    visibility?: HostLandingVisibility;
   },
   context: BuiltinLandingContext | undefined,
   writes: readonly LandWrite[],
@@ -433,6 +453,7 @@ function commitLedger(
     sourceMeta: input.sourceMeta,
     context,
     writes,
+    ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
   });
   findings.push(...committed.findings);
   return { recorded: committed.recorded, source: 'host_landings' };
@@ -481,36 +502,4 @@ function commitPluginLedger(
     }
     return { recorded: false, source: 'plugin_landings' };
   }
-}
-
-function buildLandingResult(
-  input: {
-    command: string;
-    channel: HostChannel;
-    dryRun: boolean;
-  },
-  landed: {
-    skipped: Array<{ target_path: string; reason: string }>;
-    backups: string[];
-  },
-  changes: Change[],
-  findings: Finding[],
-  ledger: { recorded: boolean; source: 'host_landings' | 'plugin_landings' | 'none' },
-): Result<unknown> {
-  return buildResult(input.command, findings, changes, {
-    data: {
-      host: input.channel.hostId,
-      ...(input.channel.plugin === undefined
-        ? { ledger_source: ledger.source, ledger_recorded: ledger.recorded }
-        : { plugin_id: input.channel.plugin.pluginId, ledger_recorded: ledger.recorded }),
-      host_root: input.channel.resolution?.path ?? '',
-      host_writes_outside_workspace: hostWritesOutside(input.channel.plan),
-      skipped: landed.skipped,
-      backups: landed.backups,
-      consumed_by: [
-        ...new Set(input.channel.plan.entries.flatMap((entry) => entry.consumed_by)),
-      ].sort(),
-    },
-    ...(input.dryRun ? { preview: true } : {}),
-  });
 }

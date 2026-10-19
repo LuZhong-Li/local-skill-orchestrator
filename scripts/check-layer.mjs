@@ -29,7 +29,6 @@ const KERNEL_INTERNAL_PATTERN = /kernel\/(dispatch|core|store|entry)\//;
 const INVENTORY_READONLY_FILES = [
   'contract/src/host-inventory.ts',
   'kernel/core/inventory/discover.ts',
-  'kernel/dispatch/reconcile/index.ts',
   'kernel/dispatch/reconcile/options.ts',
   'kernel/dispatch/reconcile/plan.ts',
   'kernel/dispatch/scan/aggregate.ts',

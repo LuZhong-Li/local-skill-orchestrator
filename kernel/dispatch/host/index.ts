@@ -1,7 +1,12 @@
 /** 宿主分发通道的公共入口。 */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { CODES, type Change, type Finding } from '@skill-manager/contract';
+import {
+  CODES,
+  type Change,
+  type Finding,
+  type HostLandingVisibility,
+} from '@skill-manager/contract';
 import { finding } from '../../store/findings.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
@@ -107,6 +112,36 @@ function missingRequiredCopy(input: {
   };
 }
 
+function channelOf(input: {
+  hostValue: string;
+  layout: WorkspaceLayout;
+  index: SkillIndex;
+  skillDir: string;
+  raw: Record<string, unknown>;
+}): { channel?: HostChannel; findings: Finding[] } {
+  const pluginCatalog = input.hostValue.startsWith('x-')
+    ? loadPluginCatalog({
+        layout: input.layout,
+        builtins: loadHostRegistry().hosts,
+        toolVersion: TOOL_VERSION,
+      })
+    : undefined;
+  const built = buildHostChannel({
+    value: input.hostValue,
+    layout: input.layout,
+    index: input.index,
+    source: renderSourceOf(input.skillDir, input.raw),
+    ...(pluginCatalog === undefined ? {} : { pluginCatalog }),
+  });
+  if (
+    built.channel === undefined ||
+    (built.channel.plugin !== undefined && built.findings.some((item) => item.severity === 'error'))
+  ) {
+    return { findings: built.findings };
+  }
+  return { channel: built.channel, findings: built.findings };
+}
+
 /**
  * 安装与刷新的宿主分发：把中心库原件按落位计划分发到宿主真实根。
  *
@@ -124,31 +159,21 @@ export function runHostLanding(input: {
   dryRun: boolean;
   /** update 只刷新既有副本；缺失时由 reconcile repair 创建。 */
   requireExisting?: boolean;
+  /** repair 可显式恢复可见性；省略时保持 install/update 的既有行为。 */
+  visibility?: HostLandingVisibility;
 }): { findings: Finding[]; changes: Change[]; data: Record<string, unknown> } {
   const metaRead = readMetaFile(input.skillDir, input.skillDir);
   if (metaRead.raw === null) {
     return { findings: metaRead.findings, changes: [], data: {} };
   }
-  const pluginCatalog = input.hostValue.startsWith('x-')
-    ? loadPluginCatalog({
-        layout: input.layout,
-        builtins: loadHostRegistry().hosts,
-        toolVersion: TOOL_VERSION,
-      })
-    : undefined;
-  const built = buildHostChannel({
-    value: input.hostValue,
+  const built = channelOf({
+    hostValue: input.hostValue,
     layout: input.layout,
     index: input.index,
-    source: renderSourceOf(input.skillDir, metaRead.raw),
-    ...(pluginCatalog === undefined ? {} : { pluginCatalog }),
+    skillDir: input.skillDir,
+    raw: metaRead.raw,
   });
-  if (
-    built.channel === undefined ||
-    (built.channel.plugin !== undefined && built.findings.some((item) => item.severity === 'error'))
-  ) {
-    return { findings: built.findings, changes: [], data: {} };
-  }
+  if (built.channel === undefined) return { findings: built.findings, changes: [], data: {} };
   const missing = missingRequiredCopy({
     hostValue: input.hostValue,
     channel: built.channel,
@@ -164,6 +189,7 @@ export function runHostLanding(input: {
     sourceMeta: metaRead.raw,
     sourceDir: input.skillDir,
     dryRun: input.dryRun,
+    ...(input.visibility === undefined ? {} : { visibility: input.visibility }),
   });
   return {
     findings: landed.findings,

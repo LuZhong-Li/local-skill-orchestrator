@@ -21,6 +21,14 @@
 - **验证**：常规 **676 项**（675 通过 + 1 平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0。
 - **边界**：T0 只读骨架，不发版；T1 再实现 `repair + forget`。
 
+### M4c 二期 T1：repair 与 forget（2026-10-19）
+
+- **repair**：支持 missing / not_distributed 创建、content / visibility drift 恢复、orphaned 再激活与有工作区基线的 corrupt 修复；从中心库本地重渲染，不访问网络。
+- **执行事务**：`--apply` 使用工作区锁、计划签名复查和标准确认；单副本逐项返回结果，失败不留下“有账本无副本”或“有副本无账本”。
+- **forget**：只把确认不存在的 active 账本转 orphaned，不改 skill 索引与物理磁盘。
+- **边界**：共享根与插件 `x-` 项标 `shared_root_t4` / `plugin_host_t4` 跳过；目标被文件占用时失败并保留原账本与占用文件。
+- **验证**：新增 8 项 T1 e2e；常规 **684 项**（683 通过 + 1 平台跳过）；全门禁与 smoke 保持绿；不发版。
+
 ### P1-c：lifecycle 拆分（2026-10-19）
 
 - **入口**：`kernel/core/lifecycle/index.ts` 1738 → **19 行**，只保留公共导出；实现按 `install` / `uninstall` / `toggle` / `update` / `restore` 拆分，共享工具进 `shared.ts`、稳定类型进 `types.ts`。

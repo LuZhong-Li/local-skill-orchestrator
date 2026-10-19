@@ -710,6 +710,8 @@ skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
 | `clean` | 宿主 → 删除 | 有明确物理副本的 orphaned / corrupt / 未纳管目录 | 宿主副本、账本 |
 | `forget` | 账本 → 孤儿 | 副本确认不存在的 `missing` | 账本 |
 
+T1 执行范围：`repair` 与 `forget` 已具备 `--apply` 执行能力，且只处理内置宿主、单物理副本；共享根整组处理与插件 `x-` 宿主动作在 T4 接入，计划中以 `shared_root_t4` / `plugin_host_t4` 跳过。
+
 **选择器与互斥**：
 
 1. `--path` 精确选择一个物理副本；不得与 `--id`、`--host`、`--classification` 混用。
@@ -729,7 +731,7 @@ skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
 6. `adopt` 的中心库来源是磁盘实际内容，不做反向解渲染；合成元文件的 `source.type` 为 `unknown`；
 7. `accept` 只接受内容和可见性；source / version 漂移不得由宿主副本反向推断，默认使用 `repair`。
 
-**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。T0 阶段始终返回 `applied: false`；带 `--apply` 时返回 `E-RECONCILE-001`，明确写入尚未实现。
+**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。`--apply` 的 `repair` / `forget` 另返回 `results[]`（逐项 succeeded / failed / skipped、changes 与 findings）；其他动作返回 `E-RECONCILE-001`，明确尚未实现。
 
 **退出码**：参数与选择器错误返回 `2`；动作不适配、尚未实现、计划过期与共享根选择冲突返回 `1`；写入失败按既有 IO / 备份 / 账本派生的退出码处理。
 
@@ -906,6 +908,7 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 | 40 | 2026-10-19 | 第 4.4 节新增 `scan --inventory` 只读盘点模式：与 `--kind` / `--root` / `--dry-run` 互斥，允许未初始化工作区；只展开内置与已启用 `x-` 宿主候选根，不读宿主目录、不发现技能、不写索引或 `last_scan_at`。`data.mode` 固定为 `inventory`，并给出 `workspace` 状态与统一根清单字段。指令总数仍为 16，属选项与输出扩展 |
 | 41 | 2026-10-19 | 第 4.4 节扩展 inventory 输出：根增加 state/readable/copy_count/corrupt_count；新增 copies/corrupt/summary。direct/recursive、rules、SKILL.md 识别、`.disabled`、realpath 去重与 corrupt 隔离按 M4c-2 实现；仍不输出对账分类 |
 | 42 | 2026-10-19 | **指令清单由 16 条增至 17 条**：新增第 4.17 节 `reconcile`（六动作、精确路径 / id+host / 分类批量选择、默认预览、`--apply` 才执行、常规确认）；`scan --inventory` 保持只读。T0 阶段 `--apply` 返回 `E-RECONCILE-001`，不执行写入；新增问题码 `E-RECONCILE-001/002/003` |
+| 43 | 2026-10-19 | 第 4.17 节 T1 执行口径：`repair` / `forget` 支持 `--apply`；repair 仅内置宿主与单副本，使用工作区本地重渲染；forget 只转 orphaned 账本；其他动作仍返回 `E-RECONCILE-001`，共享根留 T4 |
 | 42 | 2026-10-19 | 第 4.4 节接入 M4c-3 对账：copies/corrupt 增加 reconciliation；active 两账本反查 missing；degradation 显式给出账本状态；插件 content/source 保持 inferred/undetermined，不输出 M4c-4 聚合 |
 | 43 | 2026-10-19 | 第 4.4 节新增 M4c-4 聚合：summary.main / roles / classification_groups、hosts 层级与人类可读摘要；明确 user 主计数、unique_skills、共享根去重、corrupt 不计有效计数、missing 不计有效副本 |
 | 44 | 2026-10-19 | 第 4.4 节新增只读验证条款：静态 fs/写模块守卫与工作区、宿主根递归快照（文件清单、mtime、内容哈希）前后一致；覆盖未初始化、损坏账本、缺失/不可读根与大规模副本 |

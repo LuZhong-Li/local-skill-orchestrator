@@ -7,6 +7,7 @@ import type {
   ReconciliationFormat,
   ReconciliationLedgerSource,
 } from './host-reconciliation.ts';
+import type { Change, Finding } from './result.ts';
 
 export const RECONCILE_ACTIONS = ['adopt', 'track', 'repair', 'accept', 'clean', 'forget'] as const;
 
@@ -43,6 +44,9 @@ export interface ReconcileBefore {
   ledger_source: ReconciliationLedgerSource;
   evidence: ReconciliationEvidence;
   drift_reasons: string[];
+  exists: boolean;
+  content_digest?: string;
+  visibility?: InventoryCopyVisibility;
 }
 
 export interface ReconcileExpected {
@@ -68,6 +72,7 @@ export interface ReconcilePlanItem {
   item_id: string;
   physical_key: string;
   target_path: string;
+  skill_id?: string;
   host_ids: string[];
   consumed_by: string[];
   format: ReconciliationFormat;
@@ -113,4 +118,20 @@ export interface ReconcilePreviewData {
   transaction_groups: ReconcileTransactionGroup[];
   summary: ReconcilePlanSummary;
   notes: string[];
+}
+
+export interface ReconcileResultItem {
+  item_id: string;
+  status: 'succeeded' | 'failed' | 'skipped';
+  target_path: string;
+  message?: string;
+  findings?: Finding[];
+  changes?: Change[];
+  after?: ReconcileExpected;
+}
+
+/** `reconcile --apply` 的稳定结果载荷；写入结果逐项保留。 */
+export interface ReconcileApplyData extends Omit<ReconcilePreviewData, 'applied'> {
+  applied: boolean;
+  results: ReconcileResultItem[];
 }
