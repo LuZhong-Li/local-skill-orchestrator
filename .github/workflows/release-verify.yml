@@ -1,0 +1,143 @@
+name: Release Verify
+
+# v0.4.0 发布后验证：只回下载已发布资产，不修改 Release。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '已发布 tag'
+        required: true
+        default: v0.4.0
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  assets:
+    name: Release 资产与 SHA 复算
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 回下载 Release 资产
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release
+          gh release download "${{ inputs.tag }}" -D release
+          test "$(find release -maxdepth 1 -type f | wc -l)" -eq 6
+          cd release
+          sha256sum -c SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: 确认 latest / 非 draft / 非 prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)"
+          test "$tag" = "${{ inputs.tag }}"
+          draft="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${{ inputs.tag }}" --jq .draft)"
+          pre="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${{ inputs.tag }}" --jq .prerelease)"
+          test "$draft" = "false"
+          test "$pre" = "false"
+          echo "latest=$tag draft=$draft prerelease=$pre"
+
+  macos:
+    name: macOS 两架构 dmg 内核闭环
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - arm64
+          - x64
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: 回下载对应 dmg
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p assets
+          gh release download "${{ inputs.tag }}" \
+            -p "skill-manager-*-${{ matrix.arch }}.dmg" -D assets
+
+      - name: 挂载、内核版本、签名与 init → scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          dmg="$(find assets -maxdepth 1 -name '*.dmg' | head -n 1)"
+          test -n "$dmg"
+          mount="$(mktemp -d)"
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount" > /dev/null
+          trap 'hdiutil detach "$mount" > /dev/null 2>&1 || true' EXIT
+          app="$(find "$mount" -maxdepth 2 -name '*.app' | head -n 1)"
+          test -n "$app"
+          kernel="$app/Contents/Resources/kernel/skill-manager.exe"
+          test -f "$kernel"
+          version="$("$kernel" --version)"
+          test "$version" = "0.4.0"
+          codesign -dv "$kernel" 2>&1 | tee codesign.log
+          workspace="$(mktemp -d)"
+          "$kernel" init --workspace "$workspace" > /dev/null
+          "$kernel" scan --workspace "$workspace" > /dev/null
+          "$kernel" list --workspace "$workspace" --json > /dev/null
+          echo "MACOS_RELEASE_RESULT=ok arch=${{ matrix.arch }} version=$version kernel=$kernel"
+
+  windows:
+    name: Windows Release portable 盘点
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: 安装 Node（取自 .nvmrc）
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 回下载 Release portable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir assets
+          gh release download "${{ inputs.tag }}" -p '*portable.exe' -D assets
+          $portable = Get-ChildItem assets -Recurse -Filter '*.exe' | Select-Object -First 1
+          "PORTABLE=$($portable.FullName)" >> $env:GITHUB_ENV
+
+      - name: 生产 GUI 冒烟（Release 资产）
+        run: node scripts/gui-smoke.mjs --app "$env:PORTABLE"
+
+      - name: 解包 Release portable 并跑内核盘点
+        shell: pwsh
+        run: |
+          $seven = 'C:\Program Files\7-Zip\7z.exe'
+          if (!(Test-Path $seven)) { $seven = '7z' }
+          $out = Join-Path $PWD 'portable-extract'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          & $seven x $env:PORTABLE "-o$out" -y | Out-Null
+          $kernel = Get-ChildItem $out -Recurse -Filter 'skill-manager.exe' |
+            Where-Object { $_.FullName -match '\\resources\\kernel\\skill-manager\.exe$' } |
+            Select-Object -First 1
+          for ($i = 0; $null -eq $kernel -and $i -lt 3; $i++) {
+            $nested = Get-ChildItem $out -Recurse -Filter '*.7z' | Select-Object -First 1
+            if ($null -eq $nested) { break }
+            & $seven x $nested.FullName "-o$out" -y | Out-Null
+            Remove-Item -LiteralPath $nested.FullName -Force
+            $kernel = Get-ChildItem $out -Recurse -Filter 'skill-manager.exe' |
+              Where-Object { $_.FullName -match '\\resources\\kernel\\skill-manager\.exe$' } |
+              Select-Object -First 1
+          }
+          if ($null -eq $kernel) { throw 'Release portable 中未找到 kernel' }
+          node scripts/probe-production-kernel.mjs $kernel.FullName

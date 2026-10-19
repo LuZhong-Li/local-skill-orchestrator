@@ -28,6 +28,13 @@ test('契约：M4c-7 三平台探针接入可复用 verify 工作流', () => {
   assert.match(releaseSmoke, /gui-smoke\.mjs --app/);
   assert.match(releaseSmoke, /probe-production-kernel\.mjs/);
   assert.match(releaseSmoke, /resources/);
+  const releaseVerify = read('.github/workflows/release-verify.yml');
+  assert.match(releaseVerify, /gh release download/);
+  assert.match(releaseVerify, /sha256sum -c SHA256SUMS\.txt/);
+  assert.match(releaseVerify, /macos-15/);
+  assert.match(releaseVerify, /codesign -dv/);
+  assert.match(releaseVerify, /gui-smoke\.mjs --app/);
+  assert.match(releaseVerify, /probe-production-kernel\.mjs/);
 });
 
 test('契约：探针覆盖路径展开、发现、四分类、插件 .md 与未初始化', () => {
