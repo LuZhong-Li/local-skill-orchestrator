@@ -492,6 +492,23 @@
 
 > M4c-6 已收口；下一批为 M4c-7 三平台 CI fixture 探针。
 
+### 6.20 M4c-7 三平台 CI fixture 探针（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| 探针 | 新增 `scripts/probe-host-inventory.mjs`，真实执行 `scan --inventory --json`；临时 HOME/LOCALAPPDATA 夹具，35 项断言 |
+| CI | [run 39189852362](https://github.com/LuZhong-Li/skill-manager/actions/runs/39189852362)：`inventory-probe` 独立 job，ubuntu-24.04 / windows-latest / macos-15，fail-fast false；三平台均 Success |
+| 路径机制 | HOME 展开、平台分隔符、config 根、Claude / Codex / Cursor 用户根；Windows 豆包平台根按平台出现 |
+| 发现与对账 | 有效技能、`.disabled`、坏 YAML、缺 name、无 SKILL.md 忽略、references 不计数、共享根去重、Cursor 递归、managed/drift/missing/untracked、未初始化 |
+| symlink | macOS / Linux 创建目录符号链接并验证 realpath 去重；Windows 条件跳过并在输出标注 |
+| 插件规则 | x- 宿主 `.zed/rules/<id>.md` 作为 rules 发现，验证 `.md` 兼容与 id 识别 |
+| pending | 移除 Claude / Cursor 机制根；保留三个 Codex 事实根；依据逐条登记 |
+| 真机项 | TD-02：真实安装 Claude / Codex / Cursor 的 macOS/Linux 默认布局；TD-07：Codex 官方 vs 遗留分发根口径 |
+| 测试 | 新增 3 项契约测试；常规 658 → **661 项**（单元 412、契约 133、端到端 116；660 通过 + 1 平台跳过） |
+| 结构 | `check:arch` 168 文件 / 511 边 / 0 循环 / 0 allowlist；complexity 保持 **94** |
+
+> M4c-7 已收口，M4c 功能与验证全部完成；下一批为 v0.4.0 总验收与发版准备。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

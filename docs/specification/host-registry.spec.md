@@ -181,7 +181,7 @@
 | `origin` | 字符串枚举 | 必填 | 根来源 | 静态条目仅允许 `default`、`legacy`；`config` 仅由运行时追加，不得写入注册表 |
 | `consumed_by` | 字符串数组 | 可选 | 消费该物理根的宿主 | 缺省视为当前宿主；取值须闭合到 `host_id` 或 `external_consumers.id` |
 | `platform_notes` | 字符串 | 可选 | 平台或角色说明 | 非空字符串 |
-| `pending_verification` | 布尔 | 可选 | 是否尚待真机验证 | 仅用于未取得真机证据的候选根；CI 探针通过后移除 |
+| `pending_verification` | 布尔 | 可选 | 该根的**真实默认布局事实**是否尚待真机验证 | 机制类路径展开由 CI fixture 证明后不再据此保留；真实工具是否使用该根、官方与遗留根的口径仍无证据时必须保留 |
 
 口径：
 
@@ -409,3 +409,4 @@ hosts:
 | 4 | 2026-10-15 | 兼容澄清（T4 实现反馈）：明确 `path_template` 的模板粒度由 `kind` 决定——`skill` / `external` 为技能目录模板，`rules` 为规则文件模板，供落位计划展开时使用。原表述只写「落位路径模板」，未区分目录与文件，落位计划无法据以判定是否需要拼接产物文件名 |
 | 5 | 2026-10-16 | **裁决修订（M5 遗留事实点收口批次）**：① **HR-09 改写**——由「全宿主禁止 `disable-model-invocation`」改为「安全控制字段按宿主语义证据准入」，配套新增 `render_policy.security_control_evidence` 结构（`semantics` + 一手 `level` + `sources`）与 3.8 节；② **HR-07 放宽并新增 HR-13**——消费关系取值允许引用顶层新登记的 `external_consumers[]`（外部消费方须带一手证据，作为**非适配对象**登记），据此把 `dsh`（DeepSeek Harness，开发者预览）登记为 `~/.agents/skills` 的消费方；③ Codex 用户级技能根依据官方文档改为 `$HOME/.agents/skills`（原 `~/.codex/skills` 降为**配置覆盖的遗留兼容根**，不默认双写）。`registry_version` 不递增：注册表随内核同版本交付，本次为可选字段新增与规则放宽，无既有取值语义变更 |
 | 6 | 2026-10-19 | **P1-a 结构扩展**：新增 `adapter_forms`、`landing_roots`、`inventory_roots` 三组字段，分别收敛宿主形态、既有分发默认根与 M4c 盘点候选根；新增 3.5.1 至 3.5.3 与 HR-14、HR-15。`landing_roots` 保持既有分发行为不变，Codex 仍默认分发到 `~/.agents/skills`；`~/.codex/skills` 与 `~/.codex/skills/.system` 仅作为盘点候选根登记，豆包 `.user_skills` / `.skills` 按 user / platform 分角色盘点。macOS / Linux 候选根标 `pending_verification`，由 M4c-7 的 CI 探针验证。schema 同步收紧：非 `not_applicable` 宿主必须给出三组字段，`not_applicable` 宿主不得给出，`base = env` 的根必须给出 `env_var` |
+| 7 | 2026-10-19 | **M4c-7 验证边界**：三平台 CI fixture 已证明 HOME 展开、分隔符、config 根、发现、去重、对账与 symlink 机制；因此移除 `claude/user`、`cursor/user-skills`、`cursor/user-rules` 的 `pending_verification`。该字段不再表示机制未验证，只表示真实默认布局事实未取证；Codex 三个根（`agents-user` / `legacy-user` / `system`）因官方 `~/.agents/skills` 与遗留 `~/.codex/skills` 口径仍待证据而保留。真实安装环境的默认目录与额外配置登记 TD-02，不伪造“已实测” |

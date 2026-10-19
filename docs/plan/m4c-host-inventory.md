@@ -4,10 +4,10 @@
 |---|---|
 | 文档名称 | M4c 宿主盘点实施计划 |
 | 文档路径 | `docs/plan/m4c-host-inventory.md` |
-| 文档状态 | **执行中**（2026-10-18 批准；L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-6 已完成，2026-10-19） |
+| 文档状态 | **执行中**（2026-10-18 批准；L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-7 已完成，2026-10-19） |
 | 依据 | [`docs/design/m4c-host-inventory.md`](../design/m4c-host-inventory.md)；需求 9.3.7（M4c-R1 ~ R9）、9.4.7、9.5、9.6；第 10 章；两份调研报告 |
 | 说明 | 只计划，不实现；账本批次先于 M4c；纯重构与功能批严格分离；每批独立可验 |
-| 基线 | 常规测试 658（M4c-6 后；657 通过 + 1 项平台跳过）；16 条指令；7 份规范 / 8 份 schema |
+| 基线 | 常规测试 661（M4c-7 后；660 通过 + 1 项平台跳过）；16 条指令；7 份规范 / 8 份 schema |
 
 ---
 
@@ -54,7 +54,7 @@
 
 > 任务展开：P0 / P1 / P2 见 [`docs/plan/maintainability.md`](maintainability.md)；本文件展开 L / M4c。
 
-**执行状态（2026-10-19）**：P0-a ~ P0-d、L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-6 已完成；下一批为 M4c-7（三平台 CI fixture 探针 + 真机登记）。M4c-6 已交付只读 GUI 盘点视图，空工作区可直接进入。逐批证据见 [`maintainability.md`](maintainability.md) 与 `docs/one-summary.md` 6.4 ~ 6.19。
+**执行状态（2026-10-19）**：P0-a ~ P0-d、L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-7 已完成；下一批为 v0.4.0 总验收与发版准备。M4c-7 已在 Windows / macOS / Linux CI runner 上跑通 fixture 探针，真实工具目录继续登记 TD-02。逐批证据见 [`maintainability.md`](maintainability.md) 与 `docs/one-summary.md` 6.4 ~ 6.20。
 
 ---
 
@@ -642,7 +642,7 @@
 | 测试 | 新增 6 项（2 unit / 4 contract）；常规 652 → **658 项**（单元 412、契约 130、端到端 116；657 通过 + 1 平台跳过） |
 | 结构 | `check:arch` 167 文件 / 511 边 / 0 循环 / 0 allowlist；complexity 保持 **94**；`scripts/gui-smoke.mjs` 743 → **660** 行 |
 
-### M4c-7 三平台 CI fixture 探针
+### M4c-7 三平台 CI fixture 探针（已完成 2026-10-19）
 
 **目标**：在 Windows / Linux / macOS runner 上用 fixture 验证路径 / 识别 / 去重 / 四分类；真实用户目录待真机。
 
@@ -663,7 +663,7 @@
 
 1. 三平台 fixture 探针；
 2. 失败自证输出；
-3. 658 项全绿；新增预计 3 项。
+3. 661 项全绿；本批新增 3 项。
 
 **验收**：
 
@@ -673,6 +673,21 @@
 4. 可独立手工运行。
 
 **门禁**：M4c-4 全绿；CI 矩阵成功；真机项登记。
+
+**落地记录（2026-10-19）**：
+
+| 项 | 结果 |
+|---|---|
+| 探针 | 新增 `scripts/probe-host-inventory.mjs`，35 项断言；真实执行 `scan --inventory --json`，临时 HOME/LOCALAPPDATA 夹具，不读取真实用户目录 |
+| 工作流 | `.github/workflows/verify.yml` 新增独立 `inventory-probe` job，矩阵 `ubuntu-24.04` / `windows-latest` / `macos-15`，`fail-fast: false`；由 `ci.yml` 与 `pack.yml` 共同消费 |
+| 路径机制 | 三平台断言 `$HOME/.claude/skills` / `$HOME/.agents/skills` / `$HOME/.cursor/skills` / `$HOME/.cursor/rules` 展开、平台分隔符、config 根追加 |
+| 发现/对账 | 有效技能、`.disabled`、坏 YAML、缺 name、无 SKILL.md 忽略、references 不计数、共享根去重、Cursor 递归、managed/drift/missing/untracked、未初始化工作区 |
+| symlink | macOS / Linux 用目录符号链接指向共享根，验证 realpath 去重；Windows 按平台条件跳过并在结果中标注 |
+| 插件规则 | x- 宿主 `.zed/rules/<id>.md` 作为 rules 盘点，验证插件 `.md` 兼容与 skill_id 识别 |
+| pending | 移除：`claude/user`、`cursor/user-skills`、`cursor/user-rules`（机制已由三平台 CI 覆盖）；保留：`codex/agents-user`、`codex/legacy-user`、`codex/system`（真实 Codex 官方/遗留根口径待真机证据） |
+| CI | [run 39189852362](https://github.com/LuZhong-Li/skill-manager/actions/runs/39189852362) 的 [Linux](https://github.com/LuZhong-Li/skill-manager/actions/runs/39189852362/job/117860296663) / [macOS](https://github.com/LuZhong-Li/skill-manager/actions/runs/39189852362/job/117860296994) / [Windows](https://github.com/LuZhong-Li/skill-manager/actions/runs/39189852362/job/117860297183) 三个探针 job 均 Success；输出分别为 `platform=linux checks=35 copies=8 corrupt=2 symlink=created`、`platform=darwin ... symlink=created`、`platform=win32 ... symlink=skipped` |
+| 测试 | 新增 3 项契约测试；常规 658 → **661 项**（单元 412、契约 133、端到端 116；660 通过 + 1 平台跳过） |
+| 结构 | `check:arch` 168 文件 / 511 边 / 0 循环 / 0 allowlist；complexity 保持 **94** |
 
 ---
 
@@ -728,9 +743,9 @@ P0-a → P0-b → P0-c → P0-d
 
 ---
 
-## 5. 测试与基线（M4c-6 后 658）
+## 5. 测试与基线（M4c-7 后 661）
 
-> P0 批次的任务条目保留当时的 569 项历史基线；L-1 ~ L-5、P1-a/P1-b、M4c-1/M4c-2/M4c-3/M4c-4/M4c-5 条目保留各自的时点值；自 M4c-6 起，后续各批的实际基线为 **658 项（657 通过 + 1 项平台跳过）**，新增测试按批累加。
+> P0 批次的任务条目保留当时的 569 项历史基线；L-1 ~ L-5、P1-a/P1-b、M4c-1 ~ M4c-6 条目保留各自的时点值；自 M4c-7 起，后续各批的实际基线为 **661 项（660 通过 + 1 项平台跳过）**，新增测试按批累加。
 
 | 批次 | 测试增量（预计） | 说明 |
 |---|---:|---|
@@ -747,9 +762,9 @@ P0-a → P0-b → P0-c → P0-d
 | M4c-4 | +3（已完成，644 → 647） | role 主计数 / 分类分组 / 宿主层级 / 人类摘要 |
 | M4c-5 | +5（已完成，647 → 652） | 静态只读守卫 / 全状态快照 / 损坏账本 / 大规模副本 |
 | M4c-6 | +6（已完成，652 → 658） | 2 unit / 4 contract：GUI 结构 / 只读边界 / 展示映射 / 结果类型 |
-| M4c-7 | +3 | 三平台 fixture |
+| M4c-7 | +3（已完成，658 → 661） | 三平台 workflow / 探针结构 / pending 精确边界 |
 
-原预计约 **58** 项；L-2 实际新增 18 项、L-3 实际新增 12 项、L-4 实际新增 13 项、L-5 实际新增 5 项、P1-a 实际新增 6 项、P1-b 实际新增 2 项、M4c-1 实际新增 5 项、M4c-2 实际新增 5 项、M4c-3 实际新增 5 项、M4c-4 实际新增 3 项、M4c-5 实际新增 5 项、M4c-6 实际新增 6 项，后续按实际回填。每批基线：658 项（657 通过 + 1 项平台跳过）不回归；纯重构批不新增功能测试。
+原预计约 **58** 项；L-2 实际新增 18 项、L-3 实际新增 12 项、L-4 实际新增 13 项、L-5 实际新增 5 项、P1-a 实际新增 6 项、P1-b 实际新增 2 项、M4c-1 实际新增 5 项、M4c-2 实际新增 5 项、M4c-3 实际新增 5 项、M4c-4 实际新增 3 项、M4c-5 实际新增 5 项、M4c-6 实际新增 6 项、M4c-7 实际新增 3 项，后续按实际回填。每批基线：661 项（660 通过 + 1 项平台跳过）不回归；纯重构批不新增功能测试。
 
 ---
 
@@ -775,7 +790,7 @@ P0-a → P0-b → P0-c → P0-d
 ### 6.2 发版门禁
 
 1. 三平台 CI / fixture 探针成功；
-2. 658 项 + 新增测试全绿；慢测试 / GUI 冒烟通过；
+2. 661 项 + 新增测试全绿；慢测试 / GUI 冒烟通过；
 3. 发版前守卫、版本一致性、发布资产沿用 v0.3.0 机制；
 4. `host_landings` 契约 / schema / 问题码齐备；
 5. CHANGELOG 记录 v0.4.0 范围与技术债；
@@ -802,7 +817,7 @@ P0-a → P0-b → P0-c → P0-d
 | M-R-18 无账本 / 缺失误判 | L-3/L-4/M4c-3 | 阻断 / inferred / undetermined |
 | M-R-19 根不可读 / 规模 | M4c-2/5 | 单根隔离 / 只读 |
 | M-R-20 只读误触写路径 | M4c-1/5 | 不进 withLock / 不写 |
-| M-R-21 结构改造回归 | P0/P1/M4c | 658 全绿；纯重构批行为不变 |
+| M-R-21 结构改造回归 | P0/P1/M4c | 661 全绿；纯重构批行为不变 |
 
 ---
 
@@ -811,10 +826,11 @@ P0-a → P0-b → P0-c → P0-d
 | 编号 | 遗留项 | 类型 | 处理 |
 |---|---|---|---|
 | TD-01 | 双源账本 → 单账本统一 | 技术债 | L-1 / L-5 + CHANGELOG 登记；触发 plugin_index v2 / 下一次分发契约变更 |
-| TD-02 | macOS / Linux 真实用户宿主目录 | 待真机 | M4c-7 fixture 不替代；EX-08 模式 |
+| TD-02 | macOS / Linux 真实用户宿主目录（装 Claude / Codex / Cursor 的机器） | 待真机 | CI fixture 已覆盖 HOME 展开、分隔符、config 根、发现/去重/对账、symlink；真机补验工具实际创建的默认布局、额外子目录与配置 |
 | TD-03 | `W-DRIFT-001` 措辞批次 | 既有遗留 | 按 one-summary 既有登记 |
 | TD-04 | `--host all` 对历史无账本副本覆盖有限 | 已知边界 | M4c inferred / untracked；二期 |
 | TD-05 | 工作区 + 宿主 + 账本单一事务 | 未闭环 | 当前保证宿主副本 + 账本；更大编排重构另立 |
+| TD-07 | Codex `~/.agents/skills` 与 `~/.codex/skills` 官方分发根口径 | 待证据 | M4c-7 保留三个 Codex 根的 `pending_verification`；取得官方文档 / 多版本真机证据后再定默认分发根 |
 
 ---
 
@@ -823,7 +839,7 @@ P0-a → P0-b → P0-c → P0-d
 每批提交前：
 
 1. 纯重构 / 功能严格分离；本批只做一类变化；
-2. 658 项全绿；新增测试按批归属；
+2. 661 项全绿；新增测试按批归属；
 3. 契约 / schema / 问题码 / 选项登记完成；
 4. 三平台不触碰真实宿主根；
 5. 只读批不写文件 / 不锁 / 不刷新时间戳；

@@ -902,6 +902,8 @@ temp/
 
 macOS / Linux 真实 `~/.claude/skills`、`~/.codex/skills`、`~/.cursor/skills` 等原生布局登记为**待真机项**（EX-08 模式）：需要真实宿主安装 / 用户环境，不伪造“已实测”，不阻塞设计。
 
+**M4c-7 实现对齐（2026-10-19）**：三平台 CI fixture 已覆盖 HOME 展开、平台分隔符、config 根、发现/去重/对账、未初始化与 macOS/Linux symlink；这关闭的是**机制类**缺口。真实工具是否安装、实际默认目录、额外子目录与配置仍属**事实类**缺口，登记 TD-02；Codex `~/.agents/skills` 与 `~/.codex/skills` 的官方分发根口径另行登记 TD-07。`pending_verification` 只用于事实类未取证根：Claude / Cursor 机制根已移除，三个 Codex 根保留。
+
 ---
 
 ## 9. 契约变更与迁移

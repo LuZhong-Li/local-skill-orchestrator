@@ -163,6 +163,19 @@
 - **结构**：`check:arch` 167 文件 / 511 边 / 0 循环 / 0 allowlist；complexity 保持 **94**。
 - **收口**：M4c-6 完成；下一批 M4c-7 三平台 CI fixture 探针。
 
+### M4c-7：三平台 CI fixture 探针（2026-10-19）
+
+- **探针**：新增 `scripts/probe-host-inventory.mjs`，真实执行 `scan --inventory --json`；临时 HOME/LOCALAPPDATA 夹具，不读取真实用户目录，35 项断言/平台。
+- **CI**：`verify.yml` 新增独立 `inventory-probe` job，矩阵 ubuntu-24.04 / windows-latest / macos-15，`fail-fast: false`；由 `ci.yml` 与 `pack.yml` 共同消费。
+- **覆盖**：HOME 展开与平台分隔符、config 根追加、有效技能 / `.disabled` / 坏 YAML / 缺 name / 无 SKILL.md 忽略 / references 不计数、共享根 realpath 去重、Cursor 递归、managed/drift/missing/untracked、未初始化工作区。
+- **symlink**：macOS / Linux 用目录符号链接指向共享根验证去重；Windows 条件跳过并在输出中标注。
+- **插件规则**：x- 宿主 `.zed/rules/<id>.md` 作为 rules 发现，验证 `.md` 兼容与 skill_id 识别。
+- **pending 精确处理**：移除 `claude/user`、`cursor/user-skills`、`cursor/user-rules`；保留 `codex/agents-user`、`codex/legacy-user`、`codex/system`，原因是 Codex 官方 / 遗留根口径仍待真机证据。
+- **真机遗留**：TD-02 真实安装环境默认布局；TD-07 Codex 官方 vs 遗留分发根口径。
+- **测试**：新增 3 项契约测试；常规套件 658 → **661 项**（单元 412、契约 133、端到端 116；660 通过 + 1 项平台条件跳过）。
+- **结构**：`check:arch` 168 文件 / 511 边 / 0 循环 / 0 allowlist；complexity 保持 **94**。
+- **收口**：M4c-7 完成，M4c 功能与验证全部收口；下一批 v0.4.0 总验收与发版准备。
+
 ## 0.3.0
 
 M4b 声明式插件生态。未签名交付口径不变。

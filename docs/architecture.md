@@ -1562,7 +1562,7 @@ flowchart TB
 2. `inventory_roots[]` 只驱动盘点枚举；Codex `.codex/skills` 标 `legacy`，`.codex/skills/.system` 标 `system`，豆包 `.skills` 标 `platform`。
 3. `config host.<id>.root` / `.rules_root` 由 selector 以 `origin: config`、`role: user` 追加，不写回注册表。
 4. 第三方 `x-` 宿主不进入内置注册表；插件 selector 输出相同视图形状，未配置 global 根时显式 `configured:false`。
-5. macOS / Linux 候选根带 `pending_verification`，等待 M4c-7 CI fixture 探针；不把推导路径冒充实测。
+5. macOS / Linux 候选根先带 `pending_verification`；M4c-7 CI 探针验证机制后，Claude / Cursor 三根移除标记，三个 Codex 事实根保留并登记 TD-02 / TD-07。
 
 #### 计数校验（本批次）
 
@@ -1801,6 +1801,37 @@ flowchart TB
 | 测试总数 | 652 → **658 项**（单元 412、契约 130、端到端 116；657 通过 + 1 项平台条件跳过） |
 | 界面冒烟 | 28 → **40/40** |
 | 待处理项 | 0；三平台 fixture 探针归 M4c-7 |
+
+### 补充记录 2026-10-19（M4c-7 三平台 CI fixture 探针）
+
+来源：M4c-7。验证批次，不新增产品功能；探针真实执行 CLI，并在 CI 的 Windows / macOS / Linux runner 上运行。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `scripts/probe-host-inventory.mjs` | 隔离 HOME/LOCALAPPDATA fixture；路径展开、发现、去重、对账、未初始化、symlink 与插件 `.md` rules 共 35 项断言 | 验证脚本 | M4c-7 |
+| 2 | `.github/workflows/verify.yml` | 新增独立 `inventory-probe` job，矩阵 ubuntu-24.04 / windows-latest / macos-15，`fail-fast: false` | CI | M4c-7 |
+| 3 | `package.json` | 新增 `probe:inventory` 入口，CI 与本地同口径 | 工具入口 | M4c-7 |
+| 4 | `kernel/core/hosts/host-root-models.ts` | 移除 Claude / Cursor 机制根的 `pending_verification`；保留三个 Codex 事实根的标记 | kernel core | M4c-7 |
+| 5 | `tests/contract/m4c7-probe.test.ts` | 锁定三平台矩阵、探针覆盖面与 pending 精确边界 | 契约测试 | M4c-7 |
+
+#### 验证边界
+
+1. CI fixture 证明：HOME 展开、平台分隔符、config 根追加、直接/递归发现、共享根 realpath 去重、损坏分类、managed/drift/missing/untracked、未初始化可运行、macOS/Linux symlink。
+2. CI runner 不证明真实工具已安装：macOS/Linux 上 Claude / Codex / Cursor 的真实默认目录、额外子目录与配置仍登记 TD-02。
+3. Codex `~/.agents/skills` 与 `~/.codex/skills` 的官方分发根口径仍待证据，三个 Codex 根保留 `pending_verification`（TD-07）。
+4. 探针只写临时目录；真实 HOME/LOCALAPPDATA 不被读取或修改。
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 16，未变动 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 分层检查 | `check:arch` 168 文件 / 511 条相对 import 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94** |
+| 测试总数 | 658 → **661 项**（单元 412、契约 133、端到端 116；660 通过 + 1 项平台条件跳过） |
+| CI 探针 | [run 39189852362](https://github.com/LuZhong-Li/skill-manager/actions/runs/39189852362) 三平台 `PROBE_RESULT=ok`，35 项断言/平台 |
+| 待处理项 | TD-02 真实工具目录、TD-07 Codex 官方分发根口径 |
 
 ---
 
