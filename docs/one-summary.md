@@ -591,6 +591,19 @@
 
 > P2-3 已收口。第 10 章 MNT-R1 ~ R9 全部闭环；代码库达到 0 架构违例、0 循环、0 超阈值文件、单一 contract 来源与完整机械护栏。
 
+### 6.27 M4c 二期动作文档（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| 需求 | 新增 9.3.8；M4c2-R1 至 M4c2-R10；`scan --inventory` 永远只读 |
+| 调研 | [`docs/research/m4c-inventory-actions-2026-10-19.md`](research/m4c-inventory-actions-2026-10-19.md)：现有写原语、五个真实缺口、同类工具惯例、`update --host` 契约边界漂移 |
+| 设计 | [`docs/design/m4c-inventory-actions.md`](design/m4c-inventory-actions.md)：六动作矩阵、推荐 `reconcile`、默认预览 + `--apply`、事务与共享根规则 |
+| 计划 | [`docs/plan/m4c-inventory-actions.md`](plan/m4c-inventory-actions.md)：T0 契约 / 只读计划 → T1 repair + forget → T2 adopt + track → T3 accept + clean → T4 插件 / 批量 → T5 GUI → T6 跨平台收口 |
+| 待评审 | 指令数 16 → 17；untracked 导入方向；drift 双向口径；adopt 的 workspace target；clean 的回滚快照 |
+| 边界 | 文档批次，不改代码、schema 或契约；测试基线保持 **668 项** |
+
+> M4c 二期文档已产出，等待需求 / 设计评审后再进入实现。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

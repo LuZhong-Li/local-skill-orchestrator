@@ -2,6 +2,14 @@
 
 ## 未发布
 
+### M4c 二期动作文档（2026-10-19）
+
+- **需求**：新增 9.3.8（M4c2-R1 ~ R10），明确 `scan --inventory` 永远只读；动作限定为 `adopt / track / repair / accept / clean / forget`。
+- **调研**：盘点一期可复用的 `landPlan` / 账本 / 备份 / 原子写 / 锁；登记 `update --host` 契约与实现之间“是否创建缺失副本”的边界漂移；对照 chezmoi、GNU Stow、pacman、dpkg 的检查 / 预览 / adopt / 重装惯例。
+- **设计**：推荐新增第 17 条 `reconcile`，默认预览、`--apply` 才写；工作区是 `repair` 默认基线，`accept` 只接受内容 / 可见性，不猜 source/ref；共享根按物理副本组事务处理。
+- **计划**：T0 契约与只读计划，T1 repair + forget，T2 adopt + track，T3 accept + clean，T4 插件 / 批量，T5 GUI，T6 跨平台收口。
+- **边界**：纯文档批次，不改代码、schema 或契约；常规测试保持 **668 项**；等待评审后再进入实现。
+
 ### P1-c：lifecycle 拆分（2026-10-19）
 
 - **入口**：`kernel/core/lifecycle/index.ts` 1738 → **19 行**，只保留公共导出；实现按 `install` / `uninstall` / `toggle` / `update` / `restore` 拆分，共享工具进 `shared.ts`、稳定类型进 `types.ts`。
