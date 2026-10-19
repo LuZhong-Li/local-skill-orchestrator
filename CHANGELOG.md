@@ -15,7 +15,7 @@
 
 ### M4c 二期 T6：三平台写探针、失败矩阵与 EPERM 收口（2026-10-19）
 
-- **三平台写探针**：新增 `probe:reconcile` 与独立 `reconcile-probe` verify job（Windows / macOS / Linux）；隔离 HOME + 显式 config 根，87 项断言覆盖六动作、预览零写入、共享根整组、插件 x- 四动作、分类批量、POSIX symlink 与目标占用失败隔离。
+- **三平台写探针**：新增 `probe:reconcile` 与独立 `reconcile-probe` verify job（Windows / macOS / Linux）；隔离 HOME + 显式 config 根，87 项断言覆盖六动作、预览零写入、共享根整组、插件 x- 四动作、分类批量、POSIX symlink 与目标占用失败隔离；CI [39264446848](https://github.com/LuZhong-Li/skill-manager/actions/runs/39264446848) 三平台全 Success。
 - **失败矩阵**：新增 4 项 e2e，覆盖 track / forget 账本损坏、accept 计划过期（E-RECONCILE-002）与 accept 账本写入失败后的中心库 / 索引回滚；既有 repair 占用、clean 删除/账本失败、共享组账本失败继续保留。
 - **EPERM**：T5 观察到 Windows 临时目录目录级 `renameSync` 瞬时 EPERM；根因是 adopt / accept / clean 绕过了原子写的退避策略。现统一为 `renameWithRetry`（5 次、线性退避 10/20/30/40ms），覆盖 EPERM / EACCES / EBUSY；重试耗尽仍原样抛出，不掩盖真实占用。
 - **静态守卫**：`tests/contract/rename-single-source.test.ts` 断言 kernel 内只有 `store/atomic` 直接调用 `renameSync`，reconcile 的目录移动全部走 `renameWithRetry`。

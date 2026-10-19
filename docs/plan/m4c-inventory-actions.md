@@ -263,7 +263,7 @@
 
 | 项 | 结果 |
 |---|---|
-| 三平台写探针 | `scripts/probe-reconcile-actions.mjs` + `probe-reconcile-plugin.mjs`；verify `reconcile-probe` job 在 `ubuntu-24.04 / windows-latest / macos-15` 运行；87 项断言 |
+| 三平台写探针 | `scripts/probe-reconcile-actions.mjs` + `probe-reconcile-plugin.mjs`；verify `reconcile-probe` job 在 `ubuntu-24.04 / windows-latest / macos-15` 运行；87 项断言；CI [39264446848](https://github.com/LuZhong-Li/skill-manager/actions/runs/39264446848) 三平台全 Success |
 | 覆盖 | 六动作预览零写入 → apply → 分类更新；共享根整组；插件 x- repair/track/forget/clean 与 adopt/accept 拒绝；分类批量；POSIX symlink；目标占用失败隔离 |
 | 失败矩阵 | 新增 track / forget 账本损坏、accept 计划过期、accept 账本失败回滚 4 项 e2e；既有 repair 占用、clean 删除/账本失败、共享组账本失败保留 |
 | EPERM | T5 一次观察到 Windows 临时目录 `renameSync` 瞬时 EPERM，未能稳定复现；触发条件为安全软件 / 索引服务短暂持有目录。按稳定风险处理：目录级换名统一走 `renameWithRetry`（5 次，10/20/30/40ms 线性退避，识别 EPERM/EACCES/EBUSY）；静态守卫确保 kernel 只有 `store/atomic` 直接调用 `renameSync` |

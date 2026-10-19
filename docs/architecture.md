@@ -2037,7 +2037,7 @@ flowchart TB
 | 问题码 | 69，未新增 |
 | 分层检查 | `check:arch` 238 源文件 + 1 资产节点 / 913 边 / 0 循环 / 0 allowlist |
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0**；App.vue 785 行 |
-| 三平台写探针 | 87 项断言（Windows 本地通过；CI 矩阵待运行记录） |
+| 三平台写探针 | 87 项断言；CI [39264446848](https://github.com/LuZhong-Li/skill-manager/actions/runs/39264446848) 的 Windows / macOS / Linux 三个 job 全 Success |
 | 测试总数 | 714 → **726 项**（725 通过 + 1 项平台条件跳过） |
 
 ---

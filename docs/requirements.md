@@ -4403,7 +4403,7 @@ M4c 一期只读：只盘点、只对账、只呈现，不改变任何文件。
 | 校验项 | 结果 |
 |---|---|
 | 需求覆盖 | M4c2-R1~R10 全部完成；三平台写探针、失败注入矩阵、GUI 与 CLI 证据齐备 |
-| 三平台探针 | verify `reconcile-probe` job（Windows / macOS / Linux）运行 `probe:reconcile`，87 项断言覆盖六动作、共享根、插件 x-、分类批量与 symlink |
+| 三平台探针 | verify `reconcile-probe` job（Windows / macOS / Linux）运行 `probe:reconcile`，87 项断言覆盖六动作、共享根、插件 x-、分类批量与 symlink；CI [39264446848](https://github.com/LuZhong-Li/skill-manager/actions/runs/39264446848) 三平台全 Success |
 | 失败矩阵 | track / forget 账本损坏、accept 计划过期、accept 账本失败回滚；既有 repair / clean / 共享组失败注入保留 |
 | 原子换名 | 目录级换名统一走 `renameWithRetry` 有限退避；静态守卫禁止 kernel 其它位置直接调用 `renameSync` |
 | 版本 | 0.5.0 发版候选；版本守卫三方一致；未打 tag / 未发布 |
