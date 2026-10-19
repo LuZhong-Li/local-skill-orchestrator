@@ -404,12 +404,17 @@
 | 结构 | `check:arch` 210 文件 / 792 边 / 0 循环 / 0 allowlist；超阈值文件 **10 → 4**；complexity 保持 **94** |
 | 测试 | 新增 1 项 kernel 规模结构断言；常规 663 → **664 项**（单元 412、契约 136、端到端 116；663 通过 + 1 平台跳过） |
 
-### P2-2 App.vue 与 e2e 拆分
+### P2-2 App.vue 与 e2e 拆分（已完成 2026-10-19）
 
-- `App.vue` 844 行 → 视图 / composables，保留导航与交互语义；
-- `tests/e2e/cli.test.ts` 1148 行按命令族拆，共享 CLI helper；
-- `scripts/bench/runner.mjs` / `scripts/gui-smoke.mjs` 按职责处理；
-- 测试语义与数量不变，GUI 冒烟全绿。
+| 项 | 结果 |
+|---|---|
+| App.vue | 844 → **785 行**；设置页独立为 `SettingsPanel.vue`，App 保留外壳与视图路由 |
+| e2e CLI | 1148 → 4 个文件：core 133 / backup 363 / import-restore 473 / runtime 136；共享 `tests/helpers/cli.ts` |
+| bench runner | 534 → **421 行**；参数解析拆到 `bench/args.mjs` |
+| gui-smoke | 660 → **495 行**；插件流程与进程收尾拆到 `gui-smoke-plugin.mjs` / `gui-smoke-launch.mjs` |
+| 行为 | 61 项 CLI e2e 用例数量与断言不变；`smoke:gui` 40/40；`npm run bench -- --n 100 --form source --runs 1 --no-profile` 可用 |
+| 结构 | 超阈值文件 **4 → 0**；`check:arch` 214 文件 / 800 边 / 0 循环 / 0 allowlist；complexity 保持 **94** |
+| 测试 | 常规 **664 项**（663 通过 + 1 平台跳过） |
 
 ### P2-3 TD-06 + 架构依赖图 + 死代码
 
@@ -419,8 +424,8 @@
 
 ### P2 剩余基线热点
 
-- `gui/renderer/src/App.vue`、`scripts/bench/runner.mjs`、`scripts/gui-smoke.mjs`、`tests/e2e/cli.test.ts` 仍为基线项；
-- 只减不增；拆分完成后用 `npm run arch:baseline` 更新基线并审阅 diff。
+- 超阈值文件基线已清零；后续新增代码仍受 core 500 / Vue 800 / tests 1000 / scripts 500 阈值约束；
+- complexity 94 个基线函数保持只减不增，P2-3 继续处理兼容 barrel、架构图与死代码。
 
 **契约 / 规范变更**：无。
 

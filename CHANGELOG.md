@@ -28,6 +28,16 @@
 - **测试**：新增 1 项 kernel 规模结构断言；常规 663 → **664 项**（单元 412、契约 136、端到端 116；663 通过 + 1 平台跳过）。
 - **边界**：纯重构，不发版；剩余 App.vue / e2e / bench / gui-smoke 进入 P2-2/P2-3。
 
+### P2-2：最后四个超阈值文件清零（2026-10-19）
+
+- **App.vue**：844 → **785 行**；设置页拆为 `SettingsPanel.vue`，外壳只保留导航、视图路由与弹窗挂载。
+- **e2e CLI**：1148 行拆为 `cli-core` / `cli-backup` / `cli-import-restore` / `cli-runtime`，共享 `tests/helpers/cli.ts`；61 项用例与断言不变。
+- **bench runner**：534 → **421 行**；参数解析拆到 `bench/args.mjs`，`parseArgs` 仍从 runner 导出。
+- **gui-smoke**：660 → **495 行**；插件流程与进程收尾拆为独立模块。
+- **结构**：超阈值文件 **4 → 0**；`check:arch` 214 文件 / 800 边 / 0 循环 / 0 allowlist；complexity 保持 **94**。
+- **验证**：664 项测试、`smoke:gui` 40/40、bench 实跑通过。
+- **边界**：纯重构，不发版；下一批 P2-3。
+
 ## 0.4.0
 
 > 状态：**已发布为 latest**（[v0.4.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.4.0)）。范围见 [`docs/plan/v0.4.0-acceptance.md`](docs/plan/v0.4.0-acceptance.md)。

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-19T07:14:42.063Z",
+  "generated_at": "2026-10-19T07:31:44.683Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -765,6 +765,16 @@
         "clearedBy": "P2"
       },
       {
+        "id": "scripts/bench/args.mjs#parseArgs#b68877f2226d",
+        "file": "scripts/bench/args.mjs",
+        "function": "parseArgs",
+        "scope": "parseArgs",
+        "signature": "export function parseArgs(argv) {",
+        "complexity": 21,
+        "owner": "scripts",
+        "clearedBy": "P2"
+      },
+      {
         "id": "scripts/bench/fixture.mjs#planFixture#1ef6ed2ebeb5",
         "file": "scripts/bench/fixture.mjs",
         "function": "planFixture",
@@ -835,16 +845,6 @@
         "clearedBy": "P2"
       },
       {
-        "id": "scripts/bench/runner.mjs#parseArgs#b68877f2226d",
-        "file": "scripts/bench/runner.mjs",
-        "function": "parseArgs",
-        "scope": "parseArgs",
-        "signature": "export function parseArgs(argv) {",
-        "complexity": 21,
-        "owner": "scripts",
-        "clearedBy": "P2"
-      },
-      {
         "id": "scripts/bench/runner.mjs#runOnce#fa9a166f50d7",
         "file": "scripts/bench/runner.mjs",
         "function": "runOnce",
@@ -860,7 +860,7 @@
         "function": "main",
         "scope": "main",
         "signature": "async function main() {",
-        "complexity": 45,
+        "complexity": 38,
         "owner": "scripts",
         "clearedBy": "P2"
       },
@@ -953,35 +953,6 @@
       "tests": 1000,
       "scripts": 500
     },
-    "entries": [
-      {
-        "file": "gui/renderer/src/App.vue",
-        "lines": 844,
-        "category": "vue",
-        "owner": "gui",
-        "clearedBy": "P2"
-      },
-      {
-        "file": "scripts/bench/runner.mjs",
-        "lines": 534,
-        "category": "scripts",
-        "owner": "scripts",
-        "clearedBy": "P2"
-      },
-      {
-        "file": "scripts/gui-smoke.mjs",
-        "lines": 660,
-        "category": "scripts",
-        "owner": "scripts",
-        "clearedBy": "P2"
-      },
-      {
-        "file": "tests/e2e/cli.test.ts",
-        "lines": 1148,
-        "category": "tests",
-        "owner": "tests",
-        "clearedBy": "P2"
-      }
-    ]
+    "entries": []
   }
 }

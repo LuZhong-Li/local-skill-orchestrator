@@ -24,7 +24,7 @@ import {
 import { cpus, release, tmpdir, totalmem } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { DEFAULT_SEED, planFixture, writeFixture } from './fixture.mjs';
+import { planFixture, writeFixture } from './fixture.mjs';
 import { observeWrite } from './fs-watch.mjs';
 import {
   FORMS,
@@ -39,74 +39,15 @@ import {
 } from './measure.mjs';
 import { splitProfile } from './profile-split.mjs';
 import { RSS_FAILURE_REASONS, SUPPORTED_PLATFORMS, createSamplerSession } from './rss.mjs';
-
+import { parseArgs } from './args.mjs';
+export { parseArgs } from './args.mjs';
 const ROOT = join(import.meta.dirname, '..', '..');
 const SOURCE_ENTRY = join(ROOT, 'kernel', 'entry', 'cli.ts');
 const DEFAULT_KERNEL = join(ROOT, 'build', 'kernel', 'skill-manager.exe');
-const DEFAULT_OUT_DIR = join(ROOT, 'build', 'bench');
-
 /** 毫秒时钟（单调，避免系统时间调整影响墙钟） */
 function monotonicMs() {
   return Number(process.hrtime.bigint() / 1000000n);
 }
-
-export function parseArgs(argv) {
-  const options = {
-    sizes: [100],
-    form: 'source',
-    runs: null,
-    seed: DEFAULT_SEED,
-    kernel: null,
-    outDir: DEFAULT_OUT_DIR,
-    root: null,
-    dryRun: false,
-    profile: null,
-    load: '本机空闲，开机后尽快跑',
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
-    const next = () => {
-      i += 1;
-      if (i >= argv.length) throw new Error(`选项 ${token} 缺少取值`);
-      return argv[i];
-    };
-    if (token === '--n') {
-      // 支持 `--n 100 1000 5000` 与 `--n 100,1000`：吃到下一个选项为止
-      const values = [];
-      while (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
-        values.push(argv[i + 1]);
-        i += 1;
-      }
-      options.sizes = values
-        .join(',')
-        .split(/[,\s]+/)
-        .filter((part) => part !== '')
-        .map((part) => Number(part));
-      if (options.sizes.length === 0) throw new Error('选项 --n 缺少取值');
-    } else if (token === '--form') options.form = next();
-    else if (token === '--runs') options.runs = Number(next());
-    else if (token === '--seed') options.seed = Number(next());
-    else if (token === '--kernel') options.kernel = next();
-    else if (token === '--out') options.outDir = next();
-    else if (token === '--root') options.root = next();
-    else if (token === '--dry-run') options.dryRun = true;
-    else if (token === '--no-profile') options.profile = false;
-    else if (token === '--profile') options.profile = true;
-    else if (token === '--load') options.load = next();
-    else throw new Error(`未知选项：${token}`);
-  }
-  if (!FORMS.includes(options.form) && options.form !== 'both') {
-    throw new Error(`--form 只支持 ${FORMS.join(' / ')} / both：${options.form}`);
-  }
-  if (options.sizes.length === 0 || options.sizes.some((n) => !Number.isInteger(n) || n <= 0)) {
-    throw new Error(`--n 必须是正整数（可给多个）：${String(options.sizes)}`);
-  }
-  if (!Number.isInteger(options.seed))
-    throw new Error(`--seed 必须是整数：${String(options.seed)}`);
-  return options;
-}
-
-/** 跑一次被测命令：spawn → 存活期采样 → 退出码与墙钟（依赖可注入，便于单测） */
 export async function runOnce(options) {
   const {
     command,
@@ -120,7 +61,6 @@ export async function runOnce(options) {
     onChild = null,
     env = null,
   } = options;
-
   const startedAt = now();
   const child = spawnChild(command, args, {
     cwd,
@@ -132,11 +72,9 @@ export async function runOnce(options) {
   const stderrChunks = [];
   child.stdout?.on('data', (chunk) => stdoutChunks.push(chunk));
   child.stderr?.on('data', (chunk) => stderrChunks.push(chunk));
-
   const isAlive = () => child.exitCode === null && child.signalCode === null;
   const handle = sampler.begin(child.pid, { isAlive });
   if (onChild !== null) onChild(child);
-
   const watching =
     watch === null
       ? null
@@ -146,7 +84,6 @@ export async function runOnce(options) {
           now,
           sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
         });
-
   // spawn 失败（EACCES / ENOENT 等）只会发 'error'、不会发 'close'：必须单独接住，
   // 否则会变成未捕获异常，让整轮测量直接崩掉且不留痕迹（macOS 腿实测踩到过）。
   const outcome = await new Promise((resolve) => {
@@ -157,13 +94,11 @@ export async function runOnce(options) {
   const wallMs = now() - startedAt;
   const rss = await handle.finish();
   const fsObservation = watching === null ? null : await watching;
-
   if (logBase !== undefined) {
     mkdirSync(join(logBase, '..'), { recursive: true });
     writeFileSync(`${logBase}.out`, Buffer.concat(stdoutChunks));
     writeFileSync(`${logBase}.err`, Buffer.concat(stderrChunks));
   }
-
   return {
     run: 0,
     wall_ms: wallMs,
@@ -178,7 +113,6 @@ export async function runOnce(options) {
     fs_observation: fsObservation,
   };
 }
-
 /** 单次运行不带采样器的「准备型」命令（init 等）：返回退出码与失败原因，便于失败自证 */
 export function runQuiet(command, args, cwd = ROOT) {
   return new Promise((resolve) => {
@@ -197,7 +131,6 @@ export function runQuiet(command, args, cwd = ROOT) {
     child.on('error', (error) => resolve({ code: -1, spawnError: error.message, stderr }));
   });
 }
-
 /** 把「准备型命令失败」写成可读原因（退出码 / 启动错误 / stderr 末段） */
 export function describeReadyFailure(label, detail) {
   const parts = [`exit=${String(detail.code)}`];
@@ -206,7 +139,6 @@ export function describeReadyFailure(label, detail) {
   if (tail !== '') parts.push(`stderr=${tail}`);
   return `${label}（${parts.join('，')}）`;
 }
-
 /** 读内核版本号（启动开销场景复用同一路径） */
 async function kernelVersion(command, argsPrefix, cwd = ROOT) {
   return new Promise((resolve) => {
@@ -219,7 +151,6 @@ async function kernelVersion(command, argsPrefix, cwd = ROOT) {
     child.on('error', () => resolve('unknown'));
   });
 }
-
 function sha256OfFile(path) {
   try {
     return createHash('sha256').update(readFileSync(path)).digest('hex');
@@ -227,7 +158,6 @@ function sha256OfFile(path) {
     return null;
   }
 }
-
 /** SEA 线的来源溯源：优先读内核同目录的 provenance.json（发布资产解包时写入），否则标注本地构建 */
 function seaProvenanceOf(kernelPath) {
   const file = join(kernelPath, '..', 'provenance.json');
@@ -237,7 +167,6 @@ function seaProvenanceOf(kernelPath) {
     return { source: 'local-build' };
   }
 }
-
 function environmentInfo({ form, kernelPath, kernelVersionText, load }) {
   const cpuList = cpus();
   return {
@@ -256,7 +185,6 @@ function environmentInfo({ form, kernelPath, kernelVersionText, load }) {
     load_condition: load,
   };
 }
-
 /** 跑一个场景的若干次重复 */
 async function measureScenario(context, entry) {
   const { kernelPath, workspace, exportFile, profileDir, logDir, sampler, resetCold } = context;
@@ -323,7 +251,6 @@ async function measureScenario(context, entry) {
     }
     runs.push({ ...result, run, profile, profile_error: profileError });
   }
-
   const indexFile = join(workspace, 'skill_index.yaml');
   const stages = representativeStages(runs);
   const extras = {
@@ -337,7 +264,6 @@ async function measureScenario(context, entry) {
   };
   return summarizeScenario(entry, runs, extras);
 }
-
 /** 取「墙钟中位」那一次的剖面归集（代表性样本；口径写在计划 T1 执行状态里） */
 function representativeStages(runs) {
   const profiled = runs.filter((run) => run.profile !== null);
@@ -345,7 +271,6 @@ function representativeStages(runs) {
   const sorted = [...profiled].sort((a, b) => a.wall_ms - b.wall_ms);
   return sorted[Math.floor(sorted.length / 2)].profile;
 }
-
 async function measureForm(options, form) {
   const kernelPath = options.kernel ?? DEFAULT_KERNEL;
   const root = options.root ?? mkdtempSync(join(tmpdir(), 'skill-manager-bench-'));
@@ -355,7 +280,6 @@ async function measureForm(options, form) {
   const profileDir = options.profile === false ? null : join(outDir, 'profile');
   mkdirSync(logDir, { recursive: true });
   if (profileDir !== null) mkdirSync(profileDir, { recursive: true });
-
   const prefix = (args) =>
     form === 'sea'
       ? { command: kernelPath, args }
@@ -364,7 +288,6 @@ async function measureForm(options, form) {
     form === 'sea' ? kernelPath : process.execPath,
     form === 'sea' ? [] : [SOURCE_ENTRY],
   );
-
   const samples = [];
   const failures = [];
   let startupMs = null;
@@ -384,7 +307,6 @@ async function measureForm(options, form) {
       throw new Error(describeReadyFailure(`冷态重置失败：${workspace}`, detail));
     }
   };
-
   const startupEntry = buildMatrix({
     form,
     sizes: [],
@@ -409,7 +331,6 @@ async function measureForm(options, form) {
     startupMs = startup.wall_ms.median;
     samples.push(startup);
   }
-
   for (const n of options.sizes) {
     const workspace = join(root, `n${String(n)}`);
     mkdirSync(workspace, { recursive: true });
@@ -417,13 +338,11 @@ async function measureForm(options, form) {
     const plan = planFixture({ seed: options.seed, n });
     const written = writeFixture(plan, workspace);
     const generationMs = monotonicMs() - fixtureStarted;
-
     const initPlan = prefix(['init', '--workspace', workspace]);
     const initDetail = await runQuiet(initPlan.command, initPlan.args);
     if (initDetail.code !== 0) {
       throw new Error(describeReadyFailure(`工作区初始化失败：${workspace}`, initDetail));
     }
-
     for (const entry of buildMatrix({
       form,
       sizes: [n],
@@ -476,7 +395,6 @@ async function measureForm(options, form) {
         );
       }
     }
-
     const report = buildReport({
       environment: environmentInfo({
         form,
@@ -501,11 +419,9 @@ async function measureForm(options, form) {
     writeFileSync(outFile, `${JSON.stringify(report, null, 2)}\n`);
     process.stdout.write(formatReportText(report));
   }
-
   await sampler.close();
   return { samples, failures, root };
 }
-
 async function main() {
   let options;
   try {
@@ -522,7 +438,6 @@ async function main() {
     );
     process.exit(1);
   }
-
   const forms = options.form === 'both' ? FORMS : [options.form];
   if (options.dryRun) {
     for (const form of forms) {
@@ -538,7 +453,6 @@ async function main() {
     }
     return;
   }
-
   const failures = [];
   for (const form of forms) {
     try {
@@ -557,11 +471,9 @@ async function main() {
     process.exit(1);
   }
 }
-
 const invokedDirectly =
   process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (invokedDirectly) {
   await main();
 }
-
 export { measureForm };

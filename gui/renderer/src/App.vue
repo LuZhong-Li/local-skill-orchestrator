@@ -16,6 +16,7 @@ import PluginPanel from './components/PluginPanel.vue';
 import PluginInstallDialog from './components/PluginInstallDialog.vue';
 import PluginDetailDialog from './components/PluginDetailDialog.vue';
 import HostInventoryView from './components/HostInventoryView.vue';
+import SettingsPanel from './components/SettingsPanel.vue';
 import { useKernel } from './composables/useKernel.ts';
 import { runSequentialUpdates, type UpdateRunResult } from './update-runner.ts';
 import { pluginInstallNotice } from './plugin-presentation.ts';
@@ -306,16 +307,12 @@ async function toggleUpdateSetting(key: keyof UpdateSettings, enabled: boolean):
   }
 }
 
-function checkedOf(event: globalThis.Event): boolean {
-  return (event.target as globalThis.HTMLInputElement | null)?.checked === true;
+function togglePeriodic(enabled: boolean): void {
+  void toggleUpdateSetting('periodic_check_enabled', enabled);
 }
 
-function togglePeriodic(event: globalThis.Event): void {
-  void toggleUpdateSetting('periodic_check_enabled', checkedOf(event));
-}
-
-function toggleInstant(event: globalThis.Event): void {
-  void toggleUpdateSetting('instant_check_enabled', checkedOf(event));
+function toggleInstant(enabled: boolean): void {
+  void toggleUpdateSetting('instant_check_enabled', enabled);
 }
 
 async function performUpdate(id: string, ref: string | undefined) {
@@ -580,59 +577,20 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
         @config-hint="usePluginConfigHint"
       />
       <section v-else class="content">
-        <div class="panel">
-          <h2>当前配置</h2>
-          <button :disabled="kernel.busy.value" @click="loadConfig">读取配置</button>
-          <pre v-if="configResult">{{ JSON.stringify(configResult.data, null, 2) }}</pre>
-        </div>
-        <div class="panel">
-          <h2>修改配置</h2>
-          <label>
-            <span class="muted">配置键</span>
-            <select v-model="configKey">
-              <option value="default_target">default_target</option>
-              <option value="default_mode">default_mode</option>
-              <option value="skill_roots">skill_roots</option>
-              <option
-                v-if="!['default_target', 'default_mode', 'skill_roots'].includes(configKey)"
-                :value="configKey"
-              >
-                {{ configKey }}
-              </option>
-            </select>
-          </label>
-          <label>
-            <span class="muted">新的取值</span>
-            <input v-model="configValue" />
-          </label>
-          <button class="primary" :disabled="kernel.busy.value" @click="saveConfig">写入</button>
-        </div>
-        <div class="panel">
-          <h2>更新检查</h2>
-          <p class="muted">
-            手动检查始终可用。定期与即时检查默认关闭；定期检查固定至少 6
-            小时，只在应用运行期间生效，且只提示、不执行更新。
-          </p>
-          <label class="toggle">
-            <input
-              type="checkbox"
-              data-setting="periodic"
-              :checked="updateSettings.periodic_check_enabled"
-              @change="togglePeriodic"
-            />
-            <span>定期检查（6 小时，仅应用运行期间，只提示）</span>
-          </label>
-          <label class="toggle">
-            <input
-              type="checkbox"
-              data-setting="instant"
-              :checked="updateSettings.instant_check_enabled"
-              @change="toggleInstant"
-            />
-            <span>立即检查（启动后执行一次只读检查）</span>
-          </label>
-          <p v-if="updateError" class="bad">更新设置或检查失败：{{ updateError }}</p>
-        </div>
+        <SettingsPanel
+          :busy="kernel.busy.value"
+          :config-result="configResult"
+          :config-key="configKey"
+          :config-value="configValue"
+          :update-settings="updateSettings"
+          :update-error="updateError"
+          @load-config="loadConfig"
+          @save-config="saveConfig"
+          @update:config-key="configKey = $event"
+          @update:config-value="configValue = $event"
+          @toggle-periodic="togglePeriodic"
+          @toggle-instant="toggleInstant"
+        />
       </section>
     </main>
 
@@ -877,27 +835,6 @@ main {
 .panel label {
   width: 100%;
   font-size: 13px;
-}
-
-.panel label.toggle {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--space) * 2);
-}
-
-.panel label.toggle input {
-  width: auto;
-}
-
-pre {
-  margin: 0;
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: calc(var(--space) * 3);
-  font-size: 12px;
-  max-width: 100%;
-  overflow: auto;
 }
 
 .statusbar {

@@ -563,6 +563,19 @@
 
 > P2-1 已收口；剩余超阈值文件为 App.vue、bench runner、gui-smoke 与 e2e cli，进入 P2-2。
 
+### 6.25 P2-2 最后四个超阈值文件清零（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| App.vue | 844 → **785 行**；设置页独立为 `SettingsPanel.vue`，App 只保留外壳与视图路由 |
+| e2e CLI | 1148 → `cli-core` 133 / `cli-backup` 363 / `cli-import-restore` 473 / `cli-runtime` 136；共享 `tests/helpers/cli.ts` |
+| bench runner | 534 → **421 行**；参数解析进入 `bench/args.mjs` |
+| gui-smoke | 660 → **495 行**；插件流程与进程收尾独立 |
+| 行为 | 61 项 CLI e2e 数量与断言不变；`smoke:gui` 40/40；bench 实跑可用 |
+| 结构 | 超阈值文件 **4 → 0**；`check:arch` 214 文件 / 800 边 / 0 循环 / 0 allowlist；complexity 保持 **94** |
+
+> P2-2 已收口；下一批 P2-3 处理 TD-06、架构依赖图与死代码。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）
