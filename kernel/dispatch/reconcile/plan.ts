@@ -155,7 +155,7 @@ function ledgerChange(
 ): ReconcileLedgerChange | undefined {
   const source = ledgerSourceOf(candidate, action);
   if (source === undefined) return undefined;
-  const next = action === 'clean' || action === 'forget' ? 'orphaned' : 'active';
+  const next = action === 'clean' ? 'removed' : action === 'forget' ? 'orphaned' : 'active';
   return {
     source,
     record_key: `${candidate.host_ids[0] ?? candidate.host_ids.join(',')}:${candidate.target_path}`,
@@ -256,6 +256,7 @@ function acceptUnsupported(
   key: InventoryClassificationKey,
 ): string | undefined {
   if (candidate.is_plugin) return 'plugin_accept_not_supported';
+  if (candidate.format !== 'skill') return 'content_accept_requires_skill_copy';
   if (!ACCEPTABLE.has(key)) return 'accept_only_content_or_visibility';
   return candidate.reconciliation.drift_reasons.some((reason) => SOURCE_DRIFT.has(reason))
     ? 'accept_only_content_or_visibility'
@@ -277,7 +278,12 @@ const ACTION_RULES: Record<
           : 'classification_not_trackable',
   repair: (_candidate, key) => (REPAIRABLE.has(key) ? undefined : 'classification_not_repairable'),
   accept: acceptUnsupported,
-  clean: (_candidate, key) => (key === 'missing' ? 'missing_has_no_copy' : undefined),
+  clean: (_candidate, key) =>
+    key === 'missing'
+      ? 'missing_has_no_copy'
+      : key === 'orphaned_without_workspace' || key === 'unreadable'
+        ? undefined
+        : 'clean_only_orphaned_or_unreadable',
   forget: (_candidate, key) => (key === 'missing' ? undefined : 'forget_requires_missing_copy'),
 };
 
@@ -332,6 +338,28 @@ function actionEligibilityReason(
   );
 }
 
+function cleanEligibilityReason(
+  snapshot: InventorySnapshot,
+  candidate: Candidate,
+  action: ReconcileAction,
+): string | undefined {
+  if (action !== 'clean') return undefined;
+  const builtin = singleBuiltinReason(candidate);
+  if (builtin !== undefined) return builtin;
+  const workspaceRecord =
+    candidate.skill_id === undefined
+      ? undefined
+      : snapshot.workspace.index?.skills.find((item) => item.id === candidate.skill_id);
+  if (workspaceRecord !== undefined) return 'clean_requires_no_workspace_baseline';
+  if (
+    candidate.reconciliation.ledger_source !== 'none' &&
+    candidate.reconciliation.orphaned === undefined
+  ) {
+    return 'clean_requires_orphaned_or_no_ledger';
+  }
+  return undefined;
+}
+
 function actionShape(
   snapshot: InventorySnapshot,
   selection: ReconcileSelection,
@@ -339,6 +367,7 @@ function actionShape(
 ): ActionShape {
   const reason =
     actionEligibilityReason(snapshot, candidate, selection.action) ??
+    cleanEligibilityReason(snapshot, candidate, selection.action) ??
     unsupportedReason(candidate, selection.action);
   const ledger = ledgerSourceOf(candidate, selection.action);
   if (reason !== undefined) {
@@ -397,7 +426,10 @@ function itemOf(
     after: shape.after,
     writes: shape.writes,
     ledger_changes: shape.ledger_changes,
-    backups: [],
+    backups:
+      selection.action === 'accept' && candidate.skill_id !== undefined
+        ? [join(snapshot.layout.backupsDir, candidate.skill_id)]
+        : [],
     warnings: candidate.consumed_by.length > 1 ? ['shared_root'] : [],
   };
 }
@@ -454,6 +486,20 @@ function notesOf(action: ReconcileAction): string[] {
   }
   if (action === 'track') {
     return [...base, 'track 只补宿主账本，不修改工作区或宿主内容', '共享根与插件 x- 留 T4'];
+  }
+  if (action === 'accept') {
+    return [
+      ...base,
+      'accept 覆盖中心库前写入标准备份；source/version 漂移不接受',
+      '接受后的本地内容可能在下次 update 时被远端来源覆盖',
+    ];
+  }
+  if (action === 'clean') {
+    return [
+      ...base,
+      'clean 先把宿主副本移入同卷临时快照，账本提交成功后再删除',
+      '禁止仅按 --classification 批量 clean；共享根与插件 x- 留 T4',
+    ];
   }
   return [...base, 'T1/T2 仅执行内置宿主的单副本动作；共享根与插件 x- 留 T4'];
 }

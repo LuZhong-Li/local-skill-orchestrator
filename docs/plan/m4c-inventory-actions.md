@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作实施计划 |
 | 文档路径 | `docs/plan/m4c-inventory-actions.md` |
-| 文档状态 | **评审通过，T0 / T1 / T2 已完成；T3 待启动**（2026-10-19） |
+| 文档状态 | **评审通过，T0 / T1 / T2 / T3 已完成；T4 待启动**（2026-10-19） |
 | 依据 | [`docs/design/m4c-inventory-actions.md`](../design/m4c-inventory-actions.md)；需求 9.3.8、9.3.7；[`docs/research/m4c-inventory-actions-2026-10-19.md`](../research/m4c-inventory-actions-2026-10-19.md) |
 | 基线 | T0 后常规测试 **676 项**（675 通过 + 1 项平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0 |
 | 边界 | 本文不修改代码、契约或 schema；评审批准后才进入 T0 实现 |
@@ -180,6 +180,19 @@
 - `clean` 不触碰中心库与索引；
 - 共享根整组操作只删除一次；
 - 不允许裸 `--all` 或 classification + clean 的危险批量。
+
+**落地记录**：
+
+| 项 | 结果 |
+|---|---|
+| accept content | 宿主内容覆盖中心库，保留工作区 `skill_meta.yaml`；重算 checksum / digests，更新索引与账本，覆盖前写标准备份 |
+| accept visibility | 只同步索引 `status` 与账本 `visibility`，不改中心库或宿主内容 |
+| source 边界 | `source_changed` / `version_mismatch` / `source_ref_mismatch` 拒绝 accept，引导 repair；不改 source 声明 |
+| clean | 无工作区 orphaned 残留、无基线 corrupt/unreadable；同卷临时快照移走 → 账本提交 → 删除；成功无快照，失败恢复物理副本与账本 |
+| 安全 | clean 禁止仅按 `--classification` 批量，必须精确 path 或 id+host；未纳管副本不被 clean |
+| 边界 | 共享根 `shared_root_t4`、插件 `plugin_host_t4` 跳过 |
+| 测试 | 新增 7 项 T3 e2e（含备份失败、账本失败、删除失败注入）；常规 696 → **703 项**（702 通过 + 1 平台跳过） |
+| 结构 | `check:arch` 228 文件 / 864 边 / 0 循环；complexity 94；超阈值文件 0 |
 
 ---
 

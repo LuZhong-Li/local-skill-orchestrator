@@ -707,10 +707,10 @@ skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
 | `track` | 宿主 → 账本 | `inferred_consistent` | 内置账本或插件 landings |
 | `repair` | 工作区 → 宿主 | `missing`、`not_distributed`、`drift`、`inferred_drift`、有工作区的 orphaned、可修复的 unreadable | 宿主副本、账本；不改中心库或索引 |
 | `accept` | 宿主 → 工作区 | 内容 / 可见性 drift；有工作区记录 | 中心库、索引、账本；不猜 source / ref |
-| `clean` | 宿主 → 删除 | 有明确物理副本的 orphaned / corrupt / 未纳管目录 | 宿主副本、账本 |
+| `clean` | 宿主 → 删除 | 无工作区记录的 orphaned 残留；无基线的 corrupt / unreadable 副本 | 宿主副本、账本 |
 | `forget` | 账本 → 孤儿 | 副本确认不存在的 `missing` | 账本 |
 
-T2 执行范围：`adopt` / `track` / `repair` / `forget` 已具备 `--apply` 执行能力，且只处理内置宿主、单物理副本；共享根整组处理与插件 `x-` 宿主动作在 T4 接入，计划中以 `shared_root_t4` / `plugin_host_t4` 跳过。`accept` / `clean` 仍返回 `E-RECONCILE-001`，明确尚未实现。
+T3 执行范围：`adopt` / `track` / `repair` / `forget` / `accept` / `clean` 已具备 `--apply` 执行能力，且只处理内置宿主、单物理副本；共享根整组处理与插件 `x-` 宿主动作在 T4 接入，计划中以 `shared_root_t4` / `plugin_host_t4` 跳过。
 
 **选择器与互斥**：
 
@@ -731,9 +731,10 @@ T2 执行范围：`adopt` / `track` / `repair` / `forget` 已具备 `--apply` �
 6. `adopt` 的中心库来源是磁盘实际内容，不做反向解渲染；合成元文件的 `source.type` 为 `unknown`，不生成 URL、ref 或本地来源。`adopt` 不创建新的工作区目标副本，`targets[]` 仅作为后续 `enable` / `install` 的声明。
 7. `adopt` 的冲突口径：中心库已有同 `skill_id` 且内容一致时引导 `track`；内容不一致时引导 `accept` / `repair`；中心库同名目录未登记时拒绝且不覆盖；目标路径被其他 Skill 占用时要求显式 `--target`。宿主目录名与 frontmatter `name` 不一致时，以 `name` 作为 `skill_id`。
 8. `track` 只接受 `inferred_consistent`，只补内置宿主账本（`origin: adopted`），不复制、不覆盖工作区或宿主内容；`inferred_drift` 引导 `accept` / `repair`，`untracked` 引导 `adopt`。
-9. `accept` 只接受内容和可见性；source / version 漂移不得由宿主副本反向推断，默认使用 `repair`。
+9. `accept` 只接受内容和可见性；source / version 漂移不得由宿主副本反向推断，遇到 `source_changed` / `version_mismatch` / `source_ref_mismatch` 拒绝并引导 `repair`。content accept 用宿主内容覆盖中心库（保留工作区 `skill_meta.yaml` 的 source / targets / dependencies），更新索引与账本；visibility accept 只同步索引状态与账本可见性。accept 不改 source 声明；结果提示接受后的本地内容可能在下次 `update` 时被远端来源覆盖。
+10. `clean` 只接受无工作区记录的 orphaned 残留与无基线的 corrupt / unreadable 副本；先移入同卷临时快照，成功提交账本后再删除，失败恢复物理副本与账本。不得仅按 `--classification` 批量 clean；必须用 `--path` 或 `--id` + `--host` 精确选择。临时快照不是用户可见备份，成功后不得残留。
 
-**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。`--apply` 的 `adopt` / `track` / `repair` / `forget` 另返回 `results[]`（逐项 succeeded / failed / skipped、changes 与 findings）；`accept` / `clean` 返回 `E-RECONCILE-001`，明确尚未实现。
+**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。`--apply` 的六动作均另返回 `results[]`（逐项 succeeded / failed / skipped、message、changes 与 findings）；accept 的 `backups[]` 给出标准备份根，clean 不产生用户可见备份。
 
 **退出码**：参数与选择器错误返回 `2`；动作不适配、尚未实现、计划过期与共享根选择冲突返回 `1`；写入失败按既有 IO / 备份 / 账本派生的退出码处理。
 
@@ -915,6 +916,7 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 | 43 | 2026-10-19 | 第 4.4 节新增 M4c-4 聚合：summary.main / roles / classification_groups、hosts 层级与人类可读摘要；明确 user 主计数、unique_skills、共享根去重、corrupt 不计有效计数、missing 不计有效副本 |
 | 44 | 2026-10-19 | 第 4.4 节新增只读验证条款：静态 fs/写模块守卫与工作区、宿主根递归快照（文件清单、mtime、内容哈希）前后一致；覆盖未初始化、损坏账本、缺失/不可读根与大规模副本 |
 | 45 | 2026-10-19 | 第 4.17 节 T2 执行口径：`adopt` 从宿主实际内容建立 `skills/<skill_id>`、合成 `source: unknown` 元文件并写索引 / 内置账本，不创建工作区目标副本；`track` 只对 `inferred_consistent` 补 adopted 账本。补充 ID / 目标冲突、frontmatter 目录名不一致、track 拒绝 drift / untracked 的口径；`accept` / `clean` 仍返回 `E-RECONCILE-001` |
+| 46 | 2026-10-19 | 第 4.17 节 T3 执行口径：`accept` 支持 content / visibility，保留工作区元文件、拒绝 source/version 漂移并更新索引与账本；`clean` 仅处理无工作区 orphaned 或无基线 corrupt/unreadable，使用同卷临时快照、成功后删除，禁止分类批量。六动作均具备 `--apply` 执行能力 |
 
 ---
 

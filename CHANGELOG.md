@@ -38,6 +38,15 @@
 - **边界**：共享根 `shared_root_t4` 与插件 `plugin_host_t4` 跳过；`accept` / `clean` 仍返回 `E-RECONCILE-001`。
 - **验证**：新增 12 项 T2 e2e；常规 **684 → 696 项**（695 通过 + 1 平台跳过）；`check:arch` 225 文件 / 839 边 / 0 循环；complexity 94；超阈值文件 0；不发版。
 
+### M4c 二期 T3：accept 与 clean（2026-10-19）
+
+- **accept content**：宿主内容覆盖中心库，保留工作区 `skill_meta.yaml`；重算 checksum / digests，更新索引与账本；覆盖前创建标准备份。
+- **accept visibility**：只同步索引状态与账本可见性，不改中心库或宿主内容。
+- **source 边界**：source/version 漂移拒绝 accept 并引导 repair；不改 source 声明；结果提示下次 update 可能被远端覆盖。
+- **clean**：仅处理无工作区 orphaned 与无基线 corrupt/unreadable；同卷临时快照移走 → 账本提交 → 删除，失败恢复副本与账本，成功无快照残留。
+- **安全**：clean 禁止分类批量；未纳管副本不被 clean；共享根与插件 x- 留 T4。
+- **验证**：新增 7 项 T3 e2e（含备份失败、账本失败、删除失败注入）；常规 **696 → 703 项**（702 通过 + 1 平台跳过）；`check:arch` 228 文件 / 864 边 / 0 循环；complexity 94；超阈值文件 0；不发版。
+
 ### P1-c：lifecycle 拆分（2026-10-19）
 
 - **入口**：`kernel/core/lifecycle/index.ts` 1738 → **19 行**，只保留公共导出；实现按 `install` / `uninstall` / `toggle` / `update` / `restore` 拆分，共享工具进 `shared.ts`、稳定类型进 `types.ts`。

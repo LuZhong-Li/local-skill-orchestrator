@@ -1177,7 +1177,7 @@ flowchart TB
 | 14 | `import` | C-01、C-03 | K-08、K-07、K-03、K-04 | 是 |
 | 15 | `update` | C-01、C-03 | K-04、K-09、K-03 | 是 |
 | 16 | `restore` | C-01、C-03 | K-04、K-08、K-11、K-03、K-09 | 是 |
-| 17 | `reconcile` | C-01、C-03 | 盘点快照 / L-4 对账、K-04、K-15、账本 store | 是（T0/T1/T2：预览、repair/forget、adopt/track） |
+| 17 | `reconcile` | C-01、C-03 | 盘点快照 / L-4 对账、K-04、K-15、账本 store | 是（T0/T1/T2/T3：预览、六个单宿主动作） |
 
 第 16 条 `restore` 为二期备份恢复批次新增：卸载产出的备份载体首次有了恢复通道。它落在既有的分层与模块之内——由 K-08 读取并校验载体、K-04 编排「写回原件、重分发副本、刷新或重建记录」，未引入新模块，也未改变任何层的职责边界。
 
@@ -1943,6 +1943,28 @@ flowchart TB
 | 分层检查 | `check:arch` 225 文件 / 839 边 / 0 循环 / 0 allowlist |
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
 | 测试总数 | 684 → **696 项**（695 通过 + 1 项平台条件跳过） |
+
+### 补充记录 2026-10-19（M4c 二期 T3：accept / clean）
+
+来源：M4c 二期 T3。accept 反向同步宿主内容/可见性；clean 用同卷临时快照删除无基线残留。共享根与插件 x- 仍留 T4。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/dispatch/reconcile/accept.ts` | content accept 覆盖中心库并保留元文件；visibility accept 同步状态/账本；标准备份、索引/账本回滚与 source/version 拒绝 | dispatch | M4c2-R2 / R3 / R4 |
+| 2 | `kernel/dispatch/reconcile/clean.ts` | 同卷临时快照移走、账本提交、删除；失败恢复副本/账本；测试注入点 | dispatch | M4c2-R4 / R6 |
+| 3 | `kernel/dispatch/reconcile/execution-types.ts` | 六个动作共享的稳定执行结果类型，避免实现模块互相依赖 | dispatch | P0 结构约束 |
+| 4 | `kernel/dispatch/reconcile/plan.ts` | accept 拒绝 source/version 与 rules content；clean 限制为无工作区 orphaned 或无基线 unreadable；clean 账本转移改为 removed | dispatch | M4c2-R3 / R4 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 17；`reconcile --apply` 支持六个单宿主动作 |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 问题码 | 69，未新增 |
+| 分层检查 | `check:arch` 228 文件 / 864 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
+| 测试总数 | 696 → **703 项**（702 通过 + 1 项平台条件跳过） |
 
 ---
 

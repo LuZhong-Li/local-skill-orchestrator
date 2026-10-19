@@ -33,7 +33,7 @@
 | 14 | `export` | 备份 | 导出索引状态，剥离未知字段并登记清单 |
 | 15 | `import` | 备份 | 整体校验后逐条登记，既有标识跳过不覆盖 |
 | 16 | `restore` | 备份 | 从备份载体恢复内容：写回中心库、重分发副本、刷新或重建记录 |
-| 17 | `reconcile` | 盘点动作 | T0/T1/T2 已落地：选择器、只读计划、repair/forget、adopt/track；accept/clean 待 T3 |
+| 17 | `reconcile` | 盘点动作 | T0/T1/T2/T3 已落地：选择器、只读计划、repair/forget、adopt/track、accept/clean |
 
 复核：`node kernel/entry/cli.ts --help`，或运行 `npm test` 里的契约测试（断言已注册指令是契约清单的子集）。
 
@@ -649,7 +649,22 @@
 | 测试 | 新增 12 项 T2 e2e；常规 684 → **696 项**（695 通过 + 1 平台跳过） |
 | 结构 | `check:arch` 225 文件 / 839 边 / 0 循环；complexity 94；超阈值文件 0 |
 
-> T2 已收口；下一批 T3 实现 `accept` + `clean`。
+> T2 已收口；T3 已完成，见 6.31。
+
+### 6.31 M4c 二期 T3：accept 与 clean（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| accept content | 宿主内容覆盖中心库，保留工作区 `skill_meta.yaml`；重算 checksum / digests，更新索引与账本；覆盖前写标准备份 |
+| accept visibility | 只同步索引 `status` 与账本 `visibility`；中心库与宿主内容不变 |
+| source 边界 | source/version 漂移拒绝 accept，引导 repair；不改 source 声明；结果提示下次 update 可能被远端覆盖 |
+| clean | 无工作区 orphaned、无基线 corrupt/unreadable；同卷快照移走 → 账本提交 → 删除；成功无残留，失败恢复副本与账本 |
+| 安全 | clean 禁止仅按分类批量，必须 `--path` 或 `--id` + `--host`；未纳管副本不被误删 |
+| 边界 | 共享根 `shared_root_t4`、插件 `plugin_host_t4` 跳过 |
+| 测试 | 新增 7 项 T3 e2e（含备份失败、账本失败、删除失败注入）；常规 696 → **703 项**（702 通过 + 1 平台跳过） |
+| 结构 | `check:arch` 228 文件 / 864 边 / 0 循环；complexity 94；超阈值文件 0 |
+
+> T3 已收口；下一批 T4 处理共享根整组、插件 x- 宿主与分类批量。
 
 ---
 

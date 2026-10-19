@@ -20,7 +20,7 @@ import {
 } from '../../store/host-landings/index.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { finding } from '../../store/findings.ts';
-import type { ReconcileExecutionItem } from './adopt.ts';
+import type { ReconcileExecutionItem } from './execution-types.ts';
 
 interface TrackInput {
   item: ReconcilePlanItem;

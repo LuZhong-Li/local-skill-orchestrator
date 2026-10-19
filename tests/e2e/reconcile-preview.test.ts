@@ -85,7 +85,7 @@ test('T0 reconcile 预览：精确 path 只选中一个副本，且全程只读'
   assert.deepEqual(snapshotTree(hostRoot), beforeHost, '预览不得改变宿主根');
 });
 
-test('T0 reconcile：未实现动作的 --apply 明确拒绝且不写盘', async (t) => {
+test('T0 reconcile：未适配动作的 --apply 不执行且不写盘', async (t) => {
   const root = makeTempDir('sm-reconcile-apply-');
   t.after(isolateHostEnvironment(root));
   const hostRoot = makeHostRoot('sm-reconcile-host-');
@@ -100,7 +100,7 @@ test('T0 reconcile：未实现动作的 --apply 明确拒绝且不写盘', async
   const attempted = await json([
     'reconcile',
     '--action',
-    'clean',
+    'accept',
     '--path',
     join(hostRoot, 'alpha'),
     '--workspace',
@@ -108,12 +108,13 @@ test('T0 reconcile：未实现动作的 --apply 明确拒绝且不写盘', async
     '--apply',
     '--yes',
   ]);
-  assert.equal(attempted.code, 1);
-  const findings = attempted.result['findings'] as Array<{ code: string; message: string }>;
-  assert.equal(findings[0]?.code, 'E-RECONCILE-001');
-  assert.match(findings[0]?.message ?? '', /尚未实现/);
-  const data = attempted.result['data'] as { applied: boolean };
+  assert.equal(attempted.code, 0);
+  const data = attempted.result['data'] as {
+    applied: boolean;
+    items: Array<{ status: string }>;
+  };
   assert.equal(data.applied, false);
+  assert.equal(data.items[0]?.status, 'skipped');
   assert.deepEqual(snapshotTree(root), beforeWorkspace);
   assert.deepEqual(snapshotTree(hostRoot), beforeHost);
 });

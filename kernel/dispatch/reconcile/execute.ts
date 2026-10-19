@@ -1,4 +1,4 @@
-/** T2 reconcile 执行器：内置宿主的 adopt / track / repair / forget。 */
+/** T3 reconcile 执行器：内置宿主的 adopt / track / repair / forget / accept / clean。 */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -17,12 +17,69 @@ import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import { runHostLanding } from '../host/index.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import { adoptItem } from './adopt.ts';
+import { acceptItem } from './accept.ts';
+import { cleanItem } from './clean.ts';
 import { trackItem } from './track.ts';
+import type { ReconcileExecutionItem } from './execution-types.ts';
 
 export interface ReconcileExecution {
   data: ReconcileApplyData;
   findings: Finding[];
   changes: Change[];
+}
+
+function unavailable(item: ReconcilePlanItem): ReconcileExecutionItem {
+  const findings = [
+    finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
+      source: 'reconcile',
+      target: item.action,
+      message: `当前计划动作无法执行：${item.action}`,
+      remedy: '请检查工作区基线或重新盘点后再执行',
+    }),
+  ];
+  return {
+    result: {
+      item_id: item.item_id,
+      status: 'failed',
+      target_path: item.target_path,
+      findings,
+      ...(item.after === undefined ? {} : { after: item.after }),
+    },
+    findings,
+    changes: [],
+  };
+}
+
+function executionOf(
+  input: {
+    plan: ReconcileApplyData;
+    layout: WorkspaceLayout;
+    index: SkillIndex | null;
+    now: string;
+  },
+  item: ReconcilePlanItem,
+): ReconcileExecutionItem {
+  if (item.action === 'repair') {
+    return repairItem({ item, layout: input.layout, index: input.index, now: input.now });
+  }
+  if (item.action === 'forget') return forgetItem({ item, layout: input.layout, now: input.now });
+  if (item.action === 'clean') return cleanItem({ item, layout: input.layout, now: input.now });
+  if (item.action === 'adopt' && input.index !== null) {
+    return adoptItem({
+      item,
+      layout: input.layout,
+      index: input.index,
+      selection: input.plan.selection,
+      now: input.now,
+    });
+  }
+  if (item.action === 'track' && input.index !== null) {
+    return trackItem({ item, layout: input.layout, index: input.index, now: input.now });
+  }
+  if (item.action === 'accept' && input.index !== null) {
+    return acceptItem({ item, layout: input.layout, index: input.index, now: input.now });
+  }
+  return unavailable(item);
 }
 
 function errorFinding(cause: unknown, target: string): Finding {
@@ -227,38 +284,7 @@ export function executeReconcilePlan(input: {
       });
       continue;
     }
-    const execution =
-      item.action === 'repair'
-        ? repairItem({ item, layout: input.layout, index: input.index, now: input.now })
-        : item.action === 'forget'
-          ? forgetItem({ item, layout: input.layout, now: input.now })
-          : item.action === 'adopt' && input.index !== null
-            ? adoptItem({
-                item,
-                layout: input.layout,
-                index: input.index,
-                selection: input.plan.selection,
-                now: input.now,
-              })
-            : item.action === 'track' && input.index !== null
-              ? trackItem({
-                  item,
-                  layout: input.layout,
-                  index: input.index,
-                  now: input.now,
-                })
-              : {
-                  result: failedResult(item, [
-                    finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
-                      source: 'reconcile',
-                      target: item.action,
-                      message: `T2 尚未实现 ${item.action}`,
-                      remedy: '当前批次执行 adopt、track、repair 与 forget',
-                    }),
-                  ]),
-                  findings: [],
-                  changes: [],
-                };
+    const execution = executionOf(input, item);
     results.push(execution.result);
     findings.push(...execution.findings);
     changes.push(...execution.changes);

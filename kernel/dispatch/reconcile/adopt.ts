@@ -7,7 +7,6 @@ import {
   type Finding,
   type HostLandingVisibility,
   type ReconcilePlanItem,
-  type ReconcileResultItem,
 } from '@skill-manager/contract';
 import { toIndexRecord } from '../../core/lifecycle/shared.ts';
 import type { IndexRecord, SkillIndex, SkillMeta } from '../../core/metadata/types.ts';
@@ -18,12 +17,7 @@ import { loadHostLandingsForWrite, saveHostLandings } from '../../store/host-lan
 import { toKernelError } from '../../store/errors.ts';
 import { finding } from '../../store/findings.ts';
 import { AdoptError, prepareAdopt, type AdoptInput, type PreparedAdopt } from './adopt-source.ts';
-
-export interface ReconcileExecutionItem {
-  result: ReconcileResultItem;
-  findings: Finding[];
-  changes: Change[];
-}
+import type { ReconcileExecutionItem } from './execution-types.ts';
 
 function errorFinding(cause: unknown, target: string): Finding {
   const error = toKernelError(cause, CODES.IO_FAILED);
