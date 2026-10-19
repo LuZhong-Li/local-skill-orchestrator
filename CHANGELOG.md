@@ -1,8 +1,44 @@
 # 变更记录
 
-## 0.4.0 开发记录
+## 0.4.0
 
-> 状态：开发中，未发布。范围见 [`docs/plan/m4c-host-inventory.md`](docs/plan/m4c-host-inventory.md)。
+> 状态：发版准备完成，等待授权；未创建 tag / Release。范围见 [`docs/plan/m4c-host-inventory.md`](docs/plan/m4c-host-inventory.md)。
+
+### 【新增】全机盘点
+
+- **`scan --inventory`**：只读盘点本机内置宿主与已启用 `x-` 宿主根；未初始化工作区可运行，不写索引、锁或 `last_scan_at`。
+- **发现与对账**：识别 skill / rules、`.disabled`、损坏与不可读；共享根按物理路径去重；双源账本合并，输出 managed / drift / missing / untracked / undetermined / orphaned 与权威等级。
+- **统计口径**：user 主计数（安装副本 / 不同技能）置顶；system / platform / project 独立折叠，不污染用户安装数；损坏只入 corrupt 计数。
+- **GUI**：新增只读「全机盘点」视图与空工作区入口；内置 / 第三方宿主分区、共享根 `consumed_by`、分类下钻、未纳管清单；一期无导入 / 修复动作。
+
+### 【新增】内置宿主分发账本
+
+- **`host_landings.yaml`**：第七份规范与第八份 schema，记录内置宿主副本的路径、形态、可见性、摘要与状态；摘要复用 integrity 单一哈希。
+- **生命周期**：`install/update/enable/disable --host` 落账；`uninstall --host <id>` 与 `--host all` 清理副本并保留 orphaned 审计；原件卸载遇 active 副本以 `E-LANDING-002` 阻断，清理后才允许删除。
+- **兼容**：v0.3.0 旧工作区缺少账本时视为空账本，历史副本走 inferred；不批量迁移、不覆盖损坏账本；export / restore 不携带本机账本。
+
+### 【可维护性】
+
+- **单一来源**：新增零依赖 `contract/` workspace 包；内核与 GUI 共用类型、错误码与常量；P0-a 的 3 条跨层违例清零。
+- **机械护栏**：`check:arch` 锁定依赖方向与 0 循环；complexity / 文件规模 ratchet 只减不增；共享测试夹具收编直接 `mkdtemp` 82 → 0。
+- **结构拆分**：宿主三处合一（M5-R7 成立）、`dispatch/scan` 拆分、`App.vue` 858 → 844、`gui-smoke` 743 → 660；lifecycle / plugins manifest 拆分留待 P1-c/P1-d。
+
+### 【修复】
+
+- **大 `--json` 管道截断**：CLI 入口改用 `process.exitCode`，等待 stdout 自然排空后退出；macOS CI 首次复现并验证修复。
+- **x- 宿主 rules `.md`**：内置 Cursor 仍只识别 `.mdc`，插件宿主 rules 根兼容 `.md`，修复第三方副本在盘点中显示为 0。
+
+### 【验证】
+
+- 常规测试 **661 项**（660 通过 + 1 平台跳过）；Windows / Ubuntu 全量 verify；Windows / macOS / Linux 三平台 `inventory-probe` 35 项断言/平台；Bench 三平台通过。
+- 慢测试 1 项、`smoke:kernel`、`smoke:gui` 40/40、check / typecheck / lint / format / build 全绿。
+
+### 【明确不做】
+
+- 二期导入 / 修复 / 批量纳管动作；
+- 双源账本统一（TD-01）；
+- 加载 / 执行第三方代码插件；
+- 真实 macOS / Linux 工具目录与 Codex 官方分发根口径（TD-02 / TD-07）。
 
 ### L-1：第七份规范与第八份 schema（2026-10-18）
 

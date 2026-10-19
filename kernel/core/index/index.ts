@@ -20,7 +20,7 @@ import { validateIndexVersion, validateValidationBlock } from '../metadata/valid
 export const DEFAULT_SKILL_ROOT = './skills';
 
 /** 内核版本号（`--version` 与索引 `tool_version` 的唯一来源）：随发布版本同步 */
-export const TOOL_VERSION = '0.3.0';
+export const TOOL_VERSION = '0.4.0';
 
 export interface LoadedIndex {
   exists: boolean;

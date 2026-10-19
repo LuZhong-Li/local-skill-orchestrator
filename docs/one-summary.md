@@ -230,6 +230,7 @@
 |---|---|
 | [`docs/plan/m4c-host-inventory.md`](plan/m4c-host-inventory.md) | L-1 ~ L-5 账本批次、M4c-1 ~ M4c-7 功能批次；v0.4.0 范围、契约 6→7 / schema 7→8、测试增量与验收映射 |
 | [`docs/plan/maintainability.md`](plan/maintainability.md) | P0-a ~ P0-d、P1-a ~ P1-d、P2；全局批次表、contract 约束、complexity ratchet、测试 / 发版门禁 |
+| [`docs/plan/v0.4.0-acceptance.md`](plan/v0.4.0-acceptance.md) | v0.4.0 总验收：M4c / NFR / 风险 / MNT-R 逐条映射、前后指标、遗留项、打包与生产验证 |
 
 统一批次：P0-a → P0-b → P0-c → P0-d → L-1 ~ L-5 → P1-a → P1-b → M4c-1 ~ M4c-7 → P1-c → P1-d → P2；账本 + M4c 合并 v0.4.0，纯重构不发版。
 

@@ -1,6 +1,6 @@
 {
   "name": "@skill-manager/gui",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Electron 桌面外壳：只承担视图职责，操作经由内核指令完成",
   "author": "skill-manager",
@@ -19,7 +19,7 @@
     "pack:linux": "node ../scripts/pack.mjs --platform linux"
   },
   "devDependencies": {
-    "@skill-manager/contract": "0.3.0",
+    "@skill-manager/contract": "0.4.0",
     "@vitejs/plugin-vue": "^6.0.10",
     "electron": "^44.7.2",
     "electron-builder": "^26.15.3",
