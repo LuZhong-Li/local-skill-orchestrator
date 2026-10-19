@@ -18,6 +18,16 @@
 - **测试**：新增 1 项结构断言；常规 662 → **663 项**（单元 412、契约 135、端到端 116；662 通过 + 1 平台跳过）。
 - **边界**：纯重构，不发版；下一批 P2 收口。
 
+### P2-1：内核超阈值文件清零（2026-10-19）
+
+- **registry**：2172 → **106 行**；命令处理器拆到 `registry/commands/*`，宿主切换在 `host-toggle.ts`，确认/索引工具在 `shared.ts`。
+- **source**：722 → **196 行**；`source-shared` / `source-remote` / `source-archive` 分担协议、远端获取与解包安全。
+- **validation / backup / metadata / hosts**：分别拆为 shared+record+drift、backup/export/import、meta/dependency、shared/roots/policy/core；全部 <500 行。
+- **行为**：16 指令、插件、盘点全链路等价；registry、source、backup、validation、metadata、hosts 相关单测与 CLI/update/host-uninstall e2e 全绿。
+- **结构**：`check:arch` 210 文件 / 792 边 / 0 循环 / 0 allowlist；超阈值文件 **10 → 4**；complexity 保持 **94**。
+- **测试**：新增 1 项 kernel 规模结构断言；常规 663 → **664 项**（单元 412、契约 136、端到端 116；663 通过 + 1 平台跳过）。
+- **边界**：纯重构，不发版；剩余 App.vue / e2e / bench / gui-smoke 进入 P2-2/P2-3。
+
 ## 0.4.0
 
 > 状态：**已发布为 latest**（[v0.4.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.4.0)）。范围见 [`docs/plan/v0.4.0-acceptance.md`](docs/plan/v0.4.0-acceptance.md)。

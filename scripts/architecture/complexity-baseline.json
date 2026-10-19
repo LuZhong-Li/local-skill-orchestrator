@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-19T06:16:17.193Z",
+  "generated_at": "2026-10-19T07:14:42.063Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -115,18 +115,8 @@
         "clearedBy": "P1-a"
       },
       {
-        "id": "kernel/core/backup/index.ts#<anonymous>#d6834cc35bfd",
-        "file": "kernel/core/backup/index.ts",
-        "function": "<anonymous>",
-        "scope": "seen",
-        "signature": "skills.forEach((item, position) => {",
-        "complexity": 21,
-        "owner": "kernel-core",
-        "clearedBy": "P2"
-      },
-      {
-        "id": "kernel/core/backup/index.ts#exportIndex#7d8074d2999e",
-        "file": "kernel/core/backup/index.ts",
+        "id": "kernel/core/backup/export.ts#exportIndex#7d8074d2999e",
+        "file": "kernel/core/backup/export.ts",
         "function": "exportIndex",
         "scope": "exportIndex",
         "signature": "export function exportIndex(input: ExportInput): ExportOutcome {",
@@ -135,8 +125,18 @@
         "clearedBy": "P2"
       },
       {
-        "id": "kernel/core/backup/index.ts#importIndex#61173484021d",
-        "file": "kernel/core/backup/index.ts",
+        "id": "kernel/core/backup/import.ts#<anonymous>#d6834cc35bfd",
+        "file": "kernel/core/backup/import.ts",
+        "function": "<anonymous>",
+        "scope": "seen",
+        "signature": "skills.forEach((item, position) => {",
+        "complexity": 21,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/backup/import.ts#importIndex#61173484021d",
+        "file": "kernel/core/backup/import.ts",
         "function": "importIndex",
         "scope": "importIndex",
         "signature": "export function importIndex(input: ImportInput): ImportOutcome {",
@@ -145,8 +145,8 @@
         "clearedBy": "P2"
       },
       {
-        "id": "kernel/core/backup/index.ts#toImportedRecord#5356479c9245",
-        "file": "kernel/core/backup/index.ts",
+        "id": "kernel/core/backup/import.ts#toImportedRecord#5356479c9245",
+        "file": "kernel/core/backup/import.ts",
         "function": "toImportedRecord",
         "scope": "toImportedRecord",
         "signature": "function toImportedRecord(",
@@ -205,38 +205,38 @@
         "clearedBy": "P1-a"
       },
       {
-        "id": "kernel/core/hosts/validate.ts#checkClassificationAndRoots#02caa77babd6",
-        "file": "kernel/core/hosts/validate.ts",
-        "function": "checkClassificationAndRoots",
-        "scope": "checkClassificationAndRoots",
-        "signature": "function checkClassificationAndRoots(",
-        "complexity": 26,
+        "id": "kernel/core/hosts/validate-core.ts#validateHostRegistry#5175d3c5ad8b",
+        "file": "kernel/core/hosts/validate-core.ts",
+        "function": "validateHostRegistry",
+        "scope": "validateHostRegistry",
+        "signature": "export function validateHostRegistry(registry: unknown): Finding[] {",
+        "complexity": 16,
         "owner": "host",
         "clearedBy": "P1-a"
       },
       {
-        "id": "kernel/core/hosts/validate.ts#checkExternalConsumers#5e11d971b660",
-        "file": "kernel/core/hosts/validate.ts",
+        "id": "kernel/core/hosts/validate-policy.ts#checkExternalConsumers#e3f5bf232b5e",
+        "file": "kernel/core/hosts/validate-policy.ts",
         "function": "checkExternalConsumers",
         "scope": "checkExternalConsumers",
-        "signature": "function checkExternalConsumers(",
+        "signature": "export function checkExternalConsumers(",
         "complexity": 22,
         "owner": "host",
         "clearedBy": "P1-a"
       },
       {
-        "id": "kernel/core/hosts/validate.ts#checkPolicy#d2bf5f5bc3c1",
-        "file": "kernel/core/hosts/validate.ts",
+        "id": "kernel/core/hosts/validate-policy.ts#checkPolicy#857c8a22e14c",
+        "file": "kernel/core/hosts/validate-policy.ts",
         "function": "checkPolicy",
         "scope": "checkPolicy",
-        "signature": "function checkPolicy(entry: Record<string, unknown>, target: string, out: Finding[]): void {",
+        "signature": "export function checkPolicy(entry: Record<string, unknown>, target: string, out: Finding[]): void {",
         "complexity": 27,
         "owner": "host",
         "clearedBy": "P1-a"
       },
       {
-        "id": "kernel/core/hosts/validate.ts#checkSecurityControlFields#cb2a9732a5bd",
-        "file": "kernel/core/hosts/validate.ts",
+        "id": "kernel/core/hosts/validate-policy.ts#checkSecurityControlFields#cb2a9732a5bd",
+        "file": "kernel/core/hosts/validate-policy.ts",
         "function": "checkSecurityControlFields",
         "scope": "checkSecurityControlFields",
         "signature": "function checkSecurityControlFields(",
@@ -245,12 +245,12 @@
         "clearedBy": "P1-a"
       },
       {
-        "id": "kernel/core/hosts/validate.ts#validateHostRegistry#5175d3c5ad8b",
-        "file": "kernel/core/hosts/validate.ts",
-        "function": "validateHostRegistry",
-        "scope": "validateHostRegistry",
-        "signature": "export function validateHostRegistry(registry: unknown): Finding[] {",
-        "complexity": 16,
+        "id": "kernel/core/hosts/validate-roots.ts#checkClassificationAndRoots#2f791217577d",
+        "file": "kernel/core/hosts/validate-roots.ts",
+        "function": "checkClassificationAndRoots",
+        "scope": "checkClassificationAndRoots",
+        "signature": "export function checkClassificationAndRoots(",
+        "complexity": 26,
         "owner": "host",
         "clearedBy": "P1-a"
       },
@@ -365,6 +365,26 @@
         "clearedBy": "P1-c"
       },
       {
+        "id": "kernel/core/lifecycle/source-remote.ts#fetchRemoteFile#664f7aa044ca",
+        "file": "kernel/core/lifecycle/source-remote.ts",
+        "function": "fetchRemoteFile",
+        "scope": "fetchRemoteFile",
+        "signature": "async function fetchRemoteFile(url: string, destFile: string): Promise<void> {",
+        "complexity": 18,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/source-shared.ts#assertProtocolAllowed#16d854abf74d",
+        "file": "kernel/core/lifecycle/source-shared.ts",
+        "function": "assertProtocolAllowed",
+        "scope": "assertProtocolAllowed",
+        "signature": "export function assertProtocolAllowed(location: string): void {",
+        "complexity": 14,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
         "id": "kernel/core/lifecycle/source.ts#acquireFromPath#092e4357ea48",
         "file": "kernel/core/lifecycle/source.ts",
         "function": "acquireFromPath",
@@ -381,26 +401,6 @@
         "scope": "acquireSource",
         "signature": "export async function acquireSource(spec: SourceSpec): Promise<AcquiredSource> {",
         "complexity": 16,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/source.ts#assertProtocolAllowed#5458c9a56159",
-        "file": "kernel/core/lifecycle/source.ts",
-        "function": "assertProtocolAllowed",
-        "scope": "assertProtocolAllowed",
-        "signature": "function assertProtocolAllowed(location: string): void {",
-        "complexity": 14,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/source.ts#fetchRemoteFile#664f7aa044ca",
-        "file": "kernel/core/lifecycle/source.ts",
-        "function": "fetchRemoteFile",
-        "scope": "fetchRemoteFile",
-        "signature": "async function fetchRemoteFile(url: string, destFile: string): Promise<void> {",
-        "complexity": 18,
         "owner": "lifecycle",
         "clearedBy": "P1-c"
       },
@@ -465,8 +465,8 @@
         "clearedBy": "P1-c"
       },
       {
-        "id": "kernel/core/metadata/validate.ts#validateDependencies#35be1af02f29",
-        "file": "kernel/core/metadata/validate.ts",
+        "id": "kernel/core/metadata/validate-dependency.ts#validateDependencies#35be1af02f29",
+        "file": "kernel/core/metadata/validate-dependency.ts",
         "function": "validateDependencies",
         "scope": "validateDependencies",
         "signature": "export function validateDependencies(metas: SkillMeta[], availability: AvailabilityMap): Finding[] {",
@@ -475,8 +475,8 @@
         "clearedBy": "P2"
       },
       {
-        "id": "kernel/core/metadata/validate.ts#validateSource#c02cdd577fbd",
-        "file": "kernel/core/metadata/validate.ts",
+        "id": "kernel/core/metadata/validate-meta.ts#validateSource#c02cdd577fbd",
+        "file": "kernel/core/metadata/validate-meta.ts",
         "function": "validateSource",
         "scope": "validateSource",
         "signature": "export function validateSource(source: unknown, ctx: MetaContext): Finding[] {",
@@ -485,8 +485,8 @@
         "clearedBy": "P2"
       },
       {
-        "id": "kernel/core/metadata/validate.ts#validateTargets#ec8d15d463dc",
-        "file": "kernel/core/metadata/validate.ts",
+        "id": "kernel/core/metadata/validate-meta.ts#validateTargets#ec8d15d463dc",
+        "file": "kernel/core/metadata/validate-meta.ts",
         "function": "validateTargets",
         "scope": "validateTargets",
         "signature": "export function validateTargets(targets: unknown, ctx: MetaContext): Finding[] {",
@@ -585,31 +585,31 @@
         "clearedBy": "P2"
       },
       {
-        "id": "kernel/core/validation/index.ts#validateConfig#bc94f4bc0b04",
-        "file": "kernel/core/validation/index.ts",
-        "function": "validateConfig",
-        "scope": "validateConfig",
-        "signature": "function validateConfig(layout: WorkspaceLayout, index: SkillIndex): Finding[] {",
-        "complexity": 18,
-        "owner": "kernel-core",
-        "clearedBy": "P2"
-      },
-      {
-        "id": "kernel/core/validation/index.ts#validateRecord#d2804440b712",
-        "file": "kernel/core/validation/index.ts",
-        "function": "validateRecord",
-        "scope": "validateRecord",
-        "signature": "function validateRecord(",
-        "complexity": 19,
-        "owner": "kernel-core",
-        "clearedBy": "P2"
-      },
-      {
         "id": "kernel/core/validation/index.ts#validateWorkspace#567b893d8102",
         "file": "kernel/core/validation/index.ts",
         "function": "validateWorkspace",
         "scope": "validateWorkspace",
         "signature": "export function validateWorkspace(input: ValidateInput): ValidateOutcome {",
+        "complexity": 19,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/validation/validation-record.ts#validateConfig#c03f8982a9b9",
+        "file": "kernel/core/validation/validation-record.ts",
+        "function": "validateConfig",
+        "scope": "validateConfig",
+        "signature": "export function validateConfig(layout: WorkspaceLayout, index: SkillIndex): Finding[] {",
+        "complexity": 18,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/validation/validation-record.ts#validateRecord#dd57471c665f",
+        "file": "kernel/core/validation/validation-record.ts",
+        "function": "validateRecord",
+        "scope": "validateRecord",
+        "signature": "export function validateRecord(",
         "complexity": 19,
         "owner": "kernel-core",
         "clearedBy": "P2"
@@ -625,58 +625,28 @@
         "clearedBy": "P1-b"
       },
       {
-        "id": "kernel/dispatch/registry/index.ts#<anonymous>#3d8019de7d80",
-        "file": "kernel/dispatch/registry/index.ts",
+        "id": "kernel/dispatch/registry/commands/import.ts#<anonymous>#d7735f39b361",
+        "file": "kernel/dispatch/registry/commands/import.ts",
         "function": "<anonymous>",
-        "scope": "result",
-        "signature": "const restoreHandler: CommandHandler = async ({ args, now, interaction }) => {",
-        "complexity": 19,
-        "owner": "dispatch",
-        "clearedBy": "P1-b"
-      },
-      {
-        "id": "kernel/dispatch/registry/index.ts#<anonymous>#837462e01208",
-        "file": "kernel/dispatch/registry/index.ts",
-        "function": "<anonymous>",
-        "scope": "toggleHandler",
-        "signature": "return async ({ args, now, interaction }) => {",
-        "complexity": 15,
-        "owner": "dispatch",
-        "clearedBy": "P1-b"
-      },
-      {
-        "id": "kernel/dispatch/registry/index.ts#<anonymous>#83ef7643ef84",
-        "file": "kernel/dispatch/registry/index.ts",
-        "function": "<anonymous>",
-        "scope": "outcome",
-        "signature": "const updateHandler: CommandHandler = async ({ args, now, interaction }) => {",
-        "complexity": 19,
-        "owner": "dispatch",
-        "clearedBy": "P1-b"
-      },
-      {
-        "id": "kernel/dispatch/registry/index.ts#<anonymous>#aaea9cd1c0ed",
-        "file": "kernel/dispatch/registry/index.ts",
-        "function": "<anonymous>",
-        "scope": "pluginLoaded",
-        "signature": "const depsHandler: CommandHandler = async ({ args }) => {",
-        "complexity": 11,
-        "owner": "dispatch",
-        "clearedBy": "P1-b"
-      },
-      {
-        "id": "kernel/dispatch/registry/index.ts#<anonymous>#b5be101b40c3",
-        "file": "kernel/dispatch/registry/index.ts",
-        "function": "<anonymous>",
-        "scope": "host",
-        "signature": "const importHandler: CommandHandler = async ({ args, now, interaction }) => {",
+        "scope": "<module>",
+        "signature": "export const importHandler: CommandHandler = async ({ args, now, interaction }) => {",
         "complexity": 13,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },
       {
-        "id": "kernel/dispatch/registry/index.ts#<anonymous>#cdd055beb7d5",
-        "file": "kernel/dispatch/registry/index.ts",
+        "id": "kernel/dispatch/registry/commands/lifecycle.ts#<anonymous>#0475b25ec705",
+        "file": "kernel/dispatch/registry/commands/lifecycle.ts",
+        "function": "<anonymous>",
+        "scope": "<module>",
+        "signature": "export const installHandler: CommandHandler = async ({ args, now, interaction }) => {",
+        "complexity": 11,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/commands/lifecycle.ts#<anonymous>#cdd055beb7d5",
+        "file": "kernel/dispatch/registry/commands/lifecycle.ts",
         "function": "<anonymous>",
         "scope": "scope",
         "signature": "return await withLock(layout.indexFile, async () => {",
@@ -685,61 +655,91 @@
         "clearedBy": "P1-b"
       },
       {
-        "id": "kernel/dispatch/registry/index.ts#<anonymous>#e8e93f8de1d2",
-        "file": "kernel/dispatch/registry/index.ts",
+        "id": "kernel/dispatch/registry/commands/mutate.ts#<anonymous>#837462e01208",
+        "file": "kernel/dispatch/registry/commands/mutate.ts",
         "function": "<anonymous>",
-        "scope": "planOf",
-        "signature": "const installHandler: CommandHandler = async ({ args, now, interaction }) => {",
-        "complexity": 11,
+        "scope": "toggleHandler",
+        "signature": "return async ({ args, now, interaction }) => {",
+        "complexity": 15,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },
       {
-        "id": "kernel/dispatch/registry/index.ts#configSetPluginCommand#32ff77edf98f",
-        "file": "kernel/dispatch/registry/index.ts",
-        "function": "configSetPluginCommand",
-        "scope": "configSetPluginCommand",
-        "signature": "function configSetPluginCommand(",
-        "complexity": 13,
-        "owner": "dispatch",
-        "clearedBy": "P1-b"
-      },
-      {
-        "id": "kernel/dispatch/registry/index.ts#pluginInstallCommand#4e6653088db3",
-        "file": "kernel/dispatch/registry/index.ts",
-        "function": "pluginInstallCommand",
-        "scope": "pluginInstallCommand",
-        "signature": "async function pluginInstallCommand(context: CommandContext): Promise<Result<unknown>> {",
-        "complexity": 20,
-        "owner": "dispatch",
-        "clearedBy": "P1-b"
-      },
-      {
-        "id": "kernel/dispatch/registry/index.ts#pluginToggleCommand#a125d60bd22e",
-        "file": "kernel/dispatch/registry/index.ts",
-        "function": "pluginToggleCommand",
-        "scope": "pluginToggleCommand",
-        "signature": "async function pluginToggleCommand(",
+        "id": "kernel/dispatch/registry/commands/mutate.ts#<anonymous>#86ea75b0bf5d",
+        "file": "kernel/dispatch/registry/commands/mutate.ts",
+        "function": "<anonymous>",
+        "scope": "outcome",
+        "signature": "export const updateHandler: CommandHandler = async ({ args, now, interaction }) => {",
         "complexity": 19,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },
       {
-        "id": "kernel/dispatch/registry/index.ts#pluginUninstallCommand#da3d38144c9e",
-        "file": "kernel/dispatch/registry/index.ts",
+        "id": "kernel/dispatch/registry/commands/plugin-config.ts#configSetPluginCommand#4527392d4cbc",
+        "file": "kernel/dispatch/registry/commands/plugin-config.ts",
+        "function": "configSetPluginCommand",
+        "scope": "configSetPluginCommand",
+        "signature": "export function configSetPluginCommand(",
+        "complexity": 13,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/commands/plugin-install.ts#pluginInstallCommand#de1c8448ddd3",
+        "file": "kernel/dispatch/registry/commands/plugin-install.ts",
+        "function": "pluginInstallCommand",
+        "scope": "pluginInstallCommand",
+        "signature": "export async function pluginInstallCommand(context: CommandContext): Promise<Result<unknown>> {",
+        "complexity": 20,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/commands/plugin-toggle.ts#pluginToggleCommand#7125ef008b5f",
+        "file": "kernel/dispatch/registry/commands/plugin-toggle.ts",
+        "function": "pluginToggleCommand",
+        "scope": "pluginToggleCommand",
+        "signature": "export async function pluginToggleCommand(",
+        "complexity": 19,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/commands/plugin-uninstall.ts#pluginUninstallCommand#9a1bc0f9f3fa",
+        "file": "kernel/dispatch/registry/commands/plugin-uninstall.ts",
         "function": "pluginUninstallCommand",
         "scope": "pluginUninstallCommand",
-        "signature": "async function pluginUninstallCommand(context: CommandContext): Promise<Result<unknown>> {",
+        "signature": "export async function pluginUninstallCommand(context: CommandContext): Promise<Result<unknown>> {",
         "complexity": 12,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },
       {
-        "id": "kernel/dispatch/registry/index.ts#runHostToggle#91c65e6c471a",
-        "file": "kernel/dispatch/registry/index.ts",
+        "id": "kernel/dispatch/registry/commands/query.ts#<anonymous>#6d97fdaaa117",
+        "file": "kernel/dispatch/registry/commands/query.ts",
+        "function": "<anonymous>",
+        "scope": "pluginLoaded",
+        "signature": "export const depsHandler: CommandHandler = async ({ args }) => {",
+        "complexity": 11,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/commands/restore.ts#<anonymous>#b4f5824e2f77",
+        "file": "kernel/dispatch/registry/commands/restore.ts",
+        "function": "<anonymous>",
+        "scope": "<module>",
+        "signature": "export const restoreHandler: CommandHandler = async ({ args, now, interaction }) => {",
+        "complexity": 19,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/host-toggle.ts#runHostToggle#37d7f7b04f27",
+        "file": "kernel/dispatch/registry/host-toggle.ts",
         "function": "runHostToggle",
         "scope": "runHostToggle",
-        "signature": "async function runHostToggle(input: {",
+        "signature": "export async function runHostToggle(input: {",
         "complexity": 25,
         "owner": "dispatch",
         "clearedBy": "P1-b"
@@ -960,48 +960,6 @@
         "category": "vue",
         "owner": "gui",
         "clearedBy": "P2"
-      },
-      {
-        "file": "kernel/core/backup/index.ts",
-        "lines": 654,
-        "category": "core",
-        "owner": "kernel-core",
-        "clearedBy": "P2"
-      },
-      {
-        "file": "kernel/core/hosts/validate.ts",
-        "lines": 730,
-        "category": "core",
-        "owner": "host",
-        "clearedBy": "P1-a"
-      },
-      {
-        "file": "kernel/core/lifecycle/source.ts",
-        "lines": 722,
-        "category": "core",
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "file": "kernel/core/metadata/validate.ts",
-        "lines": 579,
-        "category": "core",
-        "owner": "kernel-core",
-        "clearedBy": "P2"
-      },
-      {
-        "file": "kernel/core/validation/index.ts",
-        "lines": 670,
-        "category": "core",
-        "owner": "kernel-core",
-        "clearedBy": "P2"
-      },
-      {
-        "file": "kernel/dispatch/registry/index.ts",
-        "lines": 2172,
-        "category": "core",
-        "owner": "dispatch",
-        "clearedBy": "P1-b"
       },
       {
         "file": "scripts/bench/runner.mjs",

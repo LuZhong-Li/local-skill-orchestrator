@@ -550,6 +550,19 @@
 
 > P1-d 已收口；下一批 P2 收口。
 
+### 6.24 P2-1 内核超阈值文件清零（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| registry | 2172 → **106 行**；命令模块、host-toggle、shared 分离，仅保留注册与路由 |
+| source | 722 → **196 行**；shared / remote / archive 分阶段 |
+| validation / backup / metadata / hosts | 670 / 654 / 579 / 730 → 各自 barrel + 职责模块，均 <500 行 |
+| 行为 | 16 指令、插件、盘点全链路等价；registry targeted 与 CLI/update/host-uninstall e2e 全绿 |
+| 结构 | `check:arch` 210 文件 / 792 边 / 0 循环 / 0 allowlist；超阈值文件 **10 → 4**；complexity 保持 **94** |
+| 测试 | 新增 1 项 kernel 规模结构断言；常规 663 → **664 项**（单元 412、契约 136、端到端 116；663 通过 + 1 平台跳过） |
+
+> P2-1 已收口；剩余超阈值文件为 App.vue、bench runner、gui-smoke 与 e2e cli，进入 P2-2。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

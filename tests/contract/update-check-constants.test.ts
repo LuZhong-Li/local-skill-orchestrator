@@ -53,7 +53,7 @@ test('契约：GUI/内核不再复制常量或结果类型', () => {
   }
   assert.equal(existsSync(join(ROOT, 'gui/main/update-check/constants.ts')), false);
 
-  const source = readFileSync(join(ROOT, 'kernel/core/lifecycle/source.ts'), 'utf8');
+  const source = readFileSync(join(ROOT, 'kernel/core/lifecycle/source-shared.ts'), 'utf8');
   assert.equal(source.includes('SOURCE_TIMEOUT_MS'), true);
   assert.equal(source.includes('SOURCE_MAX_OUTPUT_BYTES'), true);
 

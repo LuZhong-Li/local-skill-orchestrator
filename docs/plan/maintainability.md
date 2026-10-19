@@ -7,7 +7,7 @@
 | 文档状态 | **执行中**（2026-10-18 批准；P0-a ~ P0-d、P1-a/P1-b/P1-c/P1-d、M4c-1 ~ M4c-7 已完成，2026-10-19） |
 | 依据 | [`docs/design/maintainability.md`](../design/maintainability.md)；需求第 10 章（MNT-R1 ~ R9）；`docs/research/maintainability-audit-2026-10-18.md`；M4c 设计 / 计划 |
 | 说明 | 只计划，不实现；每批可独立验证、独立提交；纯重构批不得夹带功能 |
-| 基线 | 计划基线 569（P0-d 后）；当前执行基线 663（P1-d 后：662 通过 + 1 项平台跳过）；0 循环；0 allowlist；94 个 complexity > 10 |
+| 基线 | 计划基线 569（P0-d 后）；当前执行基线 664（P2-1 后：663 通过 + 1 项平台跳过）；0 循环；0 allowlist；94 个 complexity > 10 |
 
 ---
 
@@ -373,39 +373,58 @@
 
 ## 3. P2：收口（M4c 后）
 
-### P2-1 App.vue 拆分
+### P2-1 内核超阈值文件清零（已完成 2026-10-19）
 
-- `App.vue` 858 行 → 视图 / composables；
-- 保留导航与交互语义；
-- GUI 冒烟全绿。
+**基线 10 个超阈值文件**：
 
-### P2-2 e2e `cli.test.ts` 拆分
+| 文件 | 基线行数 | 处置 |
+|---|---:|---|
+| `kernel/dispatch/registry/index.ts` | 2172 | 拆为路由入口 + host-toggle + shared + 命令模块 |
+| `kernel/core/hosts/validate.ts` | 730 | 拆为 shared / roots / policy / core |
+| `kernel/core/lifecycle/source.ts` | 722 | 拆为 shared / remote / archive / entry |
+| `kernel/core/validation/index.ts` | 670 | 拆为 shared / record / drift / entry |
+| `kernel/core/backup/index.ts` | 654 | 拆为 backup-uninstall / export / import / entry |
+| `kernel/core/metadata/validate.ts` | 579 | 拆为 validate-meta / validate-dependency / entry |
+| `gui/renderer/src/App.vue` | 844 | P2-2 |
+| `scripts/bench/runner.mjs` | 534 | P2-2/P2-3 按职责处理 |
+| `scripts/gui-smoke.mjs` | 660 | P2-2/P2-3 按职责处理 |
+| `tests/e2e/cli.test.ts` | 1148 | P2-2 |
 
-- 1173 行按命令族拆；
-- 共享 `tests/helpers/cli.ts`；
-- 测试语义 / 数量不变。
+**落地记录**：
 
-### P2-3 架构依赖图
+| 项 | 结果 |
+|---|---|
+| registry | 2172 → **106 行**；命令处理器在 `registry/commands/*`，宿主切换在 `host-toggle.ts`，确认/索引工具在 `shared.ts` |
+| source | 722 → **196 行**；`source-shared` / `source-remote` / `source-archive` 分担协议、下载/克隆、解包安全 |
+| validation | 670 → **86 行**；`validation-shared` / `validation-record` / `validation-drift` |
+| backup | 654 → **4 行 barrel**；backup/export/import 分文件 |
+| metadata validate | 579 → **2 行 barrel**；meta 与 dependency 规则分文件 |
+| hosts validate | 730 → **2 行 barrel**；shared/roots/policy/core 分文件 |
+| 行为 | 16 指令、插件、盘点全链路等价；registry targeted 与 CLI/update/host-uninstall e2e 全绿 |
+| 结构 | `check:arch` 210 文件 / 792 边 / 0 循环 / 0 allowlist；超阈值文件 **10 → 4**；complexity 保持 **94** |
+| 测试 | 新增 1 项 kernel 规模结构断言；常规 663 → **664 项**（单元 412、契约 136、端到端 116；663 通过 + 1 平台跳过） |
 
-- 新增 `docs/architecture/dependency-graph.json`；
-- `docs/architecture.md` 图由 JSON 生成 / 核对；
-- `check:arch` 比较代码图与文档图。
+### P2-2 App.vue 与 e2e 拆分
 
-### P2-4 死代码 / 重复收口
+- `App.vue` 844 行 → 视图 / composables，保留导航与交互语义；
+- `tests/e2e/cli.test.ts` 1148 行按命令族拆，共享 CLI helper；
+- `scripts/bench/runner.mjs` / `scripts/gui-smoke.mjs` 按职责处理；
+- 测试语义与数量不变，GUI 冒烟全绿。
 
-- 复核 4 个无用导出候选；
-- 清理不改变公共 API；
-- 无用导出 / 零导入文件不增加。
+### P2-3 TD-06 + 架构依赖图 + 死代码
 
-### P2-5 P0-c 剩余基线热点
+- 删除 contract 兼容 barrel，引用方直接指向单一来源；
+- 新增 `docs/architecture/dependency-graph.json`，`check:arch` 比较代码图与文档图；
+- 复核无用导出候选并清理；不改变公共 API。
 
-- P1-a / P1-b / P1-c / P1-d 已覆盖 host、dispatch、lifecycle、plugins/manifest 的基线热点；
-- `kernel/core/discovery`、`validation`、`backup`、`metadata`、`index`、`gui`、`scripts`、`tests` 等未归入 P1 的基线项，由 P2 按职责拆分或登记保留理由；
+### P2 剩余基线热点
+
+- `gui/renderer/src/App.vue`、`scripts/bench/runner.mjs`、`scripts/gui-smoke.mjs`、`tests/e2e/cli.test.ts` 仍为基线项；
 - 只减不增；拆分完成后用 `npm run arch:baseline` 更新基线并审阅 diff。
 
 **契约 / 规范变更**：无。
 
-**测试**：663 项 + GUI 冒烟；不新增功能测试。
+**测试**：664 项 + GUI 冒烟；纯重构批不新增功能测试。
 
 **验收**：文件行数下降；文档图一致；无新增违规；纯重构。
 
@@ -437,7 +456,7 @@ P0-a → P0-b → P0-c → P0-d
 
 | 项 | 计划值 |
 |---|---:|
-| 当前常规测试（P1-d 后） | 663 |
+| 当前常规测试（P2-1 后） | 664 |
 | 纯重构批 | 不新增功能测试；新增门禁 / 反例测试 |
 | 契约规范 | 保持 6，直到 L-1 增至 7 |
 | JSON Schema | 保持 7，直到 L-1 增至 8 |
@@ -445,7 +464,7 @@ P0-a → P0-b → P0-c → P0-d
 | P0 预计新增测试 | 10–12 |
 | P1 预计新增测试 | 7–9 |
 
-实际新增数在实现后回填；每个纯重构批必须至少保持当前基线全绿（663 项：662 通过 + 1 项平台跳过）。
+实际新增数在实现后回填；每个纯重构批必须至少保持当前基线全绿（664 项：663 通过 + 1 项平台跳过）。
 
 ### 5.2 版本
 
@@ -483,7 +502,7 @@ P0-a → P0-b → P0-c → P0-d
 | MNT-R7 死代码 / 重复 | P2-4 | 无用导出初筛复核；清理 |
 | MNT-R8 测试基建 | P0-d | 120 处 mkdtemp 锁定 / 复用 |
 | MNT-R9 审计与治理 | 全部 | 每批影响声明、基线、例外到期 |
-| M-R-21 结构改造回归 | 全部 | 663 项起逐批全绿、纯重构 |
+| M-R-21 结构改造回归 | 全部 | 664 项起逐批全绿、纯重构 |
 
 ---
 
@@ -492,7 +511,7 @@ P0-a → P0-b → P0-c → P0-d
 每批提交前：
 
 1. 本批只做一类变化；纯重构与功能严格分离；
-2. `npm test` 663 项全绿（662 + 1 跳过）；慢测试 / GUI 冒烟按口径；
+2. `npm test` 664 项全绿（663 + 1 跳过）；慢测试 / GUI 冒烟按口径；
 3. `check:arch` 0 未登记违规；
 4. complexity / max-lines 基线未放宽；
 5. `contract/` 无 kernel/gui import、零运行时依赖；
