@@ -142,6 +142,46 @@ async function applyReconcile(input: {
   });
 }
 
+function conflictResult(
+  plan: ReturnType<typeof buildReconcilePreview>,
+  findings: readonly import('@skill-manager/contract').Finding[],
+): Result<unknown> | undefined {
+  const conflict = plan.items.find(
+    (item) =>
+      item.status === 'skipped' &&
+      (item.reason === 'shared_root_form_conflict' ||
+        item.reason === 'shared_root_ledger_conflict'),
+  );
+  if (conflict === undefined) return undefined;
+  return buildResult(
+    'reconcile',
+    [
+      ...findings,
+      finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
+        source: 'reconcile',
+        target: conflict.target_path,
+        message:
+          conflict.reason === 'shared_root_form_conflict'
+            ? '共享根同时被不同形态消费，拒绝任选一种写法'
+            : '共享根同时归属内置与插件账本，拒绝猜测归属',
+        remedy: '修正宿主根配置，使同一物理副本只对应一种 form 与一套账本',
+      }),
+    ],
+    [],
+    { data: plan, preview: true },
+  );
+}
+
+function missingSelectionResult(
+  plan: ReturnType<typeof buildReconcilePreview>,
+  selection: NonNullable<ReturnType<typeof parseReconcileOptions>['selection']>,
+): Result<unknown> | undefined {
+  if (plan.items.length > 0 || selection.mode === 'classification') return undefined;
+  return selectionMissingResult(
+    selection.mode === 'path' ? (selection.path ?? '--path') : (selection.id ?? '--id'),
+  );
+}
+
 export const reconcileHandler: CommandHandler = async ({ args, now, interaction }) => {
   const parsed = parseReconcileOptions(args);
   if (parsed.error !== undefined || parsed.selection === undefined) {
@@ -151,11 +191,10 @@ export const reconcileHandler: CommandHandler = async ({ args, now, interaction 
   const layout = layoutOf(workspaceRootOf(args));
   const snapshot = inventorySnapshotOf(layout.root);
   const plan = buildReconcilePreview(snapshot, selection);
-  if (plan.items.length === 0 && selection.mode !== 'classification') {
-    return selectionMissingResult(
-      selection.mode === 'path' ? (selection.path ?? '--path') : (selection.id ?? '--id'),
-    );
-  }
+  const conflict = conflictResult(plan, snapshot.findings);
+  if (conflict !== undefined) return conflict;
+  const missing = missingSelectionResult(plan, selection);
+  if (missing !== undefined) return missing;
   const findings = [...snapshot.findings];
   if (selection.apply) {
     return applyReconcile({

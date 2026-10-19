@@ -18,6 +18,7 @@ import { toKernelError } from '../../store/errors.ts';
 import { finding } from '../../store/findings.ts';
 import { AdoptError, prepareAdopt, type AdoptInput, type PreparedAdopt } from './adopt-source.ts';
 import type { ReconcileExecutionItem } from './execution-types.ts';
+import { ledgerHostIds } from './group.ts';
 
 function errorFinding(cause: unknown, target: string): Finding {
   const error = toKernelError(cause, CODES.IO_FAILED);
@@ -76,22 +77,38 @@ function rollbackAdopt(input: {
 function commit(input: AdoptInput, prepared: PreparedAdopt): ReconcileExecutionItem {
   const loaded = loadHostLandingsForWrite(input.layout.hostLandingsFile, input.now, TOOL_VERSION);
   if (loaded.index === null) throw new AdoptError(loaded.findings);
-  const hostId = input.item.host_ids[0] ?? '';
-  const landing = buildHostLandingRecord({
-    skillId: prepared.skillId,
-    hostId,
-    targetPath: input.item.target_path,
-    format: 'skill',
-    visibility: (input.item.visibility ?? 'visible') as HostLandingVisibility,
-    origin: 'adopted',
-    sourceChecksum: prepared.checksum,
-    contentDigest: prepared.hostDigest,
-    sourceMeta: {
-      ...(prepared.version === undefined ? {} : { sourceVersion: prepared.version }),
-    },
-    now: input.now,
+  const hostIds = ledgerHostIds({
+    is_plugin: false,
+    host_ids: input.item.host_ids,
+    consumed_by: input.item.consumed_by,
   });
-  const nextLedger = applyHostLandingRecords(loaded.index, [landing]);
+  if (hostIds.length === 0) {
+    throw new AdoptError([
+      finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
+        source: 'reconcile',
+        target: input.item.target_path,
+        message: 'adopt 找不到可记账的消费宿主',
+        remedy: '确认宿主配置与注册表后重新盘点',
+      }),
+    ]);
+  }
+  const records = hostIds.map((hostId) =>
+    buildHostLandingRecord({
+      skillId: prepared.skillId,
+      hostId,
+      targetPath: input.item.target_path,
+      format: 'skill',
+      visibility: (input.item.visibility ?? 'visible') as HostLandingVisibility,
+      origin: 'adopted',
+      sourceChecksum: prepared.checksum,
+      contentDigest: prepared.hostDigest,
+      sourceMeta: {
+        ...(prepared.version === undefined ? {} : { sourceVersion: prepared.version }),
+      },
+      now: input.now,
+    }),
+  );
+  const nextLedger = applyHostLandingRecords(loaded.index, records);
   const nextIndex: SkillIndex = {
     ...input.index,
     generated_at: input.now,

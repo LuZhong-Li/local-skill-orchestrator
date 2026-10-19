@@ -2,87 +2,36 @@
 import { copyFileSync, existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  CODES,
   type Change,
   type Finding,
+  type HostLanding,
   type HostLandingIndex,
   type ReconcilePlanItem,
 } from '@skill-manager/contract';
 import { computeChecksum, computeLandingChecksum } from '../../core/integrity/index.ts';
 import { createBackup } from '../../store/backup-fs/index.ts';
-import { readMetaFile } from '../../core/metadata/read.ts';
-import type { SkillIndex, SkillMeta } from '../../core/metadata/types.ts';
 import { projectRecord, safeDigests } from '../../core/lifecycle/shared.ts';
-import { resolveTargets, type ResolvedTarget } from '../../core/targets/resolver/index.ts';
+import type { SkillIndex } from '../../core/metadata/types.ts';
 import {
   applyHostLandingRecords,
   buildHostLandingRecord,
   sourceMetaOf,
 } from '../../core/host-landings/index.ts';
-import { saveIndex, TOOL_VERSION } from '../../core/index/index.ts';
+import { saveIndex } from '../../core/index/index.ts';
 import { copyTree, removeTree } from '../../store/library-fs/index.ts';
-import {
-  findHostLanding,
-  loadHostLandingsForWrite,
-  saveHostLandings,
-} from '../../store/host-landings/index.ts';
-import { toKernelError } from '../../store/errors.ts';
-import { finding } from '../../store/findings.ts';
-import type { WorkspaceLayout } from '../../store/workspace/index.ts';
+import { saveHostLandings } from '../../store/host-landings/index.ts';
 import type { ReconcileExecutionItem } from './execution-types.ts';
+import {
+  AcceptError,
+  errorFinding,
+  invalid,
+  acceptContextOf,
+  type AcceptContext,
+  type AcceptInput,
+} from './accept-context.ts';
 
-const SOURCE_DRIFT = new Set(['source_changed', 'version_mismatch', 'source_ref_mismatch']);
-const CONTENT_DRIFT = 'content_drift';
-const VISIBILITY_DRIFT = 'visibility_mismatch';
 const SKILL_MARKER = 'SKILL.md';
 const DISABLED_MARKER = 'SKILL.md.disabled';
-
-interface AcceptInput {
-  item: ReconcilePlanItem;
-  layout: WorkspaceLayout;
-  index: SkillIndex;
-  now: string;
-}
-
-interface AcceptContext {
-  skillId: string;
-  record: SkillIndex['skills'][number];
-  libraryDir: string;
-  metaRaw: Record<string, unknown>;
-  targets: ResolvedTarget[];
-  ledger: HostLandingIndex;
-  existing?: import('@skill-manager/contract').HostLanding;
-  content: boolean;
-  visibility: boolean;
-  observedVisibility: 'visible' | 'disabled';
-}
-
-interface AcceptBase {
-  skillId: string;
-  record: SkillIndex['skills'][number];
-  libraryDir: string;
-  metaRaw: Record<string, unknown>;
-  targets: ResolvedTarget[];
-}
-
-class AcceptError extends Error {
-  readonly findings: Finding[];
-
-  constructor(findings: Finding[]) {
-    super(findings[0]?.message ?? 'accept failed');
-    this.findings = findings;
-  }
-}
-
-function errorFinding(cause: unknown, target: string): Finding {
-  const error = toKernelError(cause, CODES.IO_FAILED);
-  return finding(error.code, {
-    source: error.source,
-    target: error.target || target,
-    message: error.message,
-    remedy: error.remedy,
-  });
-}
 
 function failure(item: ReconcilePlanItem, findings: Finding[]): ReconcileExecutionItem {
   return {
@@ -95,144 +44,6 @@ function failure(item: ReconcilePlanItem, findings: Finding[]): ReconcileExecuti
     },
     findings,
     changes: [],
-  };
-}
-
-function invalid(target: string, message: string, remedy: string): Finding {
-  return finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
-    source: 'reconcile',
-    target,
-    message,
-    remedy,
-  });
-}
-
-function sourceDriftOf(item: ReconcilePlanItem): string | undefined {
-  return item.before.drift_reasons.find((reason) => SOURCE_DRIFT.has(reason));
-}
-
-function driftModes(item: ReconcilePlanItem): { content: boolean; visibility: boolean } {
-  return {
-    content: item.before.drift_reasons.includes(CONTENT_DRIFT),
-    visibility: item.before.drift_reasons.includes(VISIBILITY_DRIFT),
-  };
-}
-
-function acceptBase(input: AcceptInput): AcceptBase {
-  const { item, layout, index } = input;
-  if (item.format !== 'skill') {
-    throw new AcceptError([
-      invalid(
-        item.target_path,
-        'accept 只支持技能目录副本，规则文件不能反向重建中心库',
-        '规则漂移请由对应宿主重新渲染或使用 repair',
-      ),
-    ]);
-  }
-  const sourceDrift = sourceDriftOf(item);
-  if (sourceDrift !== undefined) {
-    throw new AcceptError([
-      invalid(
-        item.skill_id ?? item.target_path,
-        `accept 不接受来源/版本漂移：${sourceDrift}`,
-        '请使用 reconcile --action repair，以工作区记录为来源基线',
-      ),
-    ]);
-  }
-  const skillId = item.skill_id;
-  if (skillId === undefined) {
-    throw new AcceptError([invalid(item.target_path, 'accept 缺少技能标识', '重新盘点后再执行')]);
-  }
-  const record = index.skills.find((entry) => entry.id === skillId);
-  if (record === undefined) {
-    throw new AcceptError([
-      invalid(skillId, 'accept 需要工作区已有该 Skill', '请先使用 adopt 或 install'),
-    ]);
-  }
-  const libraryDir = join(layout.skillsDir, skillId);
-  if (!existsSync(libraryDir)) {
-    throw new AcceptError([
-      finding(CODES.PATH_INVALID, {
-        source: 'reconcile',
-        target: libraryDir,
-        message: 'accept 需要中心库原件存在',
-        remedy: '先修复中心库或重新扫描',
-      }),
-    ]);
-  }
-  const metaRead = readMetaFile(libraryDir, skillId);
-  if (metaRead.raw === null) throw new AcceptError(metaRead.findings);
-  let targets: ResolvedTarget[];
-  try {
-    targets = resolveTargets(layout.root, metaRead.raw as unknown as SkillMeta);
-  } catch (error) {
-    throw new AcceptError([errorFinding(error, skillId)]);
-  }
-  return { skillId, record, libraryDir, metaRaw: metaRead.raw, targets };
-}
-
-function acceptModes(item: ReconcilePlanItem): {
-  content: boolean;
-  visibility: boolean;
-  observedVisibility: 'visible' | 'disabled';
-} {
-  const modes = driftModes(item);
-  if (!modes.content && !modes.visibility) {
-    throw new AcceptError([
-      invalid(
-        item.skill_id ?? item.target_path,
-        'accept 只处理内容或可见性漂移',
-        'source/version 漂移请使用 repair',
-      ),
-    ]);
-  }
-  const observedVisibility =
-    item.visibility === 'disabled'
-      ? 'disabled'
-      : item.visibility === 'visible'
-        ? 'visible'
-        : undefined;
-  if (modes.visibility && observedVisibility === undefined) {
-    throw new AcceptError([
-      invalid(item.target_path, 'accept 无法读取宿主副本可见性', '重新盘点后再执行'),
-    ]);
-  }
-  return {
-    content: modes.content,
-    visibility: modes.visibility,
-    observedVisibility: observedVisibility ?? 'visible',
-  };
-}
-
-function acceptLedger(
-  input: AcceptInput,
-  skillId: string,
-): {
-  ledger: HostLandingIndex;
-  existing?: import('@skill-manager/contract').HostLanding;
-} {
-  const loaded = loadHostLandingsForWrite(input.layout.hostLandingsFile, input.now, TOOL_VERSION);
-  if (loaded.index === null) throw new AcceptError(loaded.findings);
-  const hostId = input.item.host_ids[0] ?? '';
-  const existing = findHostLanding(loaded.index, {
-    skill_id: skillId,
-    host_id: hostId,
-    target_path: input.item.target_path,
-  });
-  return {
-    ledger: loaded.index,
-    ...(existing === undefined ? {} : { existing }),
-  };
-}
-
-function contextOf(input: AcceptInput): AcceptContext {
-  const base = acceptBase(input);
-  const modes = acceptModes(input.item);
-  const ledger = acceptLedger(input, base.skillId);
-  return {
-    ...base,
-    ...modes,
-    ...ledger,
   };
 }
 
@@ -252,9 +63,9 @@ function nextRecordOf(
   return context.visibility ? { ...projected, status: statusOf(context) } : projected;
 }
 
-function visibilityOf(context: AcceptContext): 'visible' | 'disabled' {
+function visibilityOf(context: AcceptContext, existing?: HostLanding): 'visible' | 'disabled' {
   if (context.visibility) return context.observedVisibility;
-  if (context.existing !== undefined) return context.existing.visibility;
+  if (existing !== undefined) return existing.visibility;
   return context.record.status === 'disabled' ? 'disabled' : 'visible';
 }
 
@@ -264,20 +75,27 @@ function nextLedgerOf(
   sourceChecksum: string,
   contentDigest: string,
 ): HostLandingIndex {
-  const hostId = input.item.host_ids[0] ?? '';
-  const landing = buildHostLandingRecord({
-    skillId: context.skillId,
-    hostId,
-    targetPath: input.item.target_path,
-    format: 'skill',
-    visibility: visibilityOf(context),
-    origin: context.existing?.origin ?? 'adopted',
-    sourceChecksum,
-    contentDigest,
-    sourceMeta: sourceMetaOf(context.metaRaw),
-    now: input.now,
+  const records = context.hostIds.map((hostId) => {
+    const existing = context.ledger.landings.find(
+      (record) =>
+        record.skill_id === context.skillId &&
+        record.host_id === hostId &&
+        record.target_path === input.item.target_path,
+    );
+    return buildHostLandingRecord({
+      skillId: context.skillId,
+      hostId,
+      targetPath: input.item.target_path,
+      format: 'skill',
+      visibility: visibilityOf(context, existing),
+      origin: existing?.origin ?? 'adopted',
+      sourceChecksum,
+      contentDigest,
+      sourceMeta: sourceMetaOf(context.metaRaw),
+      now: input.now,
+    });
   });
-  return applyHostLandingRecords(context.ledger, [landing]);
+  return applyHostLandingRecords(context.ledger, records);
 }
 
 function changesOf(input: AcceptInput, content: boolean): Change[] {
@@ -453,6 +271,7 @@ function commitContent(
     return failure(input.item, [errorFinding(error, input.layout.hostLandingsFile)]);
   }
   removeTree(oldDir);
+  const changes = changesOf(input, true);
   return {
     result: {
       item_id: input.item.item_id,
@@ -460,10 +279,10 @@ function commitContent(
       target_path: input.item.target_path,
       after: input.item.after,
       message: '已接受宿主本地内容；下次 update 可能以远端来源覆盖',
-      changes: changesOf(input, true),
+      changes,
     },
     findings: [],
-    changes: changesOf(input, true),
+    changes,
   };
 }
 
@@ -471,7 +290,7 @@ function commitContent(
 export function acceptItem(input: AcceptInput): ReconcileExecutionItem {
   let context: AcceptContext;
   try {
-    context = contextOf(input);
+    context = acceptContextOf(input);
   } catch (error) {
     return failure(
       input.item,

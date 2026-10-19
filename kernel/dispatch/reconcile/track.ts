@@ -1,4 +1,4 @@
-/** T2 track：工作区已有且内容一致时，仅补内置宿主账本。 */
+/** T4 track：工作区已有且内容一致时，为共享根全部消费宿主或插件账本补记。 */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -11,7 +11,10 @@ import {
 import { computeChecksum, computeLandingChecksum } from '../../core/integrity/index.ts';
 import { buildHostLandingRecord, applyHostLandingRecords } from '../../core/host-landings/index.ts';
 import { TOOL_VERSION } from '../../core/index/index.ts';
+import { loadHostRegistry } from '../../core/hosts/index.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
+import { loadPluginCatalog, upsertPluginLanding } from '../../core/plugins/host.ts';
+import { canonicalHostId } from '../../core/plugins/manifest.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import {
   findHostLanding,
@@ -20,7 +23,9 @@ import {
 } from '../../store/host-landings/index.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { finding } from '../../store/findings.ts';
+import { savePluginIndex } from '../../store/plugin-registry/index.ts';
 import type { ReconcileExecutionItem } from './execution-types.ts';
+import { ledgerHostIds } from './group.ts';
 
 interface TrackInput {
   item: ReconcilePlanItem;
@@ -31,7 +36,7 @@ interface TrackInput {
 
 interface TrackTarget {
   skillId: string;
-  hostId: string;
+  hostIds: string[];
 }
 
 interface TrackBaseline {
@@ -79,23 +84,17 @@ function trackTargetOf(item: ReconcilePlanItem): { target?: TrackTarget; finding
       finding: invalid(item.target_path, 'track 缺少技能标识', '重新盘点后再执行'),
     };
   }
-  if (item.host_ids.length !== 1 || item.consumed_by.length > 1) {
+  const hostIds = ledgerHostIds({
+    is_plugin: item.host_ids.every((id) => id.startsWith('x-')),
+    host_ids: item.host_ids,
+    consumed_by: item.consumed_by,
+  });
+  if (hostIds.length === 0) {
     return {
-      finding: finding(CODES.RECONCILE_SHARED_GROUP, {
-        source: 'reconcile',
-        target: item.target_path,
-        message: '共享根整组 track 留到 T4',
-        remedy: '请等待共享根事务组支持后再执行',
-      }),
+      finding: invalid(item.target_path, 'track 找不到可记账的消费宿主', '重新盘点后再执行'),
     };
   }
-  const hostId = item.host_ids[0] ?? '';
-  if (hostId.startsWith('x-')) {
-    return {
-      finding: invalid(hostId, '插件 x- 宿主的 track 留到 T4', '插件账本由插件包维护'),
-    };
-  }
-  return { target: { skillId, hostId } };
+  return { target: { skillId, hostIds } };
 }
 
 function baselineOf(
@@ -155,35 +154,39 @@ function duplicateFinding(
 function commitTrack(
   input: TrackInput & {
     skillId: string;
-    hostId: string;
+    hostIds: string[];
     baseline: TrackBaseline;
     ledgerIndex: import('@skill-manager/contract').HostLandingIndex;
   },
 ): ReconcileExecutionItem {
-  const { item, layout, now, skillId, hostId, baseline } = input;
+  const { item, layout, now, skillId, hostIds, baseline } = input;
   const contentDigest =
     item.before.content_digest ??
     computeLandingChecksum({
       targetPath: item.target_path,
       format: item.format === 'rules' ? 'rules' : 'skill',
     });
-  const landing = buildHostLandingRecord({
-    skillId,
-    hostId,
-    targetPath: item.target_path,
-    format: item.format === 'rules' ? 'rules' : 'skill',
-    visibility: (item.visibility ?? 'visible') as HostLandingVisibility,
-    origin: 'adopted',
-    sourceChecksum: baseline.sourceChecksum,
-    contentDigest,
-    sourceMeta: {
-      ...(baseline.record.version === undefined ? {} : { sourceVersion: baseline.record.version }),
-    },
-    now,
-  });
+  const records = hostIds.map((hostId) =>
+    buildHostLandingRecord({
+      skillId,
+      hostId,
+      targetPath: item.target_path,
+      format: item.format === 'rules' ? 'rules' : 'skill',
+      visibility: (item.visibility ?? 'visible') as HostLandingVisibility,
+      origin: 'adopted',
+      sourceChecksum: baseline.sourceChecksum,
+      contentDigest,
+      sourceMeta: {
+        ...(baseline.record.version === undefined
+          ? {}
+          : { sourceVersion: baseline.record.version }),
+      },
+      now,
+    }),
+  );
   try {
     saveHostLandings(layout.hostLandingsFile, {
-      ...applyHostLandingRecords(input.ledgerIndex, [landing]),
+      ...applyHostLandingRecords(input.ledgerIndex, records),
       generated_at: now,
     });
   } catch (error) {
@@ -193,7 +196,80 @@ function commitTrack(
     action: 'modify',
     kind: 'host_landings',
     path: layout.hostLandingsFile,
-    detail: `补记 adopted 宿主副本：${skillId} / ${hostId}`,
+    detail: `补记 adopted 宿主副本：${skillId} / ${hostIds.join(',')}`,
+  };
+  return {
+    result: {
+      item_id: item.item_id,
+      status: 'succeeded',
+      target_path: item.target_path,
+      after: item.after,
+      changes: [change],
+    },
+    findings: [],
+    changes: [change],
+  };
+}
+
+function commitPluginTrack(
+  input: TrackInput & {
+    skillId: string;
+    hostIds: string[];
+  },
+): ReconcileExecutionItem {
+  const { item, layout, now, skillId, hostIds } = input;
+  const catalog = loadPluginCatalog({
+    layout,
+    builtins: loadHostRegistry().hosts,
+    toolVersion: TOOL_VERSION,
+  });
+  if (catalog.findings.some((findingItem) => findingItem.severity === 'error')) {
+    return failure(item, catalog.findings);
+  }
+  const owners = hostIds.map((hostId) => {
+    const owner = catalog.entries.find(
+      (entry) =>
+        entry.record.state === 'enabled' &&
+        entry.manifest?.hosts.some(
+          (host) => canonicalHostId(entry.record.id, host.host_key) === hostId,
+        ) === true,
+    );
+    const profile = owner?.manifest?.hosts.find(
+      (host) => canonicalHostId(owner.record.id, host.host_key) === hostId,
+    );
+    return owner === undefined || profile === undefined
+      ? undefined
+      : { pluginId: owner.record.id, hostKey: profile.host_key };
+  });
+  if (owners.some((owner) => owner === undefined)) {
+    return failure(item, [
+      invalid(item.target_path, '插件宿主未启用或不可用，不能 track', '先启用并校验插件'),
+    ]);
+  }
+  let next = catalog.index;
+  const ledgerTargetPath =
+    item.format === 'skill' ? join(item.target_path, 'SKILL.md') : item.target_path;
+  for (const [index, owner] of owners.entries()) {
+    if (owner === undefined) continue;
+    next = upsertPluginLanding(next, {
+      pluginId: owner.pluginId,
+      skillId,
+      hostId: hostIds[index] ?? '',
+      hostKey: owner.hostKey,
+      targetPath: ledgerTargetPath,
+      now,
+    });
+  }
+  try {
+    savePluginIndex(layout.pluginIndexFile, { ...next, generated_at: now });
+  } catch (error) {
+    return failure(item, [errorFinding(error, layout.pluginIndexFile)]);
+  }
+  const change: Change = {
+    action: 'modify',
+    kind: 'plugin_index',
+    path: layout.pluginIndexFile,
+    detail: `补记插件落位账本：${skillId} / ${hostIds.join(',')}`,
   };
   return {
     result: {
@@ -221,14 +297,19 @@ function recordOf(input: TrackInput): ReconcileExecutionItem {
   if (baseline.baseline === undefined) {
     return failure(item, [invalid(identified.skillId, 'track 缺少工作区基线', '重新扫描后再执行')]);
   }
+  if (identified.hostIds.every((hostId) => hostId.startsWith('x-'))) {
+    return commitPluginTrack({ ...input, ...identified });
+  }
   const loaded = loadHostLandingsForWrite(input.layout.hostLandingsFile, now, TOOL_VERSION);
   if (loaded.index === null) return failure(item, loaded.findings);
-  const duplicate = duplicateFinding(loaded.index, {
-    skillId: identified.skillId,
-    hostId: identified.hostId,
-    targetPath: item.target_path,
-  });
-  if (duplicate !== undefined) return failure(item, [duplicate]);
+  for (const hostId of identified.hostIds) {
+    const duplicate = duplicateFinding(loaded.index, {
+      skillId: identified.skillId,
+      hostId,
+      targetPath: item.target_path,
+    });
+    if (duplicate !== undefined) return failure(item, [duplicate]);
+  }
   return commitTrack({
     ...input,
     ...identified,

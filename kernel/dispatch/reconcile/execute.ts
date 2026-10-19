@@ -1,4 +1,4 @@
-/** T3 reconcile 执行器：内置宿主的 adopt / track / repair / forget / accept / clean。 */
+/** T4 reconcile 执行器：共享根 / 插件 x- 的六动作编排。 */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -10,7 +10,9 @@ import {
   type ReconcileResultItem,
 } from '@skill-manager/contract';
 import { loadHostLandings, saveHostLandings } from '../../store/host-landings/index.ts';
-import { orphanHostLandingsForPaths } from '../../core/host-landings/uninstall.ts';
+import { loadPluginIndex, savePluginIndex } from '../../store/plugin-registry/index.ts';
+import { collectUnifiedLandings } from '../../core/host-landings/uninstall.ts';
+import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { finding } from '../../store/findings.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
@@ -135,13 +137,13 @@ function repairItem(input: {
   }
   const visibility = record.status === 'disabled' ? 'disabled' : 'visible';
   const hostValue = input.item.host_ids[0];
-  if (hostValue === undefined || hostValue.startsWith('x-')) {
+  if (hostValue === undefined) {
     const findings = [
       finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
         source: 'reconcile',
         target: input.item.target_path,
-        message: 'T1 repair 只支持内置宿主',
-        remedy: 'x- 宿主的 repair 将在 T4 接入',
+        message: 'repair 缺少可重渲染的宿主',
+        remedy: '重新盘点后再执行',
       }),
     ];
     return { result: failedResult(input.item, findings), findings, changes: [] };
@@ -197,6 +199,7 @@ function forgetItem(input: { item: ReconcilePlanItem; layout: WorkspaceLayout; n
     ];
     return { result: failedResult(input.item, findings), findings, changes: [] };
   }
+  if (input.item.host_ids[0]?.startsWith('x-')) return forgetPluginItem(input);
   const loaded = loadHostLandings(input.layout.hostLandingsFile);
   if (loaded.index === null) {
     const findings = loaded.findings.length
@@ -211,15 +214,15 @@ function forgetItem(input: { item: ReconcilePlanItem; layout: WorkspaceLayout; n
         ];
     return { result: failedResult(input.item, findings), findings, changes: [] };
   }
-  const hostId = input.item.host_ids[0];
-  const record = loaded.index.landings.find(
+  const hostIds = new Set(input.item.host_ids);
+  const records = loaded.index.landings.filter(
     (item) =>
       item.skill_id === input.item.skill_id &&
-      item.host_id === hostId &&
+      hostIds.has(item.host_id) &&
       item.target_path === input.item.target_path &&
       item.state === 'active',
   );
-  if (record === undefined) {
+  if (records.length === 0) {
     const findings = [
       finding(CODES.RECONCILE_PLAN_STALE, {
         source: 'reconcile',
@@ -231,12 +234,15 @@ function forgetItem(input: { item: ReconcilePlanItem; layout: WorkspaceLayout; n
     return { result: failedResult(input.item, findings), findings, changes: [] };
   }
   try {
-    const next = orphanHostLandingsForPaths(
-      loaded.index,
-      record.skill_id,
-      [record.target_path],
-      input.now,
-    );
+    const keys = new Set(records);
+    const next = {
+      ...loaded.index,
+      landings: loaded.index.landings.map((record) =>
+        keys.has(record)
+          ? { ...record, state: 'orphaned' as const, updated_at: input.now }
+          : record,
+      ),
+    };
     saveHostLandings(input.layout.hostLandingsFile, {
       ...next,
       generated_at: input.now,
@@ -245,7 +251,7 @@ function forgetItem(input: { item: ReconcilePlanItem; layout: WorkspaceLayout; n
       action: 'modify',
       kind: 'host_landings',
       path: input.layout.hostLandingsFile,
-      detail: `账本记录转为 orphaned：${record.skill_id} / ${record.host_id}`,
+      detail: `账本记录转为 orphaned：${input.item.skill_id ?? ''} / ${input.item.host_ids.join(',')}`,
     };
     return {
       result: {
@@ -262,6 +268,78 @@ function forgetItem(input: { item: ReconcilePlanItem; layout: WorkspaceLayout; n
     const findings = [errorFinding(error, input.layout.hostLandingsFile)];
     return { result: failedResult(input.item, findings), findings, changes: [] };
   }
+}
+
+function forgetPluginItem(input: {
+  item: ReconcilePlanItem;
+  layout: WorkspaceLayout;
+  now: string;
+}): { result: ReconcileResultItem; findings: Finding[]; changes: Change[] } {
+  const loaded = loadPluginIndex(input.layout.pluginIndexFile);
+  if (loaded.index === null) {
+    const findings = loaded.findings.length
+      ? loaded.findings
+      : [
+          finding(CODES.LANDING_LEDGER_INVALID, {
+            source: 'plugin-registry',
+            target: input.layout.pluginIndexFile,
+            message: 'forget 无法读取 plugin_index.yaml',
+            remedy: '先修复插件账本或重新扫描插件宿主',
+          }),
+        ];
+    return { result: failedResult(input.item, findings), findings, changes: [] };
+  }
+  const hostIds = new Set(input.item.host_ids);
+  const targetKey = inventoryPhysicalKey(input.item.target_path);
+  const found = collectUnifiedLandings(null, loaded.index, input.item.skill_id ?? '').filter(
+    (item) =>
+      hostIds.has(item.host_id) &&
+      item.state === 'active' &&
+      inventoryPhysicalKey(item.physical_path) === targetKey,
+  );
+  if (found.length === 0) {
+    const findings = [
+      finding(CODES.RECONCILE_PLAN_STALE, {
+        source: 'reconcile',
+        target: input.item.target_path,
+        message: 'forget 找不到对应的 active 插件账本记录',
+        remedy: '重新执行 scan --inventory 后再确认',
+      }),
+    ];
+    return { result: failedResult(input.item, findings), findings, changes: [] };
+  }
+  try {
+    const records = new Set(found.map((item) => item.record));
+    savePluginIndex(input.layout.pluginIndexFile, {
+      ...loaded.index,
+      generated_at: input.now,
+      landings: loaded.index.landings.map((record) =>
+        records.has(record)
+          ? { ...record, state: 'orphaned' as const, updated_at: input.now }
+          : record,
+      ),
+    });
+  } catch (error) {
+    const findings = [errorFinding(error, input.layout.pluginIndexFile)];
+    return { result: failedResult(input.item, findings), findings, changes: [] };
+  }
+  const change: Change = {
+    action: 'modify',
+    kind: 'plugin_index',
+    path: input.layout.pluginIndexFile,
+    detail: `插件账本记录转为 orphaned：${input.item.skill_id ?? ''} / ${input.item.host_ids.join(',')}`,
+  };
+  return {
+    result: {
+      item_id: input.item.item_id,
+      status: 'succeeded',
+      target_path: input.item.target_path,
+      after: input.item.after,
+      changes: [change],
+    },
+    findings: [],
+    changes: [change],
+  };
 }
 
 /** 执行已通过预览与锁的执行计划；每个 item 独立，返回逐项结果。 */

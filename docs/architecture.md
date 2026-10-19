@@ -1177,7 +1177,7 @@ flowchart TB
 | 14 | `import` | C-01、C-03 | K-08、K-07、K-03、K-04 | 是 |
 | 15 | `update` | C-01、C-03 | K-04、K-09、K-03 | 是 |
 | 16 | `restore` | C-01、C-03 | K-04、K-08、K-11、K-03、K-09 | 是 |
-| 17 | `reconcile` | C-01、C-03 | 盘点快照 / L-4 对账、K-04、K-15、账本 store | 是（T0/T1/T2/T3：预览、六个单宿主动作） |
+| 17 | `reconcile` | C-01、C-03 | 盘点快照 / L-4 对账、K-04、K-15、账本 store | 是（T0~T4：预览、共享根整组、插件 x-、分类批量） |
 
 第 16 条 `restore` 为二期备份恢复批次新增：卸载产出的备份载体首次有了恢复通道。它落在既有的分层与模块之内——由 K-08 读取并校验载体、K-04 编排「写回原件、重分发副本、刷新或重建记录」，未引入新模块，也未改变任何层的职责边界。
 
@@ -1965,6 +1965,31 @@ flowchart TB
 | 分层检查 | `check:arch` 228 文件 / 864 边 / 0 循环 / 0 allowlist |
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
 | 测试总数 | 696 → **703 项**（702 通过 + 1 项平台条件跳过） |
+
+### 补充记录 2026-10-19（M4c 二期 T4：共享根 / 插件 / 批量）
+
+来源：M4c 二期 T4。共享根以物理副本为事务组，内置与插件账本独立；分类批量逐项执行。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/dispatch/reconcile/group.ts` | 消费宿主集合与选中宿主账本选择；内置过滤注册宿主，插件仅取 x- | dispatch | M4c2-R2 / R8 |
+| 2 | `kernel/dispatch/reconcile/ledger-changes.ts` | 共享组多账本变化、clean/forget 实际状态与引用计数预览 | dispatch | M4c2-R3 / R4 |
+| 3 | `kernel/dispatch/reconcile/clean.ts` | active 消费者存在时只清选中 orphaned 账本；全部 orphaned 才删物理；两账本提交与恢复 | dispatch | M4c2-R4 / R6 |
+| 4 | `kernel/dispatch/reconcile/track.ts` | 共享根全消费宿主补账；插件 x- 写 plugin_index 并复用插件 profile 归属 | dispatch | M4c2-R2 / R8 |
+| 5 | `kernel/dispatch/reconcile/candidates.ts` | form/ledger 冲突标记；禁用插件后的 orphaned 副本从 plugin 账本补候选 | dispatch | M4c2-R2 / R8 |
+| 6 | `kernel/dispatch/reconcile/accept-context.ts` | accept 上下文拆分，保持 accept.ts 低于规模阈值 | dispatch | P0 结构约束 |
+| 7 | `kernel/dispatch/reconcile/plan-notes.ts` | 动作提示独立，控制 plan.ts 规模 | dispatch | P0 结构约束 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 17；六动作覆盖共享根与插件 x- |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 问题码 | 69，未新增 |
+| 分层检查 | `check:arch` 232 文件 / 896 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
+| 测试总数 | 703 → **711 项**（710 通过 + 1 项平台条件跳过） |
 
 ---
 

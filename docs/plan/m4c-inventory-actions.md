@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作实施计划 |
 | 文档路径 | `docs/plan/m4c-inventory-actions.md` |
-| 文档状态 | **评审通过，T0 / T1 / T2 / T3 已完成；T4 待启动**（2026-10-19） |
+| 文档状态 | **评审通过，T0 / T1 / T2 / T3 / T4 已完成；T5 待启动**（2026-10-19） |
 | 依据 | [`docs/design/m4c-inventory-actions.md`](../design/m4c-inventory-actions.md)；需求 9.3.8、9.3.7；[`docs/research/m4c-inventory-actions-2026-10-19.md`](../research/m4c-inventory-actions-2026-10-19.md) |
 | 基线 | T0 后常规测试 **676 项**（675 通过 + 1 项平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0 |
 | 边界 | 本文不修改代码、契约或 schema；评审批准后才进入 T0 实现 |
@@ -206,6 +206,19 @@
 4. 插件包本身不被动作删除；
 5. 未启用 / manifest 无效插件宿主的动作返回排除原因；
 6. `adopt / accept` 的 x- 支持只有在 R-05 / R-07 评审通过后实现。
+
+**落地记录**：
+
+| 项 | 结果 |
+|---|---|
+| 共享根 | realpath + casefold 事务组；repair/accept 一次物理写、全部 active 账本同步；adopt 一份中心库；track 全部消费宿主补账 |
+| 引用计数 | forget 单宿主只转选中记录；clean 有 active 消费时只清选中 orphaned 账本，全部 orphaned 才删物理 |
+| 冲突 | 同路径不同 form / 内置与插件账本冲突分别以 `shared_root_form_conflict` / `shared_root_ledger_conflict` 跳过，不任选 |
+| 插件 x- | track/repair/clean/forget 写 `plugin_index.landings`；repair 复用插件 profile/adapter；禁用后的 orphaned 副本可从插件账本发现并 clean；插件包保留 |
+| 隔离 | 内置动作不写 plugin_index，插件动作不写 host_landings；adopt/accept 对 x- 明确拒绝 |
+| 批量 | classification 必须 host/root；逐项结果，单副本失败不回滚成功项；共享组内原子 |
+| 测试 | 新增 8 项 T4（7 e2e + 1 单元）；常规 703 → **711 项**（710 通过 + 1 平台跳过） |
+| 结构 | `check:arch` 232 文件 / 896 边 / 0 循环；complexity 94；超阈值文件 0 |
 
 ---
 

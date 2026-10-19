@@ -301,7 +301,7 @@ test('T1 forget：仅账本转 orphaned，不删除或改写磁盘', async (t) =
   assert.notDeepEqual(readFileSync(join(root, 'host_landings.yaml')), hostBefore);
 });
 
-test('T1 边界：共享根 repair 留到 T4，apply 只返回 skipped 不写盘', async (t) => {
+test('T4 共享根 repair：物理副本一次、消费宿主账本整体同步', async (t) => {
   const root = makeTempDir('sm-repair-shared-');
   const shared = makeHostRoot('sm-repair-shared-host-');
   const source = makeSkillSource('shared-repair-skill', { description: 'shared' });
@@ -319,7 +319,7 @@ test('T1 边界：共享根 repair 留到 T4，apply 只返回 skipped 不写盘
     (await capture(['install', source, '--host', 'codex', '--workspace', root, '--yes'])).code,
     0,
   );
-  const before = readFileSync(join(root, 'host_landings.yaml'));
+  rmSync(join(shared, 'shared-repair-skill'), { recursive: true, force: true });
   const applied = await json([
     'reconcile',
     '--action',
@@ -338,8 +338,21 @@ test('T1 边界：共享根 repair 留到 T4，apply 只返回 skipped 不写盘
     applied: boolean;
     items: Array<{ status: string; reason: string }>;
   };
-  assert.equal(data.applied, false);
-  assert.equal(data.items[0]?.status, 'skipped');
-  assert.equal(data.items[0]?.reason, 'shared_root_t4');
-  assert.deepEqual(readFileSync(join(root, 'host_landings.yaml')), before);
+  assert.equal(data.applied, true);
+  assert.equal(data.items[0]?.status, 'planned');
+  assert.deepEqual(
+    hostLedger(root)
+      ?.landings.filter((item) => item.skill_id === 'shared-repair-skill')
+      .map((item) => item.host_id)
+      .sort(),
+    ['codex', 'cursor'],
+  );
+  assert.equal(
+    new Set(
+      hostLedger(root)
+        ?.landings.filter((item) => item.skill_id === 'shared-repair-skill')
+        .map((item) => item.target_path),
+    ).size,
+    1,
+  );
 });

@@ -1,4 +1,4 @@
-/** T3 clean：用同卷临时快照移走宿主残留，提交账本后再删除。 */
+/** T4 clean：共享根按引用计数保留物理副本；插件/内置两本账本独立提交。 */
 import { existsSync, mkdtempSync, renameSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import {
@@ -7,15 +7,21 @@ import {
   type Finding,
   type HostLanding,
   type HostLandingIndex,
+  type PluginIndex,
+  type PluginLanding,
   type ReconcilePlanItem,
 } from '@skill-manager/contract';
 import { TOOL_VERSION } from '../../core/index/index.ts';
-import { removeTree } from '../../store/library-fs/index.ts';
+import { createInitialPluginIndex } from '../../store/plugin-registry/index.ts';
+import { collectUnifiedLandings, type UnifiedLanding } from '../../core/host-landings/uninstall.ts';
 import {
   loadHostLandingsForWrite,
   removeHostLanding,
   saveHostLandings,
 } from '../../store/host-landings/index.ts';
+import { loadPluginIndex, savePluginIndex } from '../../store/plugin-registry/index.ts';
+import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
+import { removeTree } from '../../store/library-fs/index.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { finding } from '../../store/findings.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
@@ -36,9 +42,13 @@ interface CleanInput {
 }
 
 interface CleanContext {
-  loaded: HostLandingIndex;
-  matching: HostLanding[];
-  snapshot: { root: string; path: string };
+  hostIndex: HostLandingIndex;
+  pluginIndex: PluginIndex;
+  hostFile: string;
+  pluginFile: string;
+  selectedOrphaned: UnifiedLanding[];
+  all: UnifiedLanding[];
+  activeAny: boolean;
 }
 
 class CleanError extends Error {
@@ -83,37 +93,8 @@ function invalid(target: string, message: string, remedy: string): Finding {
   });
 }
 
-function snapshotOf(hostPath: string): { root: string; path: string } {
-  const root = mkdtempSync(join(dirname(hostPath), '.clean-'));
-  return { root, path: join(root, basename(hostPath)) };
-}
-
-function matchingRecords(index: HostLandingIndex, item: ReconcilePlanItem): HostLanding[] {
-  const hostId = item.host_ids[0] ?? '';
-  return index.landings.filter(
-    (record) =>
-      record.target_path === item.target_path &&
-      record.host_id === hostId &&
-      (item.skill_id === undefined || record.skill_id === item.skill_id),
-  );
-}
-
-function cleanContext(input: CleanInput): CleanContext {
+function contextOf(input: CleanInput): CleanContext {
   const { item, layout, now } = input;
-  if (item.host_ids.length !== 1 || item.consumed_by.length > 1) {
-    throw new CleanError([
-      finding(CODES.RECONCILE_SHARED_GROUP, {
-        source: 'reconcile',
-        target: item.target_path,
-        message: '共享根整组 clean 留到 T4',
-        remedy: '请等待共享根事务组支持后再执行',
-      }),
-    ]);
-  }
-  const hostId = item.host_ids[0] ?? '';
-  if (hostId.startsWith('x-')) {
-    throw new CleanError([invalid(hostId, '插件 x- 宿主的 clean 留到 T4', '插件副本由插件包维护')]);
-  }
   if (!existsSync(item.target_path)) {
     throw new CleanError([
       finding(CODES.RECONCILE_PLAN_STALE, {
@@ -124,132 +105,211 @@ function cleanContext(input: CleanInput): CleanContext {
       }),
     ]);
   }
-  const loaded = loadHostLandingsForWrite(layout.hostLandingsFile, now, TOOL_VERSION);
-  if (loaded.index === null) throw new CleanError(loaded.findings);
-  const matching = matchingRecords(loaded.index, item);
-  if (matching.some((record) => record.state === 'active')) {
+  const hostLoaded = loadHostLandingsForWrite(layout.hostLandingsFile, now, TOOL_VERSION);
+  if (hostLoaded.index === null) throw new CleanError(hostLoaded.findings);
+  const pluginLoaded = loadPluginIndex(layout.pluginIndexFile);
+  if (pluginLoaded.index === null && pluginLoaded.exists) {
+    throw new CleanError(pluginLoaded.findings);
+  }
+  const pluginIndex = pluginLoaded.index ?? createInitialPluginIndex(now, TOOL_VERSION);
+  const physicalKey = inventoryPhysicalKey(item.target_path);
+  const all =
+    item.skill_id === undefined
+      ? []
+      : collectUnifiedLandings(hostLoaded.index, pluginIndex, item.skill_id).filter(
+          (record) => inventoryPhysicalKey(record.physical_path) === physicalKey,
+        );
+  const selected = new Set(item.host_ids);
+  const selectedOrphaned = all.filter(
+    (record) => selected.has(record.host_id) && record.state === 'orphaned',
+  );
+  const activeAny = all.some((record) => record.state === 'active');
+  if (selectedOrphaned.length === 0 && all.length > 0) {
     throw new CleanError([
       invalid(
         item.target_path,
-        'clean 不允许删除仍有 active 账本记录的副本',
+        activeAny
+          ? 'clean 不允许删除仍有 active 账本记录的副本'
+          : 'clean 找不到可清理的 orphaned 记录',
         '请先使用 uninstall --host 或 forget 处理账本',
       ),
     ]);
   }
-  return { loaded: loaded.index, matching, snapshot: snapshotOf(item.target_path) };
+  return {
+    hostIndex: hostLoaded.index,
+    pluginIndex,
+    hostFile: layout.hostLandingsFile,
+    pluginFile: layout.pluginIndexFile,
+    selectedOrphaned,
+    all,
+    activeAny,
+  };
 }
 
-function rollback(input: {
+function snapshotOf(hostPath: string): { root: string; path: string } {
+  const root = mkdtempSync(join(dirname(hostPath), '.clean-'));
+  return { root, path: join(root, basename(hostPath)) };
+}
+
+function removeRecords(
+  context: CleanContext,
+  records: readonly UnifiedLanding[],
+): {
+  hostIndex: HostLandingIndex;
+  pluginIndex: PluginIndex;
+  hostChanged: boolean;
+  pluginChanged: boolean;
+} {
+  let hostIndex = context.hostIndex;
+  let pluginIndex = context.pluginIndex;
+  let hostChanged = false;
+  let pluginChanged = false;
+  for (const record of records) {
+    if (record.ledger_source === 'host_landings') {
+      hostIndex = removeHostLanding(hostIndex, record.record as HostLanding);
+      hostChanged = true;
+    } else {
+      pluginIndex = {
+        ...pluginIndex,
+        landings: pluginIndex.landings.filter((item) => item !== (record.record as PluginLanding)),
+      };
+      pluginChanged = true;
+    }
+  }
+  return { hostIndex, pluginIndex, hostChanged, pluginChanged };
+}
+
+function saveIndexes(input: {
   layout: WorkspaceLayout;
-  snapshot: { root: string; path: string };
-  hostPath: string;
-  previousLedger: HostLandingIndex | null;
-}): Finding[] {
+  now: string;
+  previousHost: HostLandingIndex;
+  previousPlugin: PluginIndex;
+  hostIndex: HostLandingIndex;
+  pluginIndex: PluginIndex;
+  hostChanged: boolean;
+  pluginChanged: boolean;
+  hooks?: CleanHooks;
+}): { ok: boolean; findings: Finding[] } {
+  let hostSaved = false;
+  let pluginSaved = false;
+  try {
+    input.hooks?.beforeLedger?.();
+    if (input.hostChanged) {
+      saveHostLandings(input.layout.hostLandingsFile, {
+        ...input.hostIndex,
+        generated_at: input.now,
+      });
+      hostSaved = true;
+    }
+    if (input.pluginChanged) {
+      savePluginIndex(input.layout.pluginIndexFile, {
+        ...input.pluginIndex,
+        generated_at: input.now,
+      });
+      pluginSaved = true;
+    }
+    return { ok: true, findings: [] };
+  } catch (error) {
+    const findings = [errorFinding(error, input.layout.hostLandingsFile)];
+    try {
+      if (hostSaved) saveHostLandings(input.layout.hostLandingsFile, input.previousHost);
+      if (pluginSaved) savePluginIndex(input.layout.pluginIndexFile, input.previousPlugin);
+    } catch (rollbackCause) {
+      findings.push(errorFinding(rollbackCause, input.layout.pluginIndexFile));
+    }
+    return { ok: false, findings };
+  }
+}
+
+function movePhysical(
+  input: CleanInput,
+  snapshot: { root: string; path: string },
+): Finding[] | undefined {
+  try {
+    input.hooks?.beforeDelete?.();
+    renameSync(input.item.target_path, snapshot.path);
+    return undefined;
+  } catch (error) {
+    removeTree(snapshot.root);
+    return [errorFinding(error, input.item.target_path)];
+  }
+}
+
+function restorePhysical(snapshot: { root: string; path: string }, hostPath: string): Finding[] {
   const findings: Finding[] = [];
   try {
-    if (input.previousLedger !== null) {
-      saveHostLandings(input.layout.hostLandingsFile, input.previousLedger);
-    }
+    renameSync(snapshot.path, hostPath);
   } catch (error) {
-    findings.push(errorFinding(error, input.layout.hostLandingsFile));
+    findings.push(errorFinding(error, hostPath));
   }
   try {
-    renameSync(input.snapshot.path, input.hostPath);
+    removeTree(snapshot.root);
   } catch (error) {
-    findings.push(errorFinding(error, input.hostPath));
-  }
-  try {
-    removeTree(input.snapshot.root);
-  } catch (error) {
-    findings.push(errorFinding(error, input.snapshot.root));
+    findings.push(errorFinding(error, snapshot.root));
   }
   return findings;
 }
 
-function moveToSnapshot(
-  input: CleanInput,
+function restoreIndexes(
   context: CleanContext,
-): ReconcileExecutionItem | undefined {
+  hostChanged: boolean,
+  pluginChanged: boolean,
+): Finding[] {
+  const findings: Finding[] = [];
   try {
-    renameSync(input.item.target_path, context.snapshot.path);
-    return undefined;
+    if (hostChanged) saveHostLandings(context.hostFile, context.hostIndex);
   } catch (error) {
-    removeTree(context.snapshot.root);
-    return failure(input.item, [errorFinding(error, input.item.target_path)]);
+    findings.push(errorFinding(error, 'host_landings.yaml'));
   }
+  try {
+    if (pluginChanged) savePluginIndex(context.pluginFile, context.pluginIndex);
+  } catch (error) {
+    findings.push(errorFinding(error, 'plugin_index.yaml'));
+  }
+  return findings;
 }
 
-function commitLedger(
+function changesOf(
   input: CleanInput,
-  context: CleanContext,
-): {
-  written: boolean;
-  failure?: ReconcileExecutionItem;
-} {
-  if (context.matching.length === 0) return { written: false };
-  let next = context.loaded;
-  for (const record of context.matching) next = removeHostLanding(next, record);
-  try {
-    input.hooks?.beforeLedger?.();
-    saveHostLandings(input.layout.hostLandingsFile, { ...next, generated_at: input.now });
-    return { written: true };
-  } catch (error) {
-    return {
-      written: false,
-      failure: failure(input.item, [
-        errorFinding(error, input.layout.hostLandingsFile),
-        ...rollback({
-          layout: input.layout,
-          snapshot: context.snapshot,
-          hostPath: input.item.target_path,
-          previousLedger: null,
-        }),
-      ]),
-    };
-  }
-}
-
-function deleteSnapshot(
-  input: CleanInput,
-  context: CleanContext,
-  ledgerWritten: boolean,
-): ReconcileExecutionItem | undefined {
-  try {
-    input.hooks?.beforeDelete?.();
-    removeTree(context.snapshot.path);
-    removeTree(context.snapshot.root);
-    return undefined;
-  } catch (error) {
-    return failure(input.item, [
-      errorFinding(error, context.snapshot.path),
-      ...rollback({
-        layout: input.layout,
-        snapshot: context.snapshot,
-        hostPath: input.item.target_path,
-        previousLedger: ledgerWritten ? context.loaded : null,
-      }),
-    ]);
-  }
-}
-
-function success(input: CleanInput, ledgerWritten: boolean): ReconcileExecutionItem {
-  const changes: Change[] = [
-    {
-      action: 'remove',
-      kind: input.item.format === 'rules' ? 'rule_file' : 'host_copy',
-      path: input.item.target_path,
-    },
-    ...(ledgerWritten
+  removed: boolean,
+  hostChanged: boolean,
+  pluginChanged: boolean,
+): Change[] {
+  return [
+    ...(removed
+      ? [
+          {
+            action: 'remove' as const,
+            kind: input.item.format === 'rules' ? 'rule_file' : 'host_copy',
+            path: input.item.target_path,
+          },
+        ]
+      : []),
+    ...(hostChanged
       ? [{ action: 'modify' as const, kind: 'host_landings', path: input.layout.hostLandingsFile }]
       : []),
+    ...(pluginChanged
+      ? [{ action: 'modify' as const, kind: 'plugin_index', path: input.layout.pluginIndexFile }]
+      : []),
   ];
+}
+
+function succeeded(
+  input: CleanInput,
+  removed: boolean,
+  hostChanged: boolean,
+  pluginChanged: boolean,
+): ReconcileExecutionItem {
+  const changes = changesOf(input, removed, hostChanged, pluginChanged);
   return {
     result: {
       item_id: input.item.item_id,
       status: 'succeeded',
       target_path: input.item.target_path,
       after: input.item.after,
-      message: ledgerWritten ? '已删除残留副本并清理 orphaned 账本' : '已删除残留副本',
+      message: removed
+        ? '已删除无消费者需要的副本并清理账本'
+        : '已清理选中宿主的 orphaned 记录；物理副本仍被其他宿主消费',
       changes,
     },
     findings: [],
@@ -257,22 +317,72 @@ function success(input: CleanInput, ledgerWritten: boolean): ReconcileExecutionI
   };
 }
 
-/** 执行单个 clean；成功删除临时快照，失败恢复物理副本与账本。 */
+function cleanLedgerOnly(
+  input: CleanInput,
+  context: CleanContext,
+  next: ReturnType<typeof removeRecords>,
+): ReconcileExecutionItem {
+  const saved = saveIndexes({
+    layout: input.layout,
+    now: input.now,
+    previousHost: context.hostIndex,
+    previousPlugin: context.pluginIndex,
+    ...next,
+    ...(input.hooks === undefined ? {} : { hooks: input.hooks }),
+  });
+  if (!saved.ok) return failure(input.item, saved.findings);
+  return succeeded(input, false, next.hostChanged, next.pluginChanged);
+}
+
+function cleanPhysical(
+  input: CleanInput,
+  context: CleanContext,
+  next: ReturnType<typeof removeRecords>,
+): ReconcileExecutionItem {
+  const snapshot = snapshotOf(input.item.target_path);
+  const moved = movePhysical(input, snapshot);
+  if (moved !== undefined) return failure(input.item, moved);
+  const saved = saveIndexes({
+    layout: input.layout,
+    now: input.now,
+    previousHost: context.hostIndex,
+    previousPlugin: context.pluginIndex,
+    ...next,
+    ...(input.hooks === undefined ? {} : { hooks: input.hooks }),
+  });
+  if (!saved.ok) {
+    return failure(input.item, [
+      ...saved.findings,
+      ...restorePhysical(snapshot, input.item.target_path),
+    ]);
+  }
+  try {
+    removeTree(snapshot.path);
+    removeTree(snapshot.root);
+  } catch (error) {
+    return failure(input.item, [
+      errorFinding(error, snapshot.path),
+      ...restorePhysical(snapshot, input.item.target_path),
+      ...restoreIndexes(context, next.hostChanged, next.pluginChanged),
+    ]);
+  }
+  return succeeded(input, true, next.hostChanged, next.pluginChanged);
+}
+
+/** 执行单个 clean；active 消费者存在时只清账本，不删物理副本。 */
 export function cleanItem(input: CleanInput): ReconcileExecutionItem {
   let context: CleanContext;
   try {
-    context = cleanContext(input);
+    context = contextOf(input);
   } catch (error) {
     return failure(
       input.item,
       error instanceof CleanError ? error.findings : [errorFinding(error, input.item.target_path)],
     );
   }
-  const moved = moveToSnapshot(input, context);
-  if (moved !== undefined) return moved;
-  const ledger = commitLedger(input, context);
-  if (ledger.failure !== undefined) return ledger.failure;
-  const deleted = deleteSnapshot(input, context, ledger.written);
-  if (deleted !== undefined) return deleted;
-  return success(input, ledger.written);
+  const remove = context.activeAny ? context.selectedOrphaned : context.all;
+  const next = removeRecords(context, remove);
+  return context.activeAny
+    ? cleanLedgerOnly(input, context, next)
+    : cleanPhysical(input, context, next);
 }

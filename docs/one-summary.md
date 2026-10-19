@@ -33,7 +33,7 @@
 | 14 | `export` | 备份 | 导出索引状态，剥离未知字段并登记清单 |
 | 15 | `import` | 备份 | 整体校验后逐条登记，既有标识跳过不覆盖 |
 | 16 | `restore` | 备份 | 从备份载体恢复内容：写回中心库、重分发副本、刷新或重建记录 |
-| 17 | `reconcile` | 盘点动作 | T0/T1/T2/T3 已落地：选择器、只读计划、repair/forget、adopt/track、accept/clean |
+| 17 | `reconcile` | 盘点动作 | T0/T1/T2/T3/T4 已落地：六动作、共享根整组、插件 x- 与分类批量 |
 
 复核：`node kernel/entry/cli.ts --help`，或运行 `npm test` 里的契约测试（断言已注册指令是契约清单的子集）。
 
@@ -664,7 +664,22 @@
 | 测试 | 新增 7 项 T3 e2e（含备份失败、账本失败、删除失败注入）；常规 696 → **703 项**（702 通过 + 1 平台跳过） |
 | 结构 | `check:arch` 228 文件 / 864 边 / 0 循环；complexity 94；超阈值文件 0 |
 
-> T3 已收口；下一批 T4 处理共享根整组、插件 x- 宿主与分类批量。
+> T3 已收口；T4 已完成，见 6.32。
+
+### 6.32 M4c 二期 T4：共享根、插件 x- 与分类批量（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| 共享根 | realpath + casefold 事务组；repair/accept 一次物理写、全部 active 账本同步；adopt 一份中心库；track 全部消费宿主补账 |
+| 引用计数 | forget 单宿主只转选中记录；clean 有 active 消费时只清选中 orphaned 账本，全部 orphaned 才删物理；组内账本失败整组保持原状 |
+| 冲突 | 同路径不同 form / 账本归属冲突分别以 `shared_root_form_conflict` / `shared_root_ledger_conflict` 拒绝 |
+| 插件 x- | track/repair/clean/forget 写 `plugin_index.landings`；repair 复用插件 profile/adapter；禁用后 orphaned 副本可从账本发现并 clean；插件包保留 |
+| 隔离 | 内置动作不写 plugin_index，插件动作不写 host_landings；adopt/accept 对 x- 明确拒绝 |
+| 批量 | classification 必须 host/root；逐项结果，单副本失败不回滚成功项；共享组内原子 |
+| 测试 | 新增 7 项 T4 e2e + 1 项单元；常规 703 → **711 项**（710 通过 + 1 平台跳过） |
+| 结构 | `check:arch` 232 文件 / 896 边 / 0 循环；complexity 94；超阈值文件 0 |
+
+> T4 已收口；下一批 T5 GUI 动作预览与确认。
 
 ---
 

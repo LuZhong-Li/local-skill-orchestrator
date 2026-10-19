@@ -120,22 +120,12 @@ function assertAdoptableShape(item: ReconcilePlanItem): void {
     ]);
   }
   const hostId = item.host_ids[0] ?? '';
-  if (item.host_ids.length !== 1 || item.consumed_by.length > 1) {
-    throw new AdoptError([
-      invalid(
-        CODES.RECONCILE_SHARED_GROUP,
-        item.target_path,
-        '共享根整组 adopt 留到 T4',
-        '请等待共享根事务组支持后再执行',
-      ),
-    ]);
-  }
   if (hostId.startsWith('x-')) {
     throw new AdoptError([
       invalid(
         CODES.RECONCILE_ACTION_UNSUPPORTED,
         hostId,
-        '插件 x- 宿主的 adopt 留到 T4',
+        '插件 x- 宿主不支持 adopt',
         '插件技能源归插件包，不应导入工作区中心库',
       ),
     ]);

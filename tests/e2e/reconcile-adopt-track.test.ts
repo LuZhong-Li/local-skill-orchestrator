@@ -346,7 +346,7 @@ test('T2 adopt：目标占用要求 --target，显式目标可成功', async (t)
   assert.match(meta, /path: \.other\/skills\/target-skill/);
 });
 
-test('T2 adopt：损坏副本与共享根均不执行写动作', async (t) => {
+test('T4 adopt：损坏副本不执行，共享根同步全部消费宿主账本', async (t) => {
   const root = makeTempDir('sm-adopt-skip-');
   const hostRoot = makeHostRoot('sm-adopt-skip-host-');
   const shared = makeHostRoot('sm-adopt-shared-');
@@ -380,9 +380,27 @@ test('T2 adopt：损坏副本与共享根均不执行写动作', async (t) => {
     '--workspace',
     root,
   ]);
-  assert.equal(itemOf(sharedPreview.result).status, 'skipped');
-  assert.equal(itemOf(sharedPreview.result).reason, 'shared_root_t4');
-  assert.equal(existsSync(join(root, 'skills', 'shared-adopt')), false);
+  assert.equal(itemOf(sharedPreview.result).status, 'planned');
+  const sharedApplied = await json([
+    'reconcile',
+    '--action',
+    'adopt',
+    '--path',
+    sharedDir,
+    '--workspace',
+    root,
+    '--apply',
+    '--yes',
+  ]);
+  assert.equal(sharedApplied.code, 0, JSON.stringify(sharedApplied.result));
+  assert.equal(existsSync(join(root, 'skills', 'shared-adopt', 'SKILL.md')), true);
+  assert.deepEqual(
+    ledger(root)
+      ?.landings.filter((item) => item.skill_id === 'shared-adopt')
+      .map((item) => item.host_id)
+      .sort(),
+    ['cursor', 'doubao'],
+  );
 });
 
 test('T2 多宿主同 id：adopt 一份后对第二份 track，不重复中心库', async (t) => {

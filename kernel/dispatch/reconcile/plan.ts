@@ -5,7 +5,6 @@ import type {
   ReconciliationLedgerSource,
   ReconcileAction,
   ReconcileLedgerChange,
-  ReconcileLedgerState,
   ReconcilePlanItem,
   ReconcilePreviewData,
   ReconcileSelection,
@@ -17,6 +16,9 @@ import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
 import type { InventoryRootView } from '@skill-manager/contract';
 import type { InventorySnapshot } from '../scan/inventory.ts';
 import { allCandidates, notDistributedCandidates, unique, type Candidate } from './candidates.ts';
+import { ledgerHostIds } from './group.ts';
+import { notesOf } from './plan-notes.ts';
+import { ledgerChanges, ledgerSourceOf } from './ledger-changes.ts';
 
 interface ActionShape {
   status: 'planned' | 'skipped';
@@ -123,18 +125,6 @@ function expectedOf(action: ReconcileAction): ReconcilePlanItem['after'] {
   };
 }
 
-function ledgerSourceOf(
-  candidate: Candidate,
-  action: ReconcileAction,
-): Exclude<ReconciliationLedgerSource, 'none'> | undefined {
-  const existing = candidate.reconciliation.ledger_source;
-  if (existing !== 'none') return existing;
-  if (action === 'adopt' || action === 'track' || action === 'repair') {
-    return candidate.is_plugin ? 'plugin_landings' : 'host_landings';
-  }
-  return undefined;
-}
-
 function ledgerPath(
   snapshot: InventorySnapshot,
   source: Exclude<ReconciliationLedgerSource, 'none'>,
@@ -142,26 +132,6 @@ function ledgerPath(
   return source === 'plugin_landings'
     ? snapshot.layout.pluginIndexFile
     : snapshot.layout.hostLandingsFile;
-}
-
-function ledgerStateOf(candidate: Candidate): ReconcileLedgerState | 'missing' {
-  if (candidate.reconciliation.ledger_source === 'none') return 'missing';
-  return candidate.reconciliation.classification === 'orphaned' ? 'orphaned' : 'active';
-}
-
-function ledgerChange(
-  candidate: Candidate,
-  action: ReconcileAction,
-): ReconcileLedgerChange | undefined {
-  const source = ledgerSourceOf(candidate, action);
-  if (source === undefined) return undefined;
-  const next = action === 'clean' ? 'removed' : action === 'forget' ? 'orphaned' : 'active';
-  return {
-    source,
-    record_key: `${candidate.host_ids[0] ?? candidate.host_ids.join(',')}:${candidate.target_path}`,
-    from_state: ledgerStateOf(candidate),
-    to_state: next,
-  };
 }
 
 function writeKindOf(candidate: Candidate): ReconcileWriteKind {
@@ -291,11 +261,9 @@ function unsupportedReason(candidate: Candidate, action: ReconcileAction): strin
   return ACTION_RULES[action](candidate, actionableKeyOf(candidate));
 }
 
-function singleBuiltinReason(candidate: Candidate): string | undefined {
-  if (candidate.is_plugin) return 'plugin_host_t4';
-  if (candidate.consumed_by.length > 1 || candidate.host_ids.length > 1) {
-    return 'shared_root_t4';
-  }
+function groupConflictReason(candidate: Candidate): string | undefined {
+  if (candidate.format_conflict) return 'shared_root_form_conflict';
+  if (candidate.ledger_conflict) return 'shared_root_ledger_conflict';
   return undefined;
 }
 
@@ -306,7 +274,7 @@ function t2EligibilityReason(
 ): string | undefined {
   if (action !== 'adopt' && action !== 'track') return undefined;
   if (snapshot.workspace.index === null) return 'workspace_uninitialized';
-  return singleBuiltinReason(candidate);
+  return groupConflictReason(candidate);
 }
 
 function t1EligibilityReason(
@@ -315,8 +283,8 @@ function t1EligibilityReason(
   action: ReconcileAction,
 ): string | undefined {
   if (action !== 'repair' && action !== 'forget') return undefined;
-  const builtin = singleBuiltinReason(candidate);
-  if (builtin !== undefined) return builtin;
+  const conflict = groupConflictReason(candidate);
+  if (conflict !== undefined) return conflict;
   if (action === 'repair') {
     const record =
       snapshot.workspace.index === null || candidate.skill_id === undefined
@@ -344,8 +312,8 @@ function cleanEligibilityReason(
   action: ReconcileAction,
 ): string | undefined {
   if (action !== 'clean') return undefined;
-  const builtin = singleBuiltinReason(candidate);
-  if (builtin !== undefined) return builtin;
+  const conflict = groupConflictReason(candidate);
+  if (conflict !== undefined) return conflict;
   const workspaceRecord =
     candidate.skill_id === undefined
       ? undefined
@@ -380,14 +348,50 @@ function actionShape(
       ledger_changes: [],
     };
   }
-  const change = ledgerChange(candidate, selection.action);
+  const changes = ledgerChanges(snapshot, candidate, selection, selection.action);
   return {
     status: 'planned',
     source_of_truth: sourceOfAction(selection.action),
     after: expectedOf(selection.action),
     writes: writesOf(snapshot, candidate, selection.action, ledger),
-    ledger_changes: change === undefined ? [] : [change],
+    ledger_changes: changes,
   };
+}
+
+function itemHostIds(candidate: Candidate, selection: ReconcileSelection): string[] {
+  if (selection.action !== 'clean' && selection.action !== 'forget') return candidate.host_ids;
+  return ledgerHostIds(candidate, selection);
+}
+
+function beforeOf(candidate: Candidate): ReconcilePlanItem['before'] {
+  return {
+    classification: candidate.reconciliation.classification,
+    classification_key: classificationKeyOf(candidate),
+    ledger_source: candidate.reconciliation.ledger_source,
+    evidence: candidate.reconciliation.evidence,
+    drift_reasons: candidate.reconciliation.drift_reasons,
+    exists: candidate.exists,
+    ...(candidate.content_digest === undefined ? {} : { content_digest: candidate.content_digest }),
+    ...(candidate.visibility === undefined ? {} : { visibility: candidate.visibility }),
+  };
+}
+
+function warningsOf(candidate: Candidate): string[] {
+  return [
+    ...(candidate.consumed_by.length > 1 || candidate.host_ids.length > 1 ? ['shared_root'] : []),
+    ...(candidate.format_conflict ? ['shared_root_form_conflict'] : []),
+    ...(candidate.ledger_conflict ? ['shared_root_ledger_conflict'] : []),
+  ];
+}
+
+function backupsOf(
+  snapshot: InventorySnapshot,
+  selection: ReconcileSelection,
+  candidate: Candidate,
+): string[] {
+  return selection.action === 'accept' && candidate.skill_id !== undefined
+    ? [join(snapshot.layout.backupsDir, candidate.skill_id)]
+    : [];
 }
 
 function itemOf(
@@ -402,35 +406,21 @@ function itemOf(
     physical_key: candidate.physical_key,
     target_path: candidate.target_path,
     ...(candidate.skill_id === undefined ? {} : { skill_id: candidate.skill_id }),
-    host_ids: candidate.host_ids,
+    host_ids: itemHostIds(candidate, selection),
     consumed_by: candidate.consumed_by,
     format: candidate.format,
     ...(candidate.visibility === undefined ? {} : { visibility: candidate.visibility }),
     transaction_group: `group-${candidate.physical_key}`,
     status: shape.status,
     ...(shape.reason === undefined ? {} : { reason: shape.reason }),
-    before: {
-      classification: candidate.reconciliation.classification,
-      classification_key: classificationKeyOf(candidate),
-      ledger_source: candidate.reconciliation.ledger_source,
-      evidence: candidate.reconciliation.evidence,
-      drift_reasons: candidate.reconciliation.drift_reasons,
-      exists: candidate.exists,
-      ...(candidate.content_digest === undefined
-        ? {}
-        : { content_digest: candidate.content_digest }),
-      ...(candidate.visibility === undefined ? {} : { visibility: candidate.visibility }),
-    },
+    before: beforeOf(candidate),
     action: selection.action,
     source_of_truth: shape.source_of_truth,
     after: shape.after,
     writes: shape.writes,
     ledger_changes: shape.ledger_changes,
-    backups:
-      selection.action === 'accept' && candidate.skill_id !== undefined
-        ? [join(snapshot.layout.backupsDir, candidate.skill_id)]
-        : [],
-    warnings: candidate.consumed_by.length > 1 ? ['shared_root'] : [],
+    backups: backupsOf(snapshot, selection, candidate),
+    warnings: warningsOf(candidate),
   };
 }
 
@@ -473,35 +463,6 @@ export function reconcilePlanSignature(plan: ReconcilePreviewData): string {
       ledger_changes: item.ledger_changes,
     })),
   });
-}
-
-function notesOf(action: ReconcileAction): string[] {
-  const base = ['reconcile 默认预览；只有 --apply 才执行写入'];
-  if (action === 'adopt') {
-    return [
-      ...base,
-      'adopt 导入磁盘实际内容，合成元文件的 source.type 为 unknown',
-      '共享根整组与插件 x- 宿主动作留 T4；跳过项不写入',
-    ];
-  }
-  if (action === 'track') {
-    return [...base, 'track 只补宿主账本，不修改工作区或宿主内容', '共享根与插件 x- 留 T4'];
-  }
-  if (action === 'accept') {
-    return [
-      ...base,
-      'accept 覆盖中心库前写入标准备份；source/version 漂移不接受',
-      '接受后的本地内容可能在下次 update 时被远端来源覆盖',
-    ];
-  }
-  if (action === 'clean') {
-    return [
-      ...base,
-      'clean 先把宿主副本移入同卷临时快照，账本提交成功后再删除',
-      '禁止仅按 --classification 批量 clean；共享根与插件 x- 留 T4',
-    ];
-  }
-  return [...base, 'T1/T2 仅执行内置宿主的单副本动作；共享根与插件 x- 留 T4'];
 }
 
 /** 生成动作预览；调用方必须只读消费结果。 */
