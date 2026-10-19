@@ -25,7 +25,7 @@ interface RootScan {
   reason?: string;
 }
 
-interface FrontmatterRead {
+export interface SkillFrontmatterRead {
   raw: Record<string, unknown> | null;
   reason?: string;
 }
@@ -140,7 +140,7 @@ function isFile(path: string): boolean {
   }
 }
 
-function frontmatterOf(path: string): FrontmatterRead {
+function frontmatterOf(path: string): SkillFrontmatterRead {
   let text: string;
   try {
     text = readFileSync(path, 'utf8');
@@ -157,6 +157,11 @@ function frontmatterOf(path: string): FrontmatterRead {
   } catch {
     return { raw: null, reason: 'bad_yaml' };
   }
+}
+
+/** 读取 SKILL.md / SKILL.md.disabled 的 frontmatter；adopt 复用同一解析口径。 */
+export function readSkillFrontmatter(path: string): SkillFrontmatterRead {
+  return frontmatterOf(path);
 }
 
 function digestOf(path: string, format: 'skill' | 'rules'): string | undefined {
@@ -192,7 +197,7 @@ function skillCopyOf(
 }
 
 function skillFieldsOf(
-  front: FrontmatterRead,
+  front: SkillFrontmatterRead,
 ): { skill_id: string; version?: string } | { reason: string } {
   if (front.raw === null) return { reason: front.reason ?? 'unreadable' };
   const name = front.raw['name'];

@@ -33,7 +33,7 @@
 | 14 | `export` | 备份 | 导出索引状态，剥离未知字段并登记清单 |
 | 15 | `import` | 备份 | 整体校验后逐条登记，既有标识跳过不覆盖 |
 | 16 | `restore` | 备份 | 从备份载体恢复内容：写回中心库、重分发副本、刷新或重建记录 |
-| 17 | `reconcile` | 盘点动作 | T0 已注册：选择器校验与只读动作计划；写入动作按 T1~T3 落地 |
+| 17 | `reconcile` | 盘点动作 | T0/T1/T2 已落地：选择器、只读计划、repair/forget、adopt/track；accept/clean 待 T3 |
 
 复核：`node kernel/entry/cli.ts --help`，或运行 `npm test` 里的契约测试（断言已注册指令是契约清单的子集）。
 
@@ -634,7 +634,22 @@
 | 测试 | 新增 8 项 T1 e2e；常规 676 → **684 项**（683 通过 + 1 平台跳过） |
 | 结构 | landing visibility / result builder / reconcile candidates 独立模块；check:arch 222 文件 / 807 边 / 0 循环；complexity 94 |
 
-> T1 已收口；下一批 T2 实现 `adopt` + `track`。
+> T1 已收口；T2 已完成，见 6.30。
+
+### 6.30 M4c 二期 T2：adopt 与 track（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| adopt | 从宿主实际内容建立 `skills/<skill_id>`，合成 `source.type: unknown` 元文件，写索引与 adopted 账本；不反向解渲染、不修改源宿主副本 |
+| 元数据 | `--target` 只写工作区目标声明，路径按 `.<target>/skills/<skill_id>`；中心库目录始终按 `skill_id`；目录名与 frontmatter `name` 不一致时以 `name` 为 ID |
+| 冲突 | 同 ID 内容一致引导 `track`，不一致引导 `accept` / `repair`；未登记同名中心库目录拒绝覆盖；目标被其他 Skill 占用时要求显式 `--target` |
+| track | 仅处理 `inferred_consistent`，只补 adopted 账本；工作区、宿主与索引字节不变；drift / untracked 拒绝 |
+| 事务 | 中心库同卷暂存 + 原子改名；索引/账本失败恢复索引并移除中心库；损坏账本在物理写入前中止 |
+| 边界 | 共享根 `shared_root_t4`、插件 `plugin_host_t4` 跳过；`accept` / `clean` 仍明确未实现 |
+| 测试 | 新增 12 项 T2 e2e；常规 684 → **696 项**（695 通过 + 1 平台跳过） |
+| 结构 | `check:arch` 225 文件 / 839 边 / 0 循环；complexity 94；超阈值文件 0 |
+
+> T2 已收口；下一批 T3 实现 `accept` + `clean`。
 
 ---
 

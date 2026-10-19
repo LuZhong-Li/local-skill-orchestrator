@@ -801,6 +801,18 @@
       "layer": "dispatch"
     },
     {
+      "path": "kernel/dispatch/reconcile/adopt-source.ts",
+      "kind": "source",
+      "region": "kernel-dispatch",
+      "layer": "dispatch"
+    },
+    {
+      "path": "kernel/dispatch/reconcile/adopt.ts",
+      "kind": "source",
+      "region": "kernel-dispatch",
+      "layer": "dispatch"
+    },
+    {
       "path": "kernel/dispatch/reconcile/candidates.ts",
       "kind": "source",
       "region": "kernel-dispatch",
@@ -826,6 +838,12 @@
     },
     {
       "path": "kernel/dispatch/reconcile/plan.ts",
+      "kind": "source",
+      "region": "kernel-dispatch",
+      "layer": "dispatch"
+    },
+    {
+      "path": "kernel/dispatch/reconcile/track.ts",
       "kind": "source",
       "region": "kernel-dispatch",
       "layer": "dispatch"
@@ -4633,6 +4651,153 @@
       "to_layer": "store"
     },
     {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/core/integrity/index.ts",
+      "specifier": "../../core/integrity/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/core/inventory/discover.ts",
+      "specifier": "../../core/inventory/discover.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/core/lifecycle/shared.ts",
+      "specifier": "../../core/lifecycle/shared.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/core/metadata/constants.ts",
+      "specifier": "../../core/metadata/constants.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/core/metadata/targets.ts",
+      "specifier": "../../core/metadata/targets.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/core/metadata/types.ts",
+      "specifier": "../../core/metadata/types.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/core/metadata/validate.ts",
+      "specifier": "../../core/metadata/validate.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/core/targets/resolver/index.ts",
+      "specifier": "../../core/targets/resolver/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../../store/atomic/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/store/library-fs/index.ts",
+      "specifier": "../../store/library-fs/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/store/workspace/index.ts",
+      "specifier": "../../store/workspace/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt-source.ts",
+      "to": "kernel/store/yaml/index.ts",
+      "specifier": "../../store/yaml/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/core/host-landings/index.ts",
+      "specifier": "../../core/host-landings/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/core/index/index.ts",
+      "specifier": "../../core/index/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/core/lifecycle/shared.ts",
+      "specifier": "../../core/lifecycle/shared.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/core/metadata/types.ts",
+      "specifier": "../../core/metadata/types.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/dispatch/reconcile/adopt-source.ts",
+      "specifier": "./adopt-source.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/store/errors.ts",
+      "specifier": "../../store/errors.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/store/findings.ts",
+      "specifier": "../../store/findings.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/store/host-landings/index.ts",
+      "specifier": "../../store/host-landings/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/store/library-fs/index.ts",
+      "specifier": "../../store/library-fs/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
       "from": "kernel/dispatch/reconcile/candidates.ts",
       "to": "kernel/core/host-landings/reconcile.ts",
       "specifier": "../../core/host-landings/reconcile.ts",
@@ -4678,6 +4843,20 @@
       "from": "kernel/dispatch/reconcile/execute.ts",
       "to": "kernel/dispatch/host/index.ts",
       "specifier": "../host/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/execute.ts",
+      "to": "kernel/dispatch/reconcile/adopt.ts",
+      "specifier": "./adopt.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/execute.ts",
+      "to": "kernel/dispatch/reconcile/track.ts",
+      "specifier": "./track.ts",
       "from_layer": "dispatch",
       "to_layer": "dispatch"
     },
@@ -4834,6 +5013,69 @@
       "specifier": "../scan/inventory.ts",
       "from_layer": "dispatch",
       "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/core/host-landings/index.ts",
+      "specifier": "../../core/host-landings/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/core/index/index.ts",
+      "specifier": "../../core/index/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/core/integrity/index.ts",
+      "specifier": "../../core/integrity/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/core/metadata/types.ts",
+      "specifier": "../../core/metadata/types.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/dispatch/reconcile/adopt.ts",
+      "specifier": "./adopt.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/store/errors.ts",
+      "specifier": "../../store/errors.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/store/findings.ts",
+      "specifier": "../../store/findings.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/store/host-landings/index.ts",
+      "specifier": "../../store/host-landings/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/track.ts",
+      "to": "kernel/store/workspace/index.ts",
+      "specifier": "../../store/workspace/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
     },
     {
       "from": "kernel/dispatch/registry/commands/import.ts",
@@ -6993,16 +7235,16 @@
     }
   ],
   "stats": {
-    "source_files": 222,
+    "source_files": 225,
     "asset_nodes": 1,
-    "nodes": 223,
-    "edges": 807,
+    "nodes": 226,
+    "edges": 839,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 11,
       "core": 69,
-      "dispatch": 45,
+      "dispatch": 48,
       "entry": 2,
       "gui": 42,
       "public": 1,
@@ -7012,7 +7254,7 @@
     "outgoing": {
       "contract": 17,
       "core": 294,
-      "dispatch": 362,
+      "dispatch": 394,
       "entry": 8,
       "gui": 74,
       "public": 6,
@@ -7021,18 +7263,18 @@
     },
     "incoming": {
       "contract": 17,
-      "core": 292,
-      "dispatch": 160,
+      "core": 308,
+      "dispatch": 164,
       "entry": 1,
       "gui": 74,
       "public": 1,
       "scripts": 25,
-      "store": 237
+      "store": 249
     },
     "cross_layer_edges": {
       "core->store": 112,
-      "dispatch->core": 108,
-      "dispatch->store": 103,
+      "dispatch->core": 124,
+      "dispatch->store": 115,
       "entry->core": 1,
       "entry->dispatch": 5,
       "entry->store": 1,

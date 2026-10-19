@@ -73,14 +73,19 @@ test('T0 reconcile 预览：精确 path 只选中一个副本，且全程只读'
   assert.equal(data.transaction_groups.length, 1);
   const writes = data.items[0]?.['writes'] as Array<{ kind: string; path: string }>;
   assert.ok(writes.some((item) => item.kind === 'library'));
-  assert.ok(writes.some((item) => item.kind === 'target_copy'));
+  assert.ok(writes.some((item) => item.kind === 'skill_meta'));
+  assert.ok(writes.some((item) => item.kind === 'index'));
   assert.ok(writes.some((item) => item.kind === 'host_landings'));
+  assert.equal(
+    writes.some((item) => item.kind === 'target_copy'),
+    false,
+  );
 
   assert.deepEqual(snapshotTree(root), beforeWorkspace, '预览不得改变工作区');
   assert.deepEqual(snapshotTree(hostRoot), beforeHost, '预览不得改变宿主根');
 });
 
-test('T0 reconcile：--apply 明确未实现且不写盘', async (t) => {
+test('T0 reconcile：未实现动作的 --apply 明确拒绝且不写盘', async (t) => {
   const root = makeTempDir('sm-reconcile-apply-');
   t.after(isolateHostEnvironment(root));
   const hostRoot = makeHostRoot('sm-reconcile-host-');
@@ -95,7 +100,7 @@ test('T0 reconcile：--apply 明确未实现且不写盘', async (t) => {
   const attempted = await json([
     'reconcile',
     '--action',
-    'adopt',
+    'clean',
     '--path',
     join(hostRoot, 'alpha'),
     '--workspace',

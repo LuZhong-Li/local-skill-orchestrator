@@ -703,14 +703,14 @@ skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
 
 | 动作 | 方向 | 允许分类 | 写入位置 |
 |---|---|---|---|
-| `adopt` | 宿主 → 工作区 | `untracked`、无工作区的 orphaned 可读副本 | 中心库、合成元文件、索引、工作区目标、宿主账本 |
+| `adopt` | 宿主 → 工作区 | `untracked`、无工作区的 orphaned 可读副本 | 中心库、合成元文件、索引、宿主账本 |
 | `track` | 宿主 → 账本 | `inferred_consistent` | 内置账本或插件 landings |
 | `repair` | 工作区 → 宿主 | `missing`、`not_distributed`、`drift`、`inferred_drift`、有工作区的 orphaned、可修复的 unreadable | 宿主副本、账本；不改中心库或索引 |
 | `accept` | 宿主 → 工作区 | 内容 / 可见性 drift；有工作区记录 | 中心库、索引、账本；不猜 source / ref |
 | `clean` | 宿主 → 删除 | 有明确物理副本的 orphaned / corrupt / 未纳管目录 | 宿主副本、账本 |
 | `forget` | 账本 → 孤儿 | 副本确认不存在的 `missing` | 账本 |
 
-T1 执行范围：`repair` 与 `forget` 已具备 `--apply` 执行能力，且只处理内置宿主、单物理副本；共享根整组处理与插件 `x-` 宿主动作在 T4 接入，计划中以 `shared_root_t4` / `plugin_host_t4` 跳过。
+T2 执行范围：`adopt` / `track` / `repair` / `forget` 已具备 `--apply` 执行能力，且只处理内置宿主、单物理副本；共享根整组处理与插件 `x-` 宿主动作在 T4 接入，计划中以 `shared_root_t4` / `plugin_host_t4` 跳过。`accept` / `clean` 仍返回 `E-RECONCILE-001`，明确尚未实现。
 
 **选择器与互斥**：
 
@@ -718,7 +718,7 @@ T1 执行范围：`repair` 与 `forget` 已具备 `--apply` 执行能力，且�
 2. `--id` 必须与 `--host` 同时给出；`--host all` 选择该 Skill 的全部已知宿主副本。
 3. `--classification` 只用于允许分类批量的动作，且必须同时给出 `--host` 或 `--root`；`clean` / `forget` 不接受仅按分类批量。
 4. `--root` 是盘点根过滤器，不是删除授权；路径必须来自最近一次盘点结果。
-5. `--target` 只用于 `adopt`，指定工作区目标；省略时使用工作区默认目标，目标路径按 `skill_id` 推导。目标冲突返回明确错误并提示显式 `--target`。
+5. `--target` 只用于 `adopt`，指定工作区的目标标识；省略时使用工作区默认目标。中心库路径始终按 `skills/<skill_id>` 推导，`--target` 只写入合成元文件的 `targets[]` 声明；该声明路径按 `.<目标标识>/skills/<skill_id>` 推导。目标路径已被其他 Skill 占用时返回明确错误并提示显式 `--target`。
 6. 本指令不接受裸 `--all`、`--kind` 或位置参数；其他指令专用选项按参数类错误拒绝。
 
 **预览与执行**：
@@ -728,10 +728,12 @@ T1 执行范围：`repair` 与 `forget` 已具备 `--apply` 执行能力，且�
 3. 非终端环境执行必须同时给出 `--apply` 与 `--yes`；缺少 `--yes` 时返回参数类错误；
 4. 执行前重新读取索引、两本账本与选中副本；物理摘要、分类、路径或账本状态变化时返回 `E-RECONCILE-002`，不应用旧计划；
 5. 共享物理副本按事务组处理；单宿主选择与仍被其他宿主消费的共享根冲突时返回 `E-RECONCILE-003`；
-6. `adopt` 的中心库来源是磁盘实际内容，不做反向解渲染；合成元文件的 `source.type` 为 `unknown`；
-7. `accept` 只接受内容和可见性；source / version 漂移不得由宿主副本反向推断，默认使用 `repair`。
+6. `adopt` 的中心库来源是磁盘实际内容，不做反向解渲染；合成元文件的 `source.type` 为 `unknown`，不生成 URL、ref 或本地来源。`adopt` 不创建新的工作区目标副本，`targets[]` 仅作为后续 `enable` / `install` 的声明。
+7. `adopt` 的冲突口径：中心库已有同 `skill_id` 且内容一致时引导 `track`；内容不一致时引导 `accept` / `repair`；中心库同名目录未登记时拒绝且不覆盖；目标路径被其他 Skill 占用时要求显式 `--target`。宿主目录名与 frontmatter `name` 不一致时，以 `name` 作为 `skill_id`。
+8. `track` 只接受 `inferred_consistent`，只补内置宿主账本（`origin: adopted`），不复制、不覆盖工作区或宿主内容；`inferred_drift` 引导 `accept` / `repair`，`untracked` 引导 `adopt`。
+9. `accept` 只接受内容和可见性；source / version 漂移不得由宿主副本反向推断，默认使用 `repair`。
 
-**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。`--apply` 的 `repair` / `forget` 另返回 `results[]`（逐项 succeeded / failed / skipped、changes 与 findings）；其他动作返回 `E-RECONCILE-001`，明确尚未实现。
+**输出载荷**：`data.mode = "reconcile"`；包含 `action`、选择器、`apply_requested`、`applied`、逐项 `before / after` 分类与证据、影响宿主、共享根事务组、`writes`、`ledger_changes`、`backups`、`warnings` 与汇总计数。`--apply` 的 `adopt` / `track` / `repair` / `forget` 另返回 `results[]`（逐项 succeeded / failed / skipped、changes 与 findings）；`accept` / `clean` 返回 `E-RECONCILE-001`，明确尚未实现。
 
 **退出码**：参数与选择器错误返回 `2`；动作不适配、尚未实现、计划过期与共享根选择冲突返回 `1`；写入失败按既有 IO / 备份 / 账本派生的退出码处理。
 
@@ -912,6 +914,7 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 | 42 | 2026-10-19 | 第 4.4 节接入 M4c-3 对账：copies/corrupt 增加 reconciliation；active 两账本反查 missing；degradation 显式给出账本状态；插件 content/source 保持 inferred/undetermined，不输出 M4c-4 聚合 |
 | 43 | 2026-10-19 | 第 4.4 节新增 M4c-4 聚合：summary.main / roles / classification_groups、hosts 层级与人类可读摘要；明确 user 主计数、unique_skills、共享根去重、corrupt 不计有效计数、missing 不计有效副本 |
 | 44 | 2026-10-19 | 第 4.4 节新增只读验证条款：静态 fs/写模块守卫与工作区、宿主根递归快照（文件清单、mtime、内容哈希）前后一致；覆盖未初始化、损坏账本、缺失/不可读根与大规模副本 |
+| 45 | 2026-10-19 | 第 4.17 节 T2 执行口径：`adopt` 从宿主实际内容建立 `skills/<skill_id>`、合成 `source: unknown` 元文件并写索引 / 内置账本，不创建工作区目标副本；`track` 只对 `inferred_consistent` 补 adopted 账本。补充 ID / 目标冲突、frontmatter 目录名不一致、track 拒绝 drift / untracked 的口径；`accept` / `clean` 仍返回 `E-RECONCILE-001` |
 
 ---
 

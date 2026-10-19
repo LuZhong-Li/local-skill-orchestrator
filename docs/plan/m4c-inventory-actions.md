@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作实施计划 |
 | 文档路径 | `docs/plan/m4c-inventory-actions.md` |
-| 文档状态 | **评审通过，T0 / T1 已完成；T2 待启动**（2026-10-19） |
+| 文档状态 | **评审通过，T0 / T1 / T2 已完成；T3 待启动**（2026-10-19） |
 | 依据 | [`docs/design/m4c-inventory-actions.md`](../design/m4c-inventory-actions.md)；需求 9.3.8、9.3.7；[`docs/research/m4c-inventory-actions-2026-10-19.md`](../research/m4c-inventory-actions-2026-10-19.md) |
 | 基线 | T0 后常规测试 **676 项**（675 通过 + 1 项平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0 |
 | 边界 | 本文不修改代码、契约或 schema；评审批准后才进入 T0 实现 |
@@ -145,6 +145,19 @@
 - inferred_consistent → `managed_consistent`，宿主与工作区字节不变；
 - ID / target 冲突不覆盖；
 - `adopt` 不猜来源、不修改源宿主副本。
+
+**落地记录**：
+
+| 项 | 结果 |
+|---|---|
+| adopt | 从宿主实际内容建立 `skills/<skill_id>`，合成 `source.type: unknown` 元文件；未生成 URL / ref / 本地来源 |
+| 元数据 | 元文件通过现有 `validateMetaRecord`；`--target` 只写工作区目标声明，中心库路径按 `skill_id`；目录名与 frontmatter `name` 不一致时以 `name` 为 ID |
+| 冲突 | 中心库同 ID 一致引导 `track`、不一致引导 `accept` / `repair`；未登记同名目录拒绝覆盖；工作区目标被其他 Skill 占用时要求显式 `--target` |
+| track | 仅接受 `inferred_consistent`，只写内置账本（`origin: adopted`）；索引、中心库与宿主字节不变；drift / untracked 拒绝 |
+| 事务 | 中心库使用同卷暂存目录与原子改名；索引或账本失败时恢复索引、移除中心库；来源宿主副本全程只读 |
+| 边界 | 共享根 `shared_root_t4`、插件 `plugin_host_t4` 跳过；`accept` / `clean` 仍返回 `E-RECONCILE-001` |
+| 测试 | 新增 12 项 T2 e2e；常规 684 → **696 项**（695 通过 + 1 平台跳过） |
+| 结构 | `check:arch` 225 文件 / 839 边 / 0 循环；complexity 94；超阈值文件 0 |
 
 ---
 

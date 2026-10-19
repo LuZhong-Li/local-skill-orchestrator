@@ -29,6 +29,15 @@
 - **边界**：共享根与插件 `x-` 项标 `shared_root_t4` / `plugin_host_t4` 跳过；目标被文件占用时失败并保留原账本与占用文件。
 - **验证**：新增 8 项 T1 e2e；常规 **684 项**（683 通过 + 1 平台跳过）；全门禁与 smoke 保持绿；不发版。
 
+### M4c 二期 T2：adopt 与 track（2026-10-19）
+
+- **adopt**：从宿主实际内容建立 `skills/<skill_id>`，合成 `source.type: unknown` 的 `skill_meta.yaml`，写索引与 `origin: adopted` 账本；不反向解渲染，不修改源宿主副本。
+- **ID / 目标**：`--target` 只声明工作区目标，中心库目录始终按 `skill_id`；目录名与 frontmatter `name` 不一致时以 `name` 为 ID。同 ID 内容一致引导 `track`，不一致引导 `accept` / `repair`；未登记同名中心库目录拒绝覆盖。
+- **track**：只对 `inferred_consistent` 补 adopted 账本；工作区、宿主与索引字节不变；drift / untracked 拒绝。
+- **事务**：中心库同卷暂存 + 原子改名；索引或账本失败恢复索引、移除中心库；损坏账本在写盘前中止。
+- **边界**：共享根 `shared_root_t4` 与插件 `plugin_host_t4` 跳过；`accept` / `clean` 仍返回 `E-RECONCILE-001`。
+- **验证**：新增 12 项 T2 e2e；常规 **684 → 696 项**（695 通过 + 1 平台跳过）；`check:arch` 225 文件 / 839 边 / 0 循环；complexity 94；超阈值文件 0；不发版。
+
 ### P1-c：lifecycle 拆分（2026-10-19）
 
 - **入口**：`kernel/core/lifecycle/index.ts` 1738 → **19 行**，只保留公共导出；实现按 `install` / `uninstall` / `toggle` / `update` / `restore` 拆分，共享工具进 `shared.ts`、稳定类型进 `types.ts`。

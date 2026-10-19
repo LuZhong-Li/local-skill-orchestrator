@@ -1,4 +1,4 @@
-/** T1 reconcile 执行器：仅内置宿主的 repair 与 forget。 */
+/** T2 reconcile 执行器：内置宿主的 adopt / track / repair / forget。 */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -16,6 +16,8 @@ import { finding } from '../../store/findings.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import { runHostLanding } from '../host/index.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
+import { adoptItem } from './adopt.ts';
+import { trackItem } from './track.ts';
 
 export interface ReconcileExecution {
   data: ReconcileApplyData;
@@ -230,18 +232,33 @@ export function executeReconcilePlan(input: {
         ? repairItem({ item, layout: input.layout, index: input.index, now: input.now })
         : item.action === 'forget'
           ? forgetItem({ item, layout: input.layout, now: input.now })
-          : {
-              result: failedResult(item, [
-                finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
-                  source: 'reconcile',
-                  target: item.action,
-                  message: `T1 尚未实现 ${item.action}`,
-                  remedy: '本批只执行 repair 与 forget',
-                }),
-              ]),
-              findings: [],
-              changes: [],
-            };
+          : item.action === 'adopt' && input.index !== null
+            ? adoptItem({
+                item,
+                layout: input.layout,
+                index: input.index,
+                selection: input.plan.selection,
+                now: input.now,
+              })
+            : item.action === 'track' && input.index !== null
+              ? trackItem({
+                  item,
+                  layout: input.layout,
+                  index: input.index,
+                  now: input.now,
+                })
+              : {
+                  result: failedResult(item, [
+                    finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
+                      source: 'reconcile',
+                      target: item.action,
+                      message: `T2 尚未实现 ${item.action}`,
+                      remedy: '当前批次执行 adopt、track、repair 与 forget',
+                    }),
+                  ]),
+                  findings: [],
+                  changes: [],
+                };
     results.push(execution.result);
     findings.push(...execution.findings);
     changes.push(...execution.changes);

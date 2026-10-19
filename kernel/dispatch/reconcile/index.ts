@@ -46,7 +46,7 @@ function confirmationPlan(plan: ReturnType<typeof buildReconcilePreview>): Confi
     subject: `${plan.action} ${String(items.length)} 项`,
     writes: items.flatMap((item) => item.writes),
     notes: [
-      'T1 仅执行内置宿主的 repair / forget',
+      'T2 执行内置宿主的 adopt / track / repair / forget',
       '共享根与 x- 宿主项保持 skipped，不会写入',
       '预览后若副本、分类或账本发生变化，计划将被拒绝',
     ],
@@ -84,7 +84,12 @@ async function applyReconcile(input: {
   now: string;
   interaction: Parameters<CommandHandler>[0]['interaction'];
 }): Promise<Result<unknown>> {
-  if (input.selection.action !== 'repair' && input.selection.action !== 'forget') {
+  if (
+    input.selection.action !== 'repair' &&
+    input.selection.action !== 'forget' &&
+    input.selection.action !== 'adopt' &&
+    input.selection.action !== 'track'
+  ) {
     return buildResult(
       'reconcile',
       [
@@ -92,8 +97,8 @@ async function applyReconcile(input: {
         finding(CODES.RECONCILE_ACTION_UNSUPPORTED, {
           source: 'reconcile',
           target: input.selection.action,
-          message: `T1 尚未实现 ${input.selection.action}`,
-          remedy: '本批只执行 repair 与 forget；adopt/track/accept/clean 将在后续批次接入',
+          message: `T2 尚未实现 ${input.selection.action}`,
+          remedy: '当前执行 adopt、track、repair 与 forget；accept/clean 将在后续批次接入',
         }),
       ],
       [],

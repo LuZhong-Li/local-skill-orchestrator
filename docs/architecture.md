@@ -1177,7 +1177,7 @@ flowchart TB
 | 14 | `import` | C-01、C-03 | K-08、K-07、K-03、K-04 | 是 |
 | 15 | `update` | C-01、C-03 | K-04、K-09、K-03 | 是 |
 | 16 | `restore` | C-01、C-03 | K-04、K-08、K-11、K-03、K-09 | 是 |
-| 17 | `reconcile` | C-01、C-03 | 盘点快照 / L-4 对账、K-04、K-15、账本 store | 是（T0 只读预览） |
+| 17 | `reconcile` | C-01、C-03 | 盘点快照 / L-4 对账、K-04、K-15、账本 store | 是（T0/T1/T2：预览、repair/forget、adopt/track） |
 
 第 16 条 `restore` 为二期备份恢复批次新增：卸载产出的备份载体首次有了恢复通道。它落在既有的分层与模块之内——由 K-08 读取并校验载体、K-04 编排「写回原件、重分发副本、刷新或重建记录」，未引入新模块，也未改变任何层的职责边界。
 
@@ -1920,6 +1920,29 @@ flowchart TB
 | 分层检查 | `check:arch` 222 文件 / 807 边 / 0 循环 / 0 allowlist |
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
 | 测试总数 | 676 → **684 项**（683 通过 + 1 项平台条件跳过） |
+
+### 补充记录 2026-10-19（M4c 二期 T2：adopt / track）
+
+来源：M4c 二期 T2。adopt 写入中心库、合成元文件、索引与内置账本；track 只写账本。共享根与插件 x- 仍留 T4。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `kernel/dispatch/reconcile/adopt-source.ts` | 从宿主实际内容读取 frontmatter、合成 `source: unknown` 元文件、目标声明与暂存中心库；不反向解渲染 | dispatch | M4c2-R2 / R5 |
+| 2 | `kernel/dispatch/reconcile/adopt.ts` | 中心库原子改名、索引与 adopted 账本提交；索引/账本失败回滚中心库与索引 | dispatch | M4c2-R6 |
+| 3 | `kernel/dispatch/reconcile/track.ts` | 仅对 `inferred_consistent` 补账本，不改中心库、索引或宿主文件 | dispatch | M4c2-R2 / R6 |
+| 4 | `kernel/core/inventory/discover.ts` | 导出 `readSkillFrontmatter`，adopt 复用与盘点相同的 frontmatter 解析口径 | core | 单一识别来源 |
+| 5 | `kernel/dispatch/reconcile/plan.ts` | adopt 写入计划改为中心库/元文件/索引/账本；T2 共享根与插件跳过；计划签名纳入选择器与写入 | dispatch | M4c2-R3 / R8 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 17；`reconcile --apply` 支持 adopt / track / repair / forget |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 问题码 | 69，未新增 |
+| 分层检查 | `check:arch` 225 文件 / 839 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
+| 测试总数 | 684 → **696 项**（695 通过 + 1 项平台条件跳过） |
 
 ---
 
