@@ -229,9 +229,10 @@ function checkDiscovery(fixture, data) {
     '.disabled 可见性',
     copyOf(data, (copy) => copy.path === join(fixture.shared, 'beta'))?.visibility === 'disabled',
   );
+  const inner = data.copies.find((copy) => copy.skill_id === 'inner');
   expect(
     '递归只由 Cursor 根发现',
-    copyOf(data, (copy) => copy.path === join(fixture.shared, 'outer', 'inner')) !== undefined,
+    inner !== undefined && inner.root_ids.includes('cursor/config-root'),
     JSON.stringify(data.copies.map((copy) => copy.path)),
   );
   expect(
