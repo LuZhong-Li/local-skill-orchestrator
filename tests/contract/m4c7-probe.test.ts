@@ -23,6 +23,11 @@ test('契约：M4c-7 三平台探针接入可复用 verify 工作流', () => {
   const cli = read('kernel/entry/cli.ts');
   assert.match(cli, /process\.exitCode = code/);
   assert.equal(cli.includes('process.exit(code)'), false, '大 JSON 输出必须等待 stdout 排空');
+  const releaseSmoke = read('.github/workflows/release-smoke.yml');
+  assert.match(releaseSmoke, /SHA256SUMS\.txt/);
+  assert.match(releaseSmoke, /gui-smoke\.mjs --app/);
+  assert.match(releaseSmoke, /probe-production-kernel\.mjs/);
+  assert.match(releaseSmoke, /resources/);
 });
 
 test('契约：探针覆盖路径展开、发现、四分类、插件 .md 与未初始化', () => {

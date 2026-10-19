@@ -1,0 +1,107 @@
+name: Release Smoke
+
+# v0.4.0 发版准备：对既有 Pack run 的资产做 SHA 清单与 Windows 生产形态验证。
+# 手工触发，不创建 tag / Release；只读取指定 run 的产物。
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Pack run id（已完成的四 leg run）'
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  checksums:
+    name: 资产 SHA256 清单
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+
+      - name: 下载 Pack 四 leg 资产
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for name in pack-windows pack-linux pack-mac-arm64 pack-mac-x64; do
+            gh run download "${{ inputs.run_id }}" -n "${name}-run${{ inputs.run_id }}" -D release
+          done
+
+      - name: 生成并复核 SHA256SUMS
+        run: |
+          cd release
+          find . -type f \( -name '*.exe' -o -name '*.AppImage' -o -name '*.dmg' \) -print0 \
+            | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          test "$(wc -l < SHA256SUMS.txt)" -eq 5
+          sha256sum -c SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: 上传 SHA 清单
+        uses: actions/upload-artifact@v6
+        with:
+          name: SHA256SUMS-run${{ inputs.run_id }}
+          path: release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-production:
+    name: Windows 生产形态（GUI + 内核盘点）
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+
+      - name: 安装 Node（取自 .nvmrc）
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 下载 Windows Pack 资产
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ inputs.run_id }}" -n "pack-windows-run${{ inputs.run_id }}" -D assets
+
+      - name: 定位便携资产
+        shell: pwsh
+        run: |
+          $portable = Get-ChildItem assets -Recurse -Filter 'skill-manager-0.4.0-portable.exe' | Select-Object -First 1
+          if ($null -eq $portable) { throw '未找到 0.4.0 便携资产' }
+          "PORTABLE=$($portable.FullName)" >> $env:GITHUB_ENV
+
+      - name: 生产 GUI 冒烟（生产 app.asar）
+        run: node scripts/gui-smoke.mjs --app "$env:PORTABLE"
+
+      - name: 解包便携资产并定位发布物内核
+        shell: pwsh
+        run: |
+          $seven = 'C:\Program Files\7-Zip\7z.exe'
+          if (!(Test-Path $seven)) { $seven = '7z' }
+          $out = Join-Path $PWD 'portable-extract'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          & $seven x $env:PORTABLE "-o$out" -y | Out-Null
+          $kernel = Get-ChildItem $out -Recurse -Filter 'skill-manager.exe' |
+            Where-Object { $_.FullName -match '\\resources\\kernel\\skill-manager\.exe$' } |
+            Select-Object -First 1
+          for ($i = 0; $null -eq $kernel -and $i -lt 3; $i++) {
+            $nested = Get-ChildItem $out -Recurse -Filter '*.7z' | Select-Object -First 1
+            if ($null -eq $nested) { break }
+            & $seven x $nested.FullName "-o$out" -y | Out-Null
+            Remove-Item -LiteralPath $nested.FullName -Force
+            $kernel = Get-ChildItem $out -Recurse -Filter 'skill-manager.exe' |
+              Where-Object { $_.FullName -match '\\resources\\kernel\\skill-manager\.exe$' } |
+              Select-Object -First 1
+          }
+          if ($null -eq $kernel) { throw '便携资产中未找到 resources/kernel/skill-manager.exe' }
+          "KERNEL=$($kernel.FullName)" >> $env:GITHUB_ENV
+          Write-Output "packaged-kernel=$($kernel.FullName)"
+
+      - name: 发布物内核盘点闭环
+        run: node scripts/probe-production-kernel.mjs "$env:KERNEL"
