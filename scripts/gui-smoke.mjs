@@ -473,10 +473,17 @@ async function main() {
     );
     // 等原件被写回：预览与执行之间隔着一次确认，因此按「磁盘效果」等待，不看状态栏文案
     let restored = false;
+    let restoredContent = 'absent';
     for (let index = 0; index < 60; index += 1) {
-      if (
-        readFileSync(join(workspace, 'skills', 'smoke-skill', 'SKILL.md'), 'utf8') === '# smoke'
-      ) {
+      try {
+        restoredContent = readFileSync(
+          join(workspace, 'skills', 'smoke-skill', 'SKILL.md'),
+          'utf8',
+        );
+      } catch {
+        restoredContent = 'absent';
+      }
+      if (restoredContent === '# smoke') {
         restored = true;
         break;
       }
@@ -488,7 +495,7 @@ async function main() {
     check(
       '确认后恢复执行并写回原件',
       restored && statusText.includes('restore'),
-      `原件内容 ${JSON.stringify(readFileSync(join(workspace, 'skills', 'smoke-skill', 'SKILL.md'), 'utf8'))}`,
+      `原件内容 ${JSON.stringify(restoredContent)}`,
     );
 
     client.close();
