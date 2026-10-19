@@ -32,6 +32,7 @@
 
 - 常规测试 **661 项**（660 通过 + 1 平台跳过）；Windows / Ubuntu 全量 verify；Windows / macOS / Linux 三平台 `inventory-probe` 35 项断言/平台；Bench 三平台通过。
 - 慢测试 1 项、`smoke:kernel`、`smoke:gui` 40/40、check / typecheck / lint / format / build 全绿。
+- Pack run [39191567818](https://github.com/LuZhong-Li/skill-manager/actions/runs/39191567818) 四 leg 全部 Success；Release Smoke run [39192890970](https://github.com/LuZhong-Li/skill-manager/actions/runs/39192890970) 验证生产 GUI 40/40、发布物内核 0.4.0 盘点闭环，5 个交付物 SHA256 全部复核通过。
 
 ### 【明确不做】
 
