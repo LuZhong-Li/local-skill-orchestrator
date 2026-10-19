@@ -1177,7 +1177,7 @@ flowchart TB
 | 14 | `import` | C-01、C-03 | K-08、K-07、K-03、K-04 | 是 |
 | 15 | `update` | C-01、C-03 | K-04、K-09、K-03 | 是 |
 | 16 | `restore` | C-01、C-03 | K-04、K-08、K-11、K-03、K-09 | 是 |
-| 17 | `reconcile` | C-01、C-03 | 盘点快照 / L-4 对账、K-04、K-15、账本 store | 是（T0~T4：预览、共享根整组、插件 x-、分类批量） |
+| 17 | `reconcile` | C-01、C-03 | 盘点快照 / L-4 对账、K-04、K-15、账本 store | 是（T0~T5：预览、共享根整组、插件 x-、分类批量、GUI 确认） |
 
 第 16 条 `restore` 为二期备份恢复批次新增：卸载产出的备份载体首次有了恢复通道。它落在既有的分层与模块之内——由 K-08 读取并校验载体、K-04 编排「写回原件、重分发副本、刷新或重建记录」，未引入新模块，也未改变任何层的职责边界。
 
@@ -1990,6 +1990,30 @@ flowchart TB
 | 分层检查 | `check:arch` 232 文件 / 896 边 / 0 循环 / 0 allowlist |
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0** |
 | 测试总数 | 703 → **711 项**（710 通过 + 1 项平台条件跳过） |
+
+### 补充记录 2026-10-19（M4c 二期 T5：GUI 动作预览与确认）
+
+来源：M4c 二期 T5。界面只经 `kernel:invoke` 调用既有 `reconcile`，动作计划与执行结果全部来自内核。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `gui/renderer/src/inventory-actions.ts` | 分类到推荐动作的展示映射；插件禁用 adopt/accept，破坏性动作标记 | gui | M4c2-R9 |
+| 2 | `gui/renderer/src/components/host-inventory/InventoryActionMenu.vue` | 每个物理副本独立动作入口，只发起预览 | gui | M4c2-R9 |
+| 3 | `gui/renderer/src/components/host-inventory/InventoryActionDialog.vue` | 自持预览 / 执行事务：挂载即只读计划，显式确认才 `--apply --yes` | gui | M4c2-R3 / R9 |
+| 4 | `gui/renderer/src/components/host-inventory/InventoryCopyDetails.vue` | 普通、损坏、缺失明细接入动作列 | gui | M4c2-R9 |
+| 5 | `gui/renderer/src/components/HostInventoryView.vue` | 动作选择、执行后重新盘点；保持 `scan --inventory` 只读通道 | gui | M4c2-R1 / R9 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 17；GUI 未新增指令或 IPC，复用 `kernel:invoke` |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 问题码 | 69，未新增 |
+| 分层检查 | `check:arch` 236 源文件 + 1 资产节点 / 905 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；超阈值文件 **0**；App.vue 785 行 |
+| 冒烟 | `smoke:gui` 40 → **61/61** |
+| 测试总数 | 711 → **714 项**（713 通过 + 1 项平台条件跳过） |
 
 ---
 

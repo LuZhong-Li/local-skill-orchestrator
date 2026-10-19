@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** 宿主分组：内置与第三方 x- 宿主分区，根与共享根消费关系逐条展示。 */
 import { computed } from 'vue';
-import type { InventoryHostNode } from '@skill-manager/contract';
+import type { InventoryHostNode, ReconcileAction } from '@skill-manager/contract';
 import {
   nonZeroClassificationEntries,
   roleLabel,
@@ -10,6 +10,10 @@ import {
 import InventoryCopyDetails from './InventoryCopyDetails.vue';
 
 const props = defineProps<{ hosts: InventoryHostNode[] }>();
+const emit = defineEmits<{ action: [action: ReconcileAction, path: string] }>();
+function forwardAction(action: ReconcileAction, path: string): void {
+  emit('action', action, path);
+}
 
 const builtin = computed(() => props.hosts.filter((host) => host.host_group === 'builtin'));
 const thirdParty = computed(() => props.hosts.filter((host) => host.host_group === 'plugin'));
@@ -80,15 +84,27 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
 
         <details v-if="node.copies.length > 0" class="copy-fold">
           <summary>副本明细（{{ node.copies.length }}）</summary>
-          <InventoryCopyDetails :copies="node.copies" test-id="inventory-copies" />
+          <InventoryCopyDetails
+            :copies="node.copies"
+            test-id="inventory-copies"
+            @action="forwardAction"
+          />
         </details>
         <details v-if="node.corrupt.length > 0" class="copy-fold">
           <summary>损坏 / 不可读（{{ node.corrupt.length }}）</summary>
-          <InventoryCopyDetails :corrupt="node.corrupt" test-id="inventory-root-corrupt" />
+          <InventoryCopyDetails
+            :corrupt="node.corrupt"
+            test-id="inventory-root-corrupt"
+            @action="forwardAction"
+          />
         </details>
         <details v-if="node.missing.length > 0" class="copy-fold">
           <summary>账本记录但副本缺失（{{ node.missing.length }}）</summary>
-          <InventoryCopyDetails :missing="node.missing" test-id="inventory-root-missing" />
+          <InventoryCopyDetails
+            :missing="node.missing"
+            test-id="inventory-root-missing"
+            @action="forwardAction"
+          />
         </details>
       </div>
     </article>
@@ -130,11 +146,19 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
         </div>
         <details v-if="node.copies.length > 0" class="copy-fold">
           <summary>副本明细（{{ node.copies.length }}）</summary>
-          <InventoryCopyDetails :copies="node.copies" test-id="inventory-copies" />
+          <InventoryCopyDetails
+            :copies="node.copies"
+            test-id="inventory-copies"
+            @action="forwardAction"
+          />
         </details>
         <details v-if="node.corrupt.length > 0" class="copy-fold">
           <summary>损坏 / 不可读（{{ node.corrupt.length }}）</summary>
-          <InventoryCopyDetails :corrupt="node.corrupt" test-id="inventory-root-corrupt" />
+          <InventoryCopyDetails
+            :corrupt="node.corrupt"
+            test-id="inventory-root-corrupt"
+            @action="forwardAction"
+          />
         </details>
       </div>
     </article>

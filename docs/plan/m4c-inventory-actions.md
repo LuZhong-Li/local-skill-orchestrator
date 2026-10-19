@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作实施计划 |
 | 文档路径 | `docs/plan/m4c-inventory-actions.md` |
-| 文档状态 | **评审通过，T0 / T1 / T2 / T3 / T4 已完成；T5 待启动**（2026-10-19） |
+| 文档状态 | **评审通过，T0 / T1 / T2 / T3 / T4 / T5 已完成；T6 待启动**（2026-10-19） |
 | 依据 | [`docs/design/m4c-inventory-actions.md`](../design/m4c-inventory-actions.md)；需求 9.3.8、9.3.7；[`docs/research/m4c-inventory-actions-2026-10-19.md`](../research/m4c-inventory-actions-2026-10-19.md) |
 | 基线 | T0 后常规测试 **676 项**（675 通过 + 1 项平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0 |
 | 边界 | 本文不修改代码、契约或 schema；评审批准后才进入 T0 实现 |
@@ -233,6 +233,18 @@
 5. 单条失败保留其余结果并刷新；
 6. 空工作区、无动作根状态、undetermined 不显示可执行按钮；
 7. GUI 冒烟覆盖共享根、adopt、repair、accept、clean、取消场景。
+
+**落地记录**：
+
+| 项 | 结果 |
+|---|---|
+| 入口 | 普通 / 损坏 / 缺失明细按副本显示动作；未纳管、缺失、漂移、孤儿、损坏与 not_distributed 可进入；managed 与 undetermined 无按钮 |
+| 预览 | 对话框挂载即只读生成计划；自持预览 / 执行状态，展示写入、账本变化、备份、共享根全部消费宿主与执行后分类 |
+| 确认 | 仅显式确认发 `--apply --yes`；accept / clean 二次确认；取消零写入；无批量写入口 |
+| 插件 | x- 宿主禁用 adopt / accept；repair 只写 plugin_index |
+| 刷新 | 执行后重新盘点；逐项 succeeded / failed / skipped 与问题码保留可读 |
+| 测试 | 新增 3 项动作映射单元与 21 项界面冒烟；常规 711 → **714 项**（713 通过 + 1 平台跳过）；`smoke:gui` **61/61** |
+| 结构 | 依赖图 236 源文件 / 905 边 / 0 循环；complexity 94；超阈值文件 0；App.vue 785 行 |
 
 ---
 

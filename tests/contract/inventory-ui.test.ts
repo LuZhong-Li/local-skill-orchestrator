@@ -48,16 +48,21 @@ test('契约：盘点视图走通用 scan --inventory，不直接访问 preload 
   ]) {
     assert.equal(host.includes(forbidden), false, `盘点视图不得使用 ${forbidden}`);
   }
-  assert.equal(
-    host.includes('install'),
-    false,
-    '盘点视图不得包含安装类调用（禁用占位使用中文文案）',
-  );
+  assert.equal(host.includes('install'), false, '盘点视图不得包含安装类调用');
   assert.equal(host.includes('uninstall'), false);
-  assert.match(host, /一期严格只读/);
+  assert.match(host, /盘点本身只读/);
+  assert.match(host, /不会一键全修或全删/);
+  assert.match(host, /@done="load"/);
+
+  const dialog = read('gui/renderer/src/components/host-inventory/InventoryActionDialog.vue');
+  assert.match(dialog, /\['reconcile', '--action', props\.action, '--path', props\.path\]/);
+  assert.match(dialog, /'--apply'/);
+  assert.match(dialog, /'--yes'/);
+  assert.equal(dialog.includes('window.skillManager'), false);
+  assert.match(dialog, /onMounted\(loadPreview\)/);
 });
 
-test('契约：未初始化工作区有盘点入口，只读占位与角色折叠可见', () => {
+test('契约：未初始化工作区有盘点入口，逐条动作与角色折叠可见', () => {
   const dashboard = read('gui/renderer/src/components/DashboardView.vue');
   assert.match(dashboard, /data-testid="open-inventory"/);
   assert.match(dashboard, /盘点这台电脑上已安装的 Skill/);
@@ -70,13 +75,17 @@ test('契约：未初始化工作区有盘点入口，只读占位与角色折�
 
   const host = read('gui/renderer/src/components/HostInventoryView.vue');
   assert.match(host, /data-testid="inventory-untracked"/);
-  assert.match(host, /disabled title="二期功能"/);
+  assert.match(host, /动作按副本逐条提供/);
   assert.match(host, /data-testid="inventory-third-party-hosts"|InventoryHostGroups/);
 
   const groups = read('gui/renderer/src/components/host-inventory/InventoryHostGroups.vue');
   assert.match(groups, /data-testid="inventory-builtin-hosts"/);
   assert.match(groups, /data-testid="inventory-third-party-hosts"/);
   assert.match(groups, /data-testid="inventory-consumed-by"/);
+
+  const menu = read('gui/renderer/src/components/host-inventory/InventoryActionMenu.vue');
+  assert.match(menu, /data-testid="`inventory-action-\$\{option\.action\}`"/);
+  assert.match(menu, /:disabled="option\.disabled"/);
 });
 
 test('契约：盘点结果类型只来自 contract', () => {

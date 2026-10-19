@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { runThirdPartyInventoryCheck } from './gui-smoke-inventory.mjs';
+import { runPluginInventoryActionChecks } from './gui-smoke-inventory-actions.mjs';
 
 const CLI = fileURLToPath(new URL('../kernel/entry/cli.ts', import.meta.url));
 
@@ -133,6 +134,7 @@ export async function runPluginSmoke({ evaluate, waitFor, check, workspace }) {
     hostBefore.slice(0, 160),
   );
   await runThirdPartyInventoryCheck({ evaluate, waitFor, check });
+  await runPluginInventoryActionChecks({ evaluate, waitFor, check, workspace });
   await evaluate('document.querySelector(\'[data-plugin-id="smoke-tools"] button\')?.click()');
   await waitFor("document.querySelector('.dialog')?.innerText.includes('landings') === true", 60);
   check(

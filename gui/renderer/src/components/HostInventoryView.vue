@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
- * 全机盘点视图：只读呈现 scan --inventory 结果。
- * 本组件只接收 run 函数，不访问 preload / Node，也不提供任何写动作。
+ * 全机盘点视图：只读呈现 scan --inventory 结果；副本动作先生成预览，
+ * 确认后才经 reconcile --apply 写入。本组件不访问 preload / Node。
  */
 import { computed, onMounted, ref } from 'vue';
-import type { InventoryScanData, Result } from '@skill-manager/contract';
+import type { InventoryScanData, ReconcileAction, Result } from '@skill-manager/contract';
 import InventorySummary from './host-inventory/InventorySummary.vue';
 import InventoryHostGroups from './host-inventory/InventoryHostGroups.vue';
 import InventoryCopyDetails from './host-inventory/InventoryCopyDetails.vue';
+import InventoryActionDialog from './host-inventory/InventoryActionDialog.vue';
 
 const props = defineProps<{
   run: (argv: string[]) => Promise<Result<Record<string, unknown>>>;
@@ -16,6 +17,9 @@ const props = defineProps<{
 const data = ref<InventoryScanData | null>(null);
 const loading = ref(false);
 const error = ref('');
+const actionOpen = ref(false);
+const action = ref<ReconcileAction>('adopt');
+const actionPath = ref('');
 
 const untracked = computed(
   () =>
@@ -46,6 +50,16 @@ async function load(): Promise<void> {
   }
 }
 
+function previewAction(nextAction: ReconcileAction, path: string): void {
+  action.value = nextAction;
+  actionPath.value = path;
+  actionOpen.value = true;
+}
+
+function closeAction(): void {
+  actionOpen.value = false;
+}
+
 onMounted(load);
 </script>
 
@@ -55,7 +69,9 @@ onMounted(load);
       <div class="view-head">
         <div>
           <h2>这台电脑上已安装的 Skill</h2>
-          <p class="muted">只读盘点本机宿主目录：不改工作区、不写账本、不安装或卸载任何内容。</p>
+          <p class="muted">
+            盘点本身只读；每个副本的动作入口先生成预览，确认后才会写入。不会一键全修或全删。
+          </p>
         </div>
         <button class="primary" data-testid="inventory-refresh" :disabled="loading" @click="load">
           {{ loading ? '正在盘点…' : '重新盘点' }}
@@ -112,35 +128,49 @@ onMounted(load);
           <span class="count">{{ untracked.length }}</span>
         </summary>
         <p class="muted">
-          这些副本在磁盘上存在，但没有可用的账本或工作区记录。一期只读展示；
-          导入与修复动作留到二期，下方按钮为禁用占位。
+          这些副本在磁盘上存在，但没有可用的账本或工作区记录。可在明细中逐条采纳；
+          共享根会提示受影响的全部宿主。
         </p>
         <InventoryCopyDetails
           :copies="untracked"
           test-id="inventory-untracked-copies"
           empty-text="没有未纳管的副本。"
+          @action="previewAction"
         />
-        <div class="phase-two">
-          <button disabled title="二期功能">导入到工作区（二期）</button>
-          <button disabled title="二期功能">修复漂移（二期）</button>
-          <span class="muted">一期严格只读</span>
-        </div>
+        <p class="muted action-hint">动作按副本逐条提供；默认预览，确认后才执行。</p>
       </details>
 
-      <InventoryHostGroups :hosts="data.hosts" />
+      <InventoryHostGroups :hosts="data.hosts" @action="previewAction" />
 
       <section v-if="data.corrupt.length > 0" class="panel wide" data-testid="inventory-corrupt">
         <h2>损坏 / 不可读副本（{{ data.corrupt.length }}）</h2>
         <p class="muted">损坏副本单独列出，不进入任何有效副本计数。</p>
-        <InventoryCopyDetails :corrupt="data.corrupt" test-id="inventory-corrupt-copies" />
+        <InventoryCopyDetails
+          :corrupt="data.corrupt"
+          test-id="inventory-corrupt-copies"
+          @action="previewAction"
+        />
       </section>
 
       <section v-if="data.missing.length > 0" class="panel wide" data-testid="inventory-missing">
         <h2>缺失副本（{{ data.missing.length }}）</h2>
         <p class="muted">账本仍有 active 记录，但物理副本已不存在。</p>
-        <InventoryCopyDetails :missing="data.missing" test-id="inventory-missing-copies" />
+        <InventoryCopyDetails
+          :missing="data.missing"
+          test-id="inventory-missing-copies"
+          @action="previewAction"
+        />
       </section>
     </template>
+
+    <InventoryActionDialog
+      v-if="actionOpen"
+      :action="action"
+      :path="actionPath"
+      :run="run"
+      @close="closeAction"
+      @done="load"
+    />
   </section>
 </template>
 
@@ -187,11 +217,8 @@ onMounted(load);
   font-size: 12px;
 }
 
-.phase-two {
-  display: flex;
-  gap: calc(var(--space) * 2);
-  align-items: center;
-  flex-wrap: wrap;
+.action-hint {
+  margin: 0;
   font-size: 12px;
 }
 

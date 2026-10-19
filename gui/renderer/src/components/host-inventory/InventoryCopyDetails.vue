@@ -4,6 +4,7 @@ import type {
   MissingInventoryCopy,
   ReconciledInventoryCopy,
   ReconciledInventoryCorruptCopy,
+  ReconcileAction,
 } from '@skill-manager/contract';
 import {
   authorityClass,
@@ -16,6 +17,12 @@ import {
   reasonText,
   visibilityLabel,
 } from '../../host-inventory-presentation.ts';
+import InventoryActionMenu from './InventoryActionMenu.vue';
+
+const emit = defineEmits<{ action: [action: ReconcileAction, path: string] }>();
+function forwardAction(action: ReconcileAction, path: string): void {
+  emit('action', action, path);
+}
 
 withDefaults(
   defineProps<{
@@ -48,6 +55,7 @@ withDefaults(
             <th>分类</th>
             <th>权威</th>
             <th>判定依据</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -83,6 +91,9 @@ withDefaults(
               {{ reasonText(copy.reconciliation) }}
               <span class="muted evidence">{{ evidenceText(copy.reconciliation.evidence) }}</span>
             </td>
+            <td>
+              <InventoryActionMenu :copy="copy" @action="forwardAction" />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -95,6 +106,7 @@ withDefaults(
             <th>损坏副本</th>
             <th>路径</th>
             <th>原因</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -107,6 +119,9 @@ withDefaults(
               <code>{{ copy.path }}</code>
             </td>
             <td class="reason">{{ copy.reason }}</td>
+            <td>
+              <InventoryActionMenu :copy="copy" @action="forwardAction" />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -121,6 +136,7 @@ withDefaults(
             <th>账本</th>
             <th>权威</th>
             <th>判定依据</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -139,6 +155,9 @@ withDefaults(
               </span>
             </td>
             <td class="reason">{{ reasonText(copy) }}</td>
+            <td>
+              <InventoryActionMenu :copy="copy" @action="forwardAction" />
+            </td>
           </tr>
         </tbody>
       </table>

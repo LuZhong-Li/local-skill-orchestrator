@@ -73,10 +73,10 @@ async function checkEvidenceAndPlaceholders(context) {
   );
   const untrackedOk = [
     untracked.includes('未纳管清单'),
-    untracked.includes('导入到工作区（二期）'),
-    untracked.includes('一期严格只读'),
+    untracked.includes('动作按副本逐条提供'),
+    untracked.includes('默认预览'),
   ].every(Boolean);
-  check('未纳管清单可见并保留二期只读占位', untrackedOk, cut(untracked, 180));
+  check('未纳管清单可见并提供逐条动作入口', untrackedOk, cut(untracked, 180));
 }
 
 async function checkNoWriteActions(context) {
@@ -85,15 +85,14 @@ async function checkNoWriteActions(context) {
     '[...document.querySelectorAll(\'[data-testid="host-inventory"] button\')].map((item) => ({ text: item.textContent.trim(), disabled: item.disabled }))',
   );
   const rows = Array.isArray(buttons) ? buttons : [];
-  const writeLabels = ['安装', '卸载', '启用', '停用', '更新', '导入', '修复'];
-  const enabledWrites = rows.filter(
-    (item) => writeLabels.some((label) => item.text.includes(label)) && item.disabled !== true,
+  const batchWrites = rows.filter(
+    (item) => /全部|一键|批量修复|批量清理/.test(item.text) && item.disabled !== true,
   );
   const updateHidden =
     (await evaluate("document.querySelector('.update-check') === null")) === true;
   check(
-    '盘点视图无启用的写动作且隐藏更新检查',
-    enabledWrites.length === 0 && updateHidden,
+    '盘点视图无批量写动作且隐藏更新检查',
+    batchWrites.length === 0 && updateHidden,
     JSON.stringify(rows),
   );
 }
@@ -151,6 +150,12 @@ export async function runEmptyWorkspaceInventoryChecks(context) {
   await checkEvidenceAndPlaceholders(context);
   await checkNoWriteActions(context);
   await checkReadonlyAndScroll(context);
+  const workspaceBeforeAction = treeHash(context.workspace);
+  const actionCount = Number(
+    await evaluate('document.querySelectorAll(\'[data-testid^="inventory-action-"]\').length'),
+  );
+  check('无工作区基线时不提供盲采纳动作', actionCount === 0, `动作按钮 ${String(actionCount)}`);
+  check('空工作区盘点不写工作区', treeHash(context.workspace) === workspaceBeforeAction);
   await evaluate(
     "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '仪表盘')?.click()",
   );

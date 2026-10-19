@@ -55,6 +55,16 @@
 - **批量**：classification 必须 host/root；逐项结果，单副本失败不回滚成功项；共享组内原子。
 - **验证**：新增 7 项 T4 e2e + 1 项单元；常规 **703 → 711 项**（710 通过 + 1 平台跳过）；`check:arch` 232 文件 / 896 边 / 0 循环；complexity 94；超阈值文件 0；不发版。
 
+### M4c 二期 T5：GUI 动作预览与确认（2026-10-19）
+
+- **动作入口**：盘点明细按分类给出推荐动作——untracked → adopt，inferred → track，drift → repair / accept，missing → repair / forget，orphaned → repair 或 adopt / clean，unreadable → repair / clean，not_distributed → repair；managed 无动作。
+- **预览事务**：点击动作即挂载对话框并只读生成计划；展示写入项、账本变化、备份根、执行后分类与共享根全部消费宿主。对话框自持预览 / 执行状态，按钮只使用本组件已就绪的计划。
+- **确认边界**：只有显式确认才附带 `--apply --yes`；accept / clean 增加破坏性二次确认；取消零写入；不做一键全修 / 全删，clean 不提供分类批量。
+- **插件限制**：x- 宿主副本禁用 adopt / accept，保留 track / repair / clean / forget；repair 仅写 `plugin_index`。
+- **执行与刷新**：逐项 succeeded / failed / skipped 与问题码可读；成功后重新盘点，分类与未纳管清单即时更新；计划过期或占用错误原样呈现。
+- **组件**：新增 `inventory-actions.ts`、`InventoryActionMenu.vue`、`InventoryActionDialog.vue`；App.vue 保持 785 行不增。
+- **验证**：新增 3 项动作映射单元与 21 项界面冒烟；常规 **711 → 714 项**（713 通过 + 1 平台跳过）；`smoke:gui` **61/61**；依赖图 236 源文件 / 905 边 / 0 循环；complexity 94；超阈值文件 0；不发版。
+
 ### P1-c：lifecycle 拆分（2026-10-19）
 
 - **入口**：`kernel/core/lifecycle/index.ts` 1738 → **19 行**，只保留公共导出；实现按 `install` / `uninstall` / `toggle` / `update` / `restore` 拆分，共享工具进 `shared.ts`、稳定类型进 `types.ts`。
