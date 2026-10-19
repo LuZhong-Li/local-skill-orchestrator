@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      - name: 检出
+        uses: actions/checkout@v5
+
       - name: 回下载 Release 资产
         env:
           GH_TOKEN: ${{ github.token }}
