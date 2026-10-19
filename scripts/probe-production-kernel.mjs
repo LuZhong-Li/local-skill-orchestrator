@@ -22,7 +22,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const kernel = process.argv[2];
-const expectedVersion = process.argv[3] ?? '0.5.0';
+const expectedVersion =
+  process.argv[3] ??
+  JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 if (kernel === undefined || kernel === '') {
   console.error('用法：node scripts/probe-production-kernel.mjs <内核> [期望版本]');
   process.exit(2);

@@ -26,6 +26,16 @@ async function refresh(context) {
 }
 
 async function clickAction(context, action, path) {
+  const ready = await context.waitFor(
+    `(() => {
+      const path = ${JSON.stringify(path)};
+      const button = [...document.querySelectorAll('[data-testid="inventory-action-${action}"]')]
+        .find((item) => item.dataset.path === path);
+      return button !== undefined && button.disabled === false;
+    })()`,
+    80,
+  );
+  if (!ready) return false;
   return (
     (await context.evaluate(
       `(() => {

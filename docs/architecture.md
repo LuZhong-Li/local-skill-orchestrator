@@ -2027,6 +2027,8 @@ flowchart TB
 | 4 | `kernel/store/atomic/index.ts` | 导出 `renameWithRetry`；目录与文件换名共用 5 次线性退避 | store | M4c2-R10 |
 | 5 | `kernel/dispatch/reconcile/*` | adopt / accept / clean / adopt-source 的目录换名全部改走统一工具 | dispatch | M4c2-R4 / R5 / R6 |
 | 6 | `tests/e2e/reconcile-failure-matrix.test.ts` | track / forget 账本损坏、accept 计划过期与账本失败回滚 | tests | M4c2-R3 / R6 |
+| 7 | `kernel/entry/exe.ts` | SEA 入口改用 `process.exitCode`，等待 macOS 管道 stdout 排空 | entry | v0.5.1 修复 |
+| 8 | `.github/workflows/verify.yml` / `probe-production-kernel.mjs` | 三平台 SEA 内核六动作与大 JSON 管道回归 | CI / scripts | v0.5.1 修复 |
 
 #### 计数校验（本批次）
 
@@ -2038,7 +2040,7 @@ flowchart TB
 | 分层检查 | `check:arch` 238 源文件 + 1 资产节点 / 913 边 / 0 循环 / 0 allowlist |
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0**；App.vue 785 行 |
 | 三平台写探针 | 87 项断言；CI [39264446848](https://github.com/LuZhong-Li/skill-manager/actions/runs/39264446848) 的 Windows / macOS / Linux 三个 job 全 Success |
-| 测试总数 | 714 → **726 项**（725 通过 + 1 项平台条件跳过） |
+| 测试总数 | 714 → **727 项**（726 通过 + 1 项平台条件跳过） |
 
 ---
 

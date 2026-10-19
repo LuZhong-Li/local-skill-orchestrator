@@ -1,5 +1,20 @@
 # 变更记录
 
+## 0.5.1
+
+> **补丁候选（未打 tag / 未发布）**：修复 v0.5.0 发布物在 macOS 管道上的大 JSON 截断。
+
+### 修复
+
+- **SEA 入口 stdout 排空**：`kernel/entry/exe.ts` 从 `process.exit(code)` 改为 `process.exitCode = code`，与源码入口一致。v0.5.0 的 macOS 发布物在 `scan --inventory --json` 输出约 64KB 后截断，六动作本身均通过；该缺陷由 Release Verify 的 macOS C 组真实捕获。
+- **回归守卫**：`verify.yml` 新增 `sea-pipe-probe`（Windows / macOS / Linux），构建 SEA 内核后执行六动作、只读盘点与 300 副本大 JSON 管道解析；契约测试锁定 `exe.ts` 不得直接 `process.exit`。
+- **GUI 冒烟稳健性**：动作入口点击前等待目标按钮就绪，消除生产形态较慢刷新时的时序抖动；产品行为不变。
+
+### 验证
+
+- 发布物探针在本地 0.5.1 SEA 内核通过：六动作 + `scan --inventory` 字节不变 + 302 副本 / 1,027,633 B 管道输出完整解析。
+- 修复不改变 v0.5.0 的 CLI 契约、指令数、问题码或 schema。
+
 ## 0.5.0
 
 > **发布候选（未打 tag / 未发布）**：本段为 v0.5.0 发版草稿，等待发布授权。

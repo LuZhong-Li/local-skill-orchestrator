@@ -23,6 +23,13 @@ test('契约：M4c-7 三平台探针接入可复用 verify 工作流', () => {
   const cli = read('kernel/entry/cli.ts');
   assert.match(cli, /process\.exitCode = code/);
   assert.equal(cli.includes('process.exit(code)'), false, '大 JSON 输出必须等待 stdout 排空');
+  const exe = read('kernel/entry/exe.ts');
+  assert.match(exe, /process\.exitCode = code/);
+  assert.equal(
+    exe.includes('process.exit(code)'),
+    false,
+    'SEA 入口同样必须等待 stdout 排空，避免 macOS 管道截断',
+  );
   const releaseSmoke = read('.github/workflows/release-smoke.yml');
   assert.match(releaseSmoke, /SHA256SUMS\.txt/);
   assert.match(releaseSmoke, /gui-smoke\.mjs --app/);

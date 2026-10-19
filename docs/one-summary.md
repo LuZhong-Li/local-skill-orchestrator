@@ -710,6 +710,18 @@
 
 > T6 已收口；M4c 二期文档、实现与三平台验证全部完成，等待 v0.5.0 发布授权。
 
+### 6.35 v0.5.0 发布与 v0.5.1 补丁候选（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| v0.5.0 发布 | tag `v0.5.0` → `e156ec0`；Pack [39266741537](https://github.com/LuZhong-Li/skill-manager/actions/runs/39266741537) 四 leg + Release job Success；Release 为 latest、非 draft、非 prerelease；6 资产齐备 |
+| Release Verify | 资产与 SHA 复算 Success；macOS arm64/x64 六动作全部通过，但大 JSON 管道在约 64KB 处截断；Windows 生产 GUI 冒烟在动作入口出现时序抖动 |
+| 根因 | `kernel/entry/exe.ts` 仍使用 `process.exit(code)`，源码入口已改 `process.exitCode`；SEA 入口因此未等待 macOS 管道 stdout 排空 |
+| v0.5.1 补丁候选 | `exe.ts` 改 `process.exitCode`；新增三平台 `sea-pipe-probe`（构建 SEA 内核后跑六动作、只读盘点与 300 副本管道）；GUI 动作冒烟增加按钮就绪等待 |
+| 本地验证 | 0.5.1 SEA 探针：六动作、`scan --inventory` 字节不变、302 副本 / 1,027,633 B 管道完整解析；727 项测试（726 通过 + 1 平台跳过） |
+
+> v0.5.0 已发布但存在 macOS 大 JSON 管道截断缺陷；v0.5.1 补丁候选待发布授权。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

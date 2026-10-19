@@ -75,3 +75,17 @@ test('契约：失败矩阵覆盖 track / forget / accept 的账本与计划过�
     assert.ok(matrix.includes(marker), `失败矩阵应覆盖 ${marker}`);
   }
 });
+
+test('契约：SEA 可执行入口的大 JSON 管道回归接入三平台', () => {
+  const workflow = read('.github/workflows/verify.yml');
+  const job = workflow.slice(workflow.indexOf('  sea-pipe-probe:'));
+  assert.ok(job.length > 0, 'verify.yml 应包含 sea-pipe-probe job');
+  for (const runner of ['ubuntu-24.04', 'windows-latest', 'macos-15']) {
+    assert.ok(job.includes(runner), `SEA 管道探针应覆盖 ${runner}`);
+  }
+  assert.match(job, /npm run build:kernel/);
+  assert.match(job, /node scripts\/probe-production-kernel\.mjs/);
+  const probe = read('scripts/probe-production-kernel.mjs');
+  assert.match(probe, /大 JSON 管道不截断/);
+  assert.match(probe, /scanThroughPipe/);
+});

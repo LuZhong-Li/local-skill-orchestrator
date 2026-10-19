@@ -172,3 +172,35 @@ jobs:
 
       - name: 三平台 reconcile 写动作探针
         run: npm run probe:reconcile
+
+  # T6.1：SEA 可执行入口的大 JSON 管道回归。源码入口与 SEA 入口都必须
+  # 使用 exitCode 等待 stdout 排空；macOS 的管道缓冲区曾暴露 process.exit 截断。
+  sea-pipe-probe:
+    name: SEA 大 JSON 管道探针（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - windows-latest
+          - macos-15
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+
+      - name: 安装 Node（取自 .nvmrc）
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 构建 SEA 内核
+        run: npm run build:kernel
+
+      - name: 可执行内核六动作与大 JSON 管道
+        run: node scripts/probe-production-kernel.mjs build/kernel/skill-manager.exe
