@@ -526,6 +526,18 @@
 
 > v0.4.0 已发布；M1 ~ M5 与 M4c、可维护性横切批次全部落地。
 
+### 6.22 P1-c lifecycle 拆分（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| 入口 | `kernel/core/lifecycle/index.ts` 1738 → **19 行**，只保留公共导出 |
+| 模块 | `install` / `uninstall` / `toggle` / `update` / `restore` + `shared` / `types`；新模块均低于 500 行 |
+| 行为 | 16 指令输出、退出码、落位、备份、锁与失败原子性不变；lifecycle 单测 58、CLI/update/host-uninstall e2e 70 全绿 |
+| 结构 | `check:arch` 176 文件 / 570 边 / 0 循环 / 0 allowlist；complexity 保持 **94**；超阈值文件 12 → **11** |
+| 测试 | 新增 1 项结构断言；常规 661 → **662 项**（单元 412、契约 134、端到端 116；661 通过 + 1 平台跳过） |
+
+> P1-c 已收口；下一批 P1-d plugins/manifest 拆分。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-19T02:09:36.731Z",
+  "generated_at": "2026-10-19T04:52:07.545Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -305,28 +305,8 @@
         "clearedBy": "P2"
       },
       {
-        "id": "kernel/core/lifecycle/index.ts#disableSkill#39a64f21de27",
-        "file": "kernel/core/lifecycle/index.ts",
-        "function": "disableSkill",
-        "scope": "disableSkill",
-        "signature": "export function disableSkill(input: ToggleInput): LifecycleOutcome {",
-        "complexity": 20,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/index.ts#enableSkill#ec252eb6e69f",
-        "file": "kernel/core/lifecycle/index.ts",
-        "function": "enableSkill",
-        "scope": "enableSkill",
-        "signature": "export function enableSkill(input: ToggleInput): LifecycleOutcome {",
-        "complexity": 27,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/index.ts#installFromSource#06d43e4e084f",
-        "file": "kernel/core/lifecycle/index.ts",
+        "id": "kernel/core/lifecycle/install.ts#installFromSource#06d43e4e084f",
+        "file": "kernel/core/lifecycle/install.ts",
         "function": "installFromSource",
         "scope": "installFromSource",
         "signature": "function installFromSource(input: InstallInput, sourceDir: string): LifecycleOutcome {",
@@ -335,28 +315,8 @@
         "clearedBy": "P1-c"
       },
       {
-        "id": "kernel/core/lifecycle/index.ts#projectRecord#846f184432f0",
-        "file": "kernel/core/lifecycle/index.ts",
-        "function": "projectRecord",
-        "scope": "projectRecord",
-        "signature": "function projectRecord(",
-        "complexity": 23,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/index.ts#rebuildRecord#4378202204e3",
-        "file": "kernel/core/lifecycle/index.ts",
-        "function": "rebuildRecord",
-        "scope": "rebuildRecord",
-        "signature": "function rebuildRecord(",
-        "complexity": 11,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/index.ts#restoreSkill#102e5f53e21b",
-        "file": "kernel/core/lifecycle/index.ts",
+        "id": "kernel/core/lifecycle/restore.ts#restoreSkill#102e5f53e21b",
+        "file": "kernel/core/lifecycle/restore.ts",
         "function": "restoreSkill",
         "scope": "restoreSkill",
         "signature": "export function restoreSkill(input: RestoreInput): LifecycleOutcome {",
@@ -365,52 +325,42 @@
         "clearedBy": "P1-c"
       },
       {
-        "id": "kernel/core/lifecycle/index.ts#targetsOfRecord#7addcf6ad871",
-        "file": "kernel/core/lifecycle/index.ts",
+        "id": "kernel/core/lifecycle/shared.ts#projectRecord#74bde791cf8b",
+        "file": "kernel/core/lifecycle/shared.ts",
+        "function": "projectRecord",
+        "scope": "projectRecord",
+        "signature": "export function projectRecord(",
+        "complexity": 23,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/shared.ts#rebuildRecord#19902cb824e2",
+        "file": "kernel/core/lifecycle/shared.ts",
+        "function": "rebuildRecord",
+        "scope": "rebuildRecord",
+        "signature": "export function rebuildRecord(",
+        "complexity": 11,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/shared.ts#targetsOfRecord#d1fb3993fa06",
+        "file": "kernel/core/lifecycle/shared.ts",
         "function": "targetsOfRecord",
         "scope": "targetsOfRecord",
-        "signature": "function targetsOfRecord(input: {",
+        "signature": "export function targetsOfRecord(input: {",
         "complexity": 12,
         "owner": "lifecycle",
         "clearedBy": "P1-c"
       },
       {
-        "id": "kernel/core/lifecycle/index.ts#toIndexRecord#9055342bb47e",
-        "file": "kernel/core/lifecycle/index.ts",
+        "id": "kernel/core/lifecycle/shared.ts#toIndexRecord#dd61b4b97d3f",
+        "file": "kernel/core/lifecycle/shared.ts",
         "function": "toIndexRecord",
         "scope": "toIndexRecord",
-        "signature": "function toIndexRecord(",
+        "signature": "export function toIndexRecord(",
         "complexity": 12,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/index.ts#uninstallSkill#be468555b4b8",
-        "file": "kernel/core/lifecycle/index.ts",
-        "function": "uninstallSkill",
-        "scope": "uninstallSkill",
-        "signature": "export function uninstallSkill(input: UninstallInput): LifecycleOutcome {",
-        "complexity": 12,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/index.ts#updateFromSource#de6f5191d015",
-        "file": "kernel/core/lifecycle/index.ts",
-        "function": "updateFromSource",
-        "scope": "updateFromSource",
-        "signature": "function updateFromSource(input: UpdateInput, fetchedDir: string | null): LifecycleOutcome {",
-        "complexity": 21,
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
-      },
-      {
-        "id": "kernel/core/lifecycle/index.ts#updateSkill#c55da023a0fb",
-        "file": "kernel/core/lifecycle/index.ts",
-        "function": "updateSkill",
-        "scope": "updateSkill",
-        "signature": "export async function updateSkill(input: UpdateInput): Promise<LifecycleOutcome> {",
-        "complexity": 13,
         "owner": "lifecycle",
         "clearedBy": "P1-c"
       },
@@ -461,6 +411,56 @@
         "scope": "normalizeSource",
         "signature": "export function normalizeSource(",
         "complexity": 12,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/toggle.ts#disableSkill#39a64f21de27",
+        "file": "kernel/core/lifecycle/toggle.ts",
+        "function": "disableSkill",
+        "scope": "disableSkill",
+        "signature": "export function disableSkill(input: ToggleInput): LifecycleOutcome {",
+        "complexity": 20,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/toggle.ts#enableSkill#ec252eb6e69f",
+        "file": "kernel/core/lifecycle/toggle.ts",
+        "function": "enableSkill",
+        "scope": "enableSkill",
+        "signature": "export function enableSkill(input: ToggleInput): LifecycleOutcome {",
+        "complexity": 27,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/uninstall.ts#uninstallSkill#be468555b4b8",
+        "file": "kernel/core/lifecycle/uninstall.ts",
+        "function": "uninstallSkill",
+        "scope": "uninstallSkill",
+        "signature": "export function uninstallSkill(input: UninstallInput): LifecycleOutcome {",
+        "complexity": 12,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/update.ts#updateFromSource#de6f5191d015",
+        "file": "kernel/core/lifecycle/update.ts",
+        "function": "updateFromSource",
+        "scope": "updateFromSource",
+        "signature": "function updateFromSource(input: UpdateInput, fetchedDir: string | null): LifecycleOutcome {",
+        "complexity": 21,
+        "owner": "lifecycle",
+        "clearedBy": "P1-c"
+      },
+      {
+        "id": "kernel/core/lifecycle/update.ts#updateSkill#c55da023a0fb",
+        "file": "kernel/core/lifecycle/update.ts",
+        "function": "updateSkill",
+        "scope": "updateSkill",
+        "signature": "export async function updateSkill(input: UpdateInput): Promise<LifecycleOutcome> {",
+        "complexity": 13,
         "owner": "lifecycle",
         "clearedBy": "P1-c"
       },
@@ -974,13 +974,6 @@
         "category": "core",
         "owner": "host",
         "clearedBy": "P1-a"
-      },
-      {
-        "file": "kernel/core/lifecycle/index.ts",
-        "lines": 1738,
-        "category": "core",
-        "owner": "lifecycle",
-        "clearedBy": "P1-c"
       },
       {
         "file": "kernel/core/lifecycle/source.ts",

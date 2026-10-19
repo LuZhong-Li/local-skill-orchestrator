@@ -1,5 +1,15 @@
 # 变更记录
 
+## 未发布
+
+### P1-c：lifecycle 拆分（2026-10-19）
+
+- **入口**：`kernel/core/lifecycle/index.ts` 1738 → **19 行**，只保留公共导出；实现按 `install` / `uninstall` / `toggle` / `update` / `restore` 拆分，共享工具进 `shared.ts`、稳定类型进 `types.ts`。
+- **行为**：16 指令输出、退出码、落位、备份、锁与失败原子性不变；lifecycle 单测 58、CLI/update/host-uninstall e2e 70 全绿。
+- **结构**：`check:arch` 176 文件 / 570 边 / 0 循环 / 0 allowlist；complexity 保持 **94**；超阈值文件 12 → **11**；新模块均低于 500 行。
+- **测试**：新增 1 项结构断言；常规 661 → **662 项**（单元 412、契约 134、端到端 116；661 通过 + 1 平台跳过）。
+- **边界**：纯重构，不发版；P1-d plugins/manifest 拆分仍在后续批次。
+
 ## 0.4.0
 
 > 状态：**已发布为 latest**（[v0.4.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.4.0)）。范围见 [`docs/plan/v0.4.0-acceptance.md`](docs/plan/v0.4.0-acceptance.md)。

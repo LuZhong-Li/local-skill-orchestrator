@@ -533,7 +533,7 @@ skill-manager/
 │   │   ├── metadata/                K-01 元数据模型服务
 │   │   ├── discovery/               K-02 发现与登记服务
 │   │   ├── index/                   K-03 索引服务
-│   │   ├── lifecycle/               K-04 生命周期编排服务
+│   │   ├── lifecycle/               K-04 生命周期编排（install/uninstall/toggle/update/restore + shared/types）
 │   │   ├── validation/              K-05 校验引擎
 │   │   ├── dependency/              K-06 依赖分析服务
 │   │   ├── conflict/                K-07 冲突检测服务
