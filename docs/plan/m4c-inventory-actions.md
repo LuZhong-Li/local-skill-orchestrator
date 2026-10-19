@@ -286,11 +286,12 @@
 | M4c2-R9 GUI 动作入口 | 通过 | `InventoryActionDialog.vue`、`tests/contract/inventory-ui.test.ts`、`smoke:gui` 61/61 |
 | M4c2-R10 兼容、错误与范围边界 | 通过 | 错误码矩阵、`rename-single-source.test.ts`、无自动删除/全修测试、版本守卫 |
 
-**发布后修复（v0.5.1 候选）**：
+**发布后修复（v0.5.1 已发布）**：
 
 - v0.5.0 Release Verify 的 macOS C 组在六动作全部通过后，发现 `scan --inventory --json` 约 64KB 处截断；根因是 SEA 入口 `kernel/entry/exe.ts` 仍用 `process.exit(code)`。
-- v0.5.1 候选改为 `process.exitCode`，与 `cli.ts` 一致；新增三平台 `sea-pipe-probe`（SEA 内核六动作 + 只读盘点 + 300 副本大 JSON 管道）与 `exe.ts` 静态守卫。GUI 动作冒烟增加按钮就绪等待。
-- 候选版本 0.5.1，常规测试 727 项（726 通过 + 1 平台跳过）；待发布授权。
+- v0.5.1 改为 `process.exitCode`，与 `cli.ts` 一致；新增三平台 `sea-pipe-probe`（SEA 内核六动作 + 只读盘点 + 300 副本大 JSON 管道）与 `kernel/`/`gui/` 无 `process.exit(` 静态守卫。GUI 动作冒烟增加按钮就绪等待。
+- 发布：tag `v0.5.1` → `433b3e4`；Pack [39272915140](https://github.com/LuZhong-Li/skill-manager/actions/runs/39272915140) 与 Release Verify [39275887751](https://github.com/LuZhong-Li/skill-manager/actions/runs/39275887751) 全 Success；Windows GUI 61/61，三平台发布物内核 `actions=6 / pipe_copies=302 / ~1.03MB`。
+- 常规测试 727 项（726 通过 + 1 平台跳过）。
 
 ---
 

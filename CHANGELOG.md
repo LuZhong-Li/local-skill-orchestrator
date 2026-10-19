@@ -2,22 +2,26 @@
 
 ## 0.5.1
 
-> **补丁候选（未打 tag / 未发布）**：修复 v0.5.0 发布物在 macOS 管道上的大 JSON 截断。
+> **已发布**：tag `v0.5.1` → `433b3e4`；修复 v0.5.0 发布物在 macOS 管道上的大 JSON 截断。
 
 ### 修复
 
 - **SEA 入口 stdout 排空**：`kernel/entry/exe.ts` 从 `process.exit(code)` 改为 `process.exitCode = code`，与源码入口一致。v0.5.0 的 macOS 发布物在 `scan --inventory --json` 输出约 64KB 后截断，六动作本身均通过；该缺陷由 Release Verify 的 macOS C 组真实捕获。
 - **回归守卫**：`verify.yml` 新增 `sea-pipe-probe`（Windows / macOS / Linux），构建 SEA 内核后执行六动作、只读盘点与 300 副本大 JSON 管道解析；契约测试锁定 `exe.ts` 不得直接 `process.exit`。
 - **GUI 冒烟稳健性**：动作入口点击前等待目标按钮就绪，消除生产形态较慢刷新时的时序抖动；产品行为不变。
+- **入口审计**：`kernel/entry` 仅有 `cli.ts` / `exe.ts`，均使用 `exitCode`；`kernel/` 与 `gui/` 源码中不存在 `process.exit(`，其余命中全部在构建/检查/冒烟脚本中。
+- **缺陷版本标记**：v0.5.0 Release notes 已幂等前置「macOS 大 JSON 管道约 64KB 截断」提示并指向 v0.5.1；v0.1.0 提示同步指向 v0.5.1；v0.1.1~v0.4.0 保持不动。
 
 ### 验证
 
-- 发布物探针在本地 0.5.1 SEA 内核通过：六动作 + `scan --inventory` 字节不变 + 302 副本 / 1,027,633 B 管道输出完整解析。
-- 修复不改变 v0.5.0 的 CLI 契约、指令数、问题码或 schema。
+- Pack [39272915140](https://github.com/LuZhong-Li/skill-manager/actions/runs/39272915140) 四 leg + Release job Success；Release Verify [39275887751](https://github.com/LuZhong-Li/skill-manager/actions/runs/39275887751) 四 job 全 Success。
+- 生产 GUI（Windows portable + app.asar）：`smoke:gui` **61/61**；动作按钮就绪等待后 accept 等动作稳定走通。
+- 发布物内核：Windows / macOS arm64 / macOS x64 均 `actions=6`、`pipe_copies=302`、约 1.03MB JSON 完整解析；v0.5.0 的 65,378 字节失败点已通过。
+- 常规测试 727 项（726 通过 + 1 平台跳过）；修复不改变 v0.5.0 的 CLI 契约、指令数、问题码或 schema。
 
 ## 0.5.0
 
-> **发布候选（未打 tag / 未发布）**：本段为 v0.5.0 发版草稿，等待发布授权。
+> **已发布**：tag `v0.5.0` → `e156ec0`。Release notes 已标记 macOS SEA 大 JSON 管道已知问题，建议升级 v0.5.1。
 
 ### v0.5.0 范围
 

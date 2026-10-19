@@ -2040,6 +2040,7 @@ flowchart TB
 | 分层检查 | `check:arch` 238 源文件 + 1 资产节点 / 913 边 / 0 循环 / 0 allowlist |
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0**；App.vue 785 行 |
 | 三平台写探针 | 87 项断言；CI [39264446848](https://github.com/LuZhong-Li/skill-manager/actions/runs/39264446848) 的 Windows / macOS / Linux 三个 job 全 Success |
+| v0.5.1 发布验证 | Pack [39272915140](https://github.com/LuZhong-Li/skill-manager/actions/runs/39272915140) 与 Release Verify [39275887751](https://github.com/LuZhong-Li/skill-manager/actions/runs/39275887751) 全 Success；Windows GUI 61/61；Windows/macOS 发布物 `actions=6 / pipe_copies=302 / ~1.03MB` |
 | 测试总数 | 714 → **727 项**（726 通过 + 1 项平台条件跳过） |
 
 ---
