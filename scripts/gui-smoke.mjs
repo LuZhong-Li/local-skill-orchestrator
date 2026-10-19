@@ -8,17 +8,18 @@
  * 用法：node scripts/gui-smoke.mjs（开发产物）
  *       node scripts/gui-smoke.mjs --app <可执行文件路径>（针对打包产物，需要图形会话；
  *       相对路径按当前目录解析，例如 build/desktop/win-unpacked/skill-manager.exe）
+ *       环境变量 SKILL_MANAGER_ELECTRON_EXECUTABLE 可指定开发模式使用的 Electron 可执行文件。
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:net';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareHostFixture, prepareWorkspace, remoteMeta } from './gui-smoke-fixtures.mjs';
 import { runEmptyWorkspaceInventoryChecks } from './gui-smoke-inventory.mjs';
 import { runPluginSmoke } from './gui-smoke-plugin.mjs';
-import { killTree } from './gui-smoke-launch.mjs';
+import { killTree, readTextOrFallback } from './gui-smoke-launch.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GUI = join(ROOT, 'gui');
@@ -76,6 +77,13 @@ async function startGitDaemon(basePath, port) {
     attempt();
   });
   return child;
+}
+
+function electronExecutable() {
+  const override = process.env['SKILL_MANAGER_ELECTRON_EXECUTABLE'];
+  if (override !== undefined && override !== '') return override;
+  const name = process.platform === 'win32' ? 'electron.exe' : 'electron';
+  return join(ROOT, 'node_modules', 'electron', 'dist', name);
 }
 
 /** 指定 --app 时直接运行打包后的可执行文件，否则运行开发产物 */
@@ -165,13 +173,7 @@ async function main() {
   const hostLocal = mkdtempSync(join(tmpdir(), 'sm-gui-local-'));
   prepareHostFixture(hostHome, hostLocal);
   const userData = mkdtempSync(join(tmpdir(), 'sm-gui-user-data-'));
-  const electron =
-    packagedApp ??
-    join(
-      existsSync(join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe'))
-        ? join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')
-        : join(ROOT, 'node_modules', 'electron', 'dist', 'electron'),
-    );
+  const electron = packagedApp ?? electronExecutable();
   const child = spawn(
     electron,
     [...(packagedApp === undefined ? ['.'] : []), `--remote-debugging-port=${PORT}`],
@@ -475,15 +477,12 @@ async function main() {
     let restored = false;
     let restoredContent = 'absent';
     for (let index = 0; index < 60; index += 1) {
-      try {
-        restoredContent = readFileSync(
-          join(workspace, 'skills', 'smoke-skill', 'SKILL.md'),
-          'utf8',
-        );
-      } catch {
-        restoredContent = 'absent';
-      }
-      if (restoredContent === '# smoke') {
+      const content = readTextOrFallback(
+        join(workspace, 'skills', 'smoke-skill', 'SKILL.md'),
+        'absent',
+      );
+      restoredContent = content;
+      if (content === '# smoke') {
         restored = true;
         break;
       }
