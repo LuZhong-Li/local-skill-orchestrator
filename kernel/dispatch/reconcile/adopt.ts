@@ -1,5 +1,4 @@
 /** T2 adopt：把宿主实际内容导入中心库，并建立索引与 adopted 账本记录。 */
-import { renameSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   CODES,
@@ -16,6 +15,7 @@ import { removeTree } from '../../store/library-fs/index.ts';
 import { loadHostLandingsForWrite, saveHostLandings } from '../../store/host-landings/index.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { finding } from '../../store/findings.ts';
+import { renameWithRetry } from '../../store/atomic/index.ts';
 import { AdoptError, prepareAdopt, type AdoptInput, type PreparedAdopt } from './adopt-source.ts';
 import type { ReconcileExecutionItem } from './execution-types.ts';
 import { ledgerHostIds } from './group.ts';
@@ -118,7 +118,7 @@ function commit(input: AdoptInput, prepared: PreparedAdopt): ReconcileExecutionI
   };
   const oldIndex = input.index;
   try {
-    renameSync(prepared.staging, prepared.libraryDir);
+    renameWithRetry(prepared.staging, prepared.libraryDir);
   } catch (error) {
     try {
       removeTree(prepared.staging);

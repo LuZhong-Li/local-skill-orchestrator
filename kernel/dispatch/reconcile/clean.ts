@@ -1,5 +1,5 @@
 /** T4 clean：共享根按引用计数保留物理副本；插件/内置两本账本独立提交。 */
-import { existsSync, mkdtempSync, renameSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import {
   CODES,
@@ -24,6 +24,7 @@ import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
 import { removeTree } from '../../store/library-fs/index.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { finding } from '../../store/findings.ts';
+import { renameWithRetry } from '../../store/atomic/index.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import type { ReconcileExecutionItem } from './execution-types.ts';
 
@@ -227,7 +228,7 @@ function movePhysical(
 ): Finding[] | undefined {
   try {
     input.hooks?.beforeDelete?.();
-    renameSync(input.item.target_path, snapshot.path);
+    renameWithRetry(input.item.target_path, snapshot.path);
     return undefined;
   } catch (error) {
     removeTree(snapshot.root);
@@ -238,7 +239,7 @@ function movePhysical(
 function restorePhysical(snapshot: { root: string; path: string }, hostPath: string): Finding[] {
   const findings: Finding[] = [];
   try {
-    renameSync(snapshot.path, hostPath);
+    renameWithRetry(snapshot.path, hostPath);
   } catch (error) {
     findings.push(errorFinding(error, hostPath));
   }

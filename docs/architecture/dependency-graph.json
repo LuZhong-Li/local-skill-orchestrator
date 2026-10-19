@@ -1383,6 +1383,18 @@
       "layer": "scripts"
     },
     {
+      "path": "scripts/probe-reconcile-actions.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
+      "path": "scripts/probe-reconcile-plugin.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
       "path": "scripts/release-guard.mjs",
       "kind": "source",
       "region": "scripts",
@@ -4529,6 +4541,13 @@
     },
     {
       "from": "kernel/dispatch/host/uninstall-execute.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../../store/atomic/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/host/uninstall-execute.ts",
       "to": "kernel/store/errors.ts",
       "specifier": "../../store/errors.ts",
       "from_layer": "dispatch",
@@ -4872,6 +4891,13 @@
     },
     {
       "from": "kernel/dispatch/reconcile/accept.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../../store/atomic/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/accept.ts",
       "to": "kernel/store/backup-fs/index.ts",
       "specifier": "../../store/backup-fs/index.ts",
       "from_layer": "dispatch",
@@ -5026,6 +5052,13 @@
     },
     {
       "from": "kernel/dispatch/reconcile/adopt.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../../store/atomic/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/adopt.ts",
       "to": "kernel/store/errors.ts",
       "specifier": "../../store/errors.ts",
       "from_layer": "dispatch",
@@ -5128,6 +5161,13 @@
       "specifier": "./execution-types.ts",
       "from_layer": "dispatch",
       "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/clean.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../../store/atomic/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
     },
     {
       "from": "kernel/dispatch/reconcile/clean.ts",
@@ -6076,6 +6116,13 @@
     },
     {
       "from": "kernel/dispatch/registry/commands/plugin-install.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../../../store/atomic/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/registry/commands/plugin-install.ts",
       "to": "kernel/store/errors.ts",
       "specifier": "../../../store/errors.ts",
       "from_layer": "dispatch",
@@ -6661,6 +6708,13 @@
       "specifier": "../result/index.ts",
       "from_layer": "dispatch",
       "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/registry/host-toggle.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../../store/atomic/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
     },
     {
       "from": "kernel/dispatch/registry/host-toggle.ts",
@@ -7476,6 +7530,13 @@
     },
     {
       "from": "kernel/store/library-fs/index.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../atomic/index.ts",
+      "from_layer": "store",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/store/library-fs/index.ts",
       "to": "kernel/store/errors.ts",
       "specifier": "../errors.ts",
       "from_layer": "store",
@@ -7760,13 +7821,20 @@
       "specifier": "./unsigned-check.mjs",
       "from_layer": "scripts",
       "to_layer": "scripts"
+    },
+    {
+      "from": "scripts/probe-reconcile-actions.mjs",
+      "to": "scripts/probe-reconcile-plugin.mjs",
+      "specifier": "./probe-reconcile-plugin.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
     }
   ],
   "stats": {
-    "source_files": 236,
+    "source_files": 238,
     "asset_nodes": 1,
-    "nodes": 237,
-    "edges": 905,
+    "nodes": 239,
+    "edges": 913,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
@@ -7776,18 +7844,18 @@
       "entry": 2,
       "gui": 45,
       "public": 1,
-      "scripts": 42,
+      "scripts": 44,
       "store": 12
     },
     "outgoing": {
       "contract": 17,
       "core": 294,
-      "dispatch": 451,
+      "dispatch": 457,
       "entry": 8,
       "gui": 80,
       "public": 6,
-      "scripts": 29,
-      "store": 20
+      "scripts": 30,
+      "store": 21
     },
     "incoming": {
       "contract": 17,
@@ -7796,13 +7864,13 @@
       "entry": 1,
       "gui": 80,
       "public": 1,
-      "scripts": 28,
-      "store": 267
+      "scripts": 29,
+      "store": 274
     },
     "cross_layer_edges": {
       "core->store": 112,
       "dispatch->core": 146,
-      "dispatch->store": 133,
+      "dispatch->store": 139,
       "entry->core": 1,
       "entry->dispatch": 5,
       "entry->store": 1,

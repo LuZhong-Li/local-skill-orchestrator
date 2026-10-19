@@ -1,5 +1,5 @@
 /** T3 accept：以宿主内容/可见性为准更新工作区，但绝不在宿主副本上猜来源。 */
-import { copyFileSync, existsSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   type Change,
@@ -20,6 +20,7 @@ import {
 import { saveIndex } from '../../core/index/index.ts';
 import { copyTree, removeTree } from '../../store/library-fs/index.ts';
 import { saveHostLandings } from '../../store/host-landings/index.ts';
+import { renameWithRetry } from '../../store/atomic/index.ts';
 import type { ReconcileExecutionItem } from './execution-types.ts';
 import {
   AcceptError,
@@ -192,7 +193,7 @@ function prepareContent(
         invalid(staging, '宿主副本同时存在可见与禁用标记', '先修复副本标记冲突'),
       ]);
     }
-    if (!existsSync(visible) && existsSync(disabled)) renameSync(disabled, visible);
+    if (!existsSync(visible) && existsSync(disabled)) renameWithRetry(disabled, visible);
     copyFileSync(join(context.libraryDir, 'skill_meta.yaml'), join(staging, 'skill_meta.yaml'));
     const checksum = computeChecksum(staging);
     const digests = safeDigests(staging);
@@ -233,16 +234,16 @@ function commitContent(
   });
   const nextLedger = nextLedgerOf(context, input, prepared.checksum, contentDigest);
   try {
-    renameSync(context.libraryDir, oldLibrary);
+    renameWithRetry(context.libraryDir, oldLibrary);
   } catch (error) {
     removeTree(prepared.staging);
     removeTree(oldDir);
     return failure(input.item, [errorFinding(error, context.libraryDir)]);
   }
   try {
-    renameSync(prepared.staging, context.libraryDir);
+    renameWithRetry(prepared.staging, context.libraryDir);
   } catch (error) {
-    renameSync(oldLibrary, context.libraryDir);
+    renameWithRetry(oldLibrary, context.libraryDir);
     removeTree(oldDir);
     return failure(input.item, [errorFinding(error, context.libraryDir)]);
   }
@@ -250,7 +251,7 @@ function commitContent(
     saveIndex(input.layout.indexFile, nextIndex);
   } catch (error) {
     removeTree(context.libraryDir);
-    renameSync(oldLibrary, context.libraryDir);
+    renameWithRetry(oldLibrary, context.libraryDir);
     removeTree(oldDir);
     return failure(input.item, [errorFinding(error, input.layout.indexFile)]);
   }
@@ -266,7 +267,7 @@ function commitContent(
       // 账本失败是首要诊断；索引回滚失败由随后的账本 finding 保持可见。
     }
     removeTree(context.libraryDir);
-    renameSync(oldLibrary, context.libraryDir);
+    renameWithRetry(oldLibrary, context.libraryDir);
     removeTree(oldDir);
     return failure(input.item, [errorFinding(error, input.layout.hostLandingsFile)]);
   }

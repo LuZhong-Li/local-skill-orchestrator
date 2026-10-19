@@ -1,4 +1,4 @@
-import { renameSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { CODES, type Change, type Finding } from '@skill-manager/contract';
@@ -8,6 +8,7 @@ import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import { saveHostLandings } from '../../store/host-landings/index.ts';
 import { savePluginIndex } from '../../store/plugin-registry/index.ts';
 import { isDirectory, removeTree } from '../../store/library-fs/index.ts';
+import { renameWithRetry } from '../../store/atomic/index.ts';
 import type { HostLandingIndex, PluginIndex } from '@skill-manager/contract';
 import {
   orphanHostLandingsForPaths,
@@ -74,7 +75,7 @@ function saveGroupIndexes(input: {
 }
 
 function restorePhysical(tempPath: string, physicalPath: string): void {
-  renameSync(tempPath, physicalPath);
+  renameWithRetry(tempPath, physicalPath);
 }
 
 function deletePhysical(path: string, format: UnifiedFormat): void {
@@ -212,7 +213,7 @@ function moveGroup(
   const tempPath = join(dirname(group.physical_path), `.sm-uninstall-${randomUUID()}`);
   try {
     hooks?.onBeforeDelete?.(group.physical_path);
-    renameSync(group.physical_path, tempPath);
+    renameWithRetry(group.physical_path, tempPath);
     return { tempPath };
   } catch (error) {
     return { error };

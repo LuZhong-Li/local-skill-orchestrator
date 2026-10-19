@@ -33,7 +33,7 @@
 | 14 | `export` | 备份 | 导出索引状态，剥离未知字段并登记清单 |
 | 15 | `import` | 备份 | 整体校验后逐条登记，既有标识跳过不覆盖 |
 | 16 | `restore` | 备份 | 从备份载体恢复内容：写回中心库、重分发副本、刷新或重建记录 |
-| 17 | `reconcile` | 盘点动作 | T0~T5 已落地：六动作、共享根整组、插件 x-、分类批量与 GUI 预览确认 |
+| 17 | `reconcile` | 盘点动作 | T0~T6 已落地：六动作、共享根整组、插件 x-、分类批量、GUI 确认与三平台写探针 |
 
 复核：`node kernel/entry/cli.ts --help`，或运行 `npm test` 里的契约测试（断言已注册指令是契约清单的子集）。
 
@@ -695,6 +695,19 @@
 | 结构 | 依赖图 236 源文件 / 905 边 / 0 循环；complexity 94；超阈值文件 0 |
 
 > T5 已收口；下一批 T6 三平台 e2e、失败注入与发布前门禁。
+
+### 6.34 M4c 二期 T6：三平台写探针、失败矩阵与 EPERM 收口（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| 三平台写探针 | 新增 `probe:reconcile` 与 verify `reconcile-probe` job；隔离 HOME + 显式 config 根；87 项断言覆盖六动作、预览零写入、共享根、插件 x-、分类批量、symlink 与目标占用失败隔离 |
+| 失败矩阵 | 新增 track / forget 账本损坏、accept 计划过期、accept 账本失败回滚 4 项 e2e；既有 repair / clean / 共享组失败注入保留 |
+| EPERM | 目录级换名统一走 `renameWithRetry`（5 次，10/20/30/40ms 线性退避；EPERM / EACCES / EBUSY）；静态守卫确保 kernel 只有 `store/atomic` 直接调用 `renameSync` |
+| 版本 | 0.5.0 发版候选；三处 package.json、`TOOL_VERSION`、CHANGELOG 顶部段一致；未打 tag / 未发布 |
+| 测试 | 常规 714 → **726 项**（725 通过 + 1 平台跳过）；`smoke:gui` 61/61；写探针 87 项 |
+| 结构 | 依赖图 238 源文件 + 1 资产节点 / 913 边 / 0 循环；complexity 94；超阈值文件 0 |
+
+> T6 已收口；M4c 二期文档、实现与三平台验证全部完成，等待 v0.5.0 发布授权。
 
 ---
 

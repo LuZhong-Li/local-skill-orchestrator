@@ -141,3 +141,34 @@ jobs:
 
       - name: 三平台全机盘点探针
         run: npm run probe:inventory
+
+  # T6：reconcile 写动作探针。与 inventory-probe 同样独立成 job：
+  #   - 三平台真实执行预览与 apply，验证路径、账本、原子换名与回滚；
+  #   - 只使用隔离 HOME 与显式 config 根，不接触 runner 的真实宿主目录；
+  #   - 与主 verify 矩阵解耦，避免把 macOS 全量构建塞进每次提交。
+  reconcile-probe:
+    name: 盘点动作写探针（${{ matrix.os }}）
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - windows-latest
+          - macos-15
+    steps:
+      - name: 检出
+        uses: actions/checkout@v5
+
+      - name: 安装 Node（取自 .nvmrc）
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 三平台 reconcile 写动作探针
+        run: npm run probe:reconcile

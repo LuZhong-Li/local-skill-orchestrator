@@ -15,31 +15,53 @@ export interface AtomicWriteOptions {
   onBeforeRename?: (tempPath: string) => void;
 }
 
+export interface RenameRetryOptions {
+  /** 最大尝试次数（含首次），默认 5 */
+  attempts?: number;
+  /** 线性退避的基础间隔，默认 10ms */
+  backoffMs?: number;
+  /** 注入点：测试重试与耗尽路径 */
+  rename?: (from: string, to: string) => void;
+  /** 注入点：测试退避序列，默认 Atomics.wait */
+  sleep?: (ms: number) => void;
+}
+
 /** 替换目标的重试次数；仅用于消除瞬时占用，不掩盖真实占用 */
 const RENAME_ATTEMPTS = 5;
 /** 重试的基础间隔，按尝试次数线性退避 */
 const RENAME_BACKOFF_MS = 10;
 
 /**
- * 替换目标文件。
+ * 替换目标文件或目录。
  *
- * 在 Windows 上覆盖既有文件时，换名可能瞬时失败并报 EPERM、EACCES 或 EBUSY——
+ * 在 Windows 上换名文件或目录时，可能瞬时失败并报 EPERM、EACCES 或 EBUSY——
  * 通常是安全软件或索引服务短暂持有目标文件，与目标是否真的不可写无关。
  * 这类瞬时失败在有限次数内重试即可消除；重试用尽后仍原样抛出，
- * 真实占用不会被掩盖，调用方照常收到 E-IO-002。
+ * 真实占用不会被掩盖。目录移动同样走本函数，避免 adopt / accept / clean
+ * 绕过退避策略。
  */
-function renameWithRetry(from: string, to: string): void {
-  for (let attempt = 1; ; attempt += 1) {
+export function renameWithRetry(from: string, to: string, options: RenameRetryOptions = {}): void {
+  const {
+    attempts = RENAME_ATTEMPTS,
+    backoffMs = RENAME_BACKOFF_MS,
+    rename = renameSync,
+    sleep = sleepSync,
+  } = options;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      renameSync(from, to);
+      rename(from, to);
       return;
     } catch (error) {
-      const code = (error as { code?: string }).code;
-      const transient = code === 'EPERM' || code === 'EACCES' || code === 'EBUSY';
-      if (!transient || attempt >= RENAME_ATTEMPTS) throw error;
-      sleepSync(RENAME_BACKOFF_MS * attempt);
+      if (!isTransientRenameError(error) || attempt === attempts) throw error;
+      sleep(backoffMs * attempt);
     }
   }
+  throw new Error('rename retry exhausted');
+}
+
+function isTransientRenameError(error: unknown): boolean {
+  const code = (error as { code?: string }).code;
+  return code === 'EPERM' || code === 'EACCES' || code === 'EBUSY';
 }
 
 /** 同步等待：本函数位于同步写入路径，用 Atomics.wait 阻塞而不空转 CPU */

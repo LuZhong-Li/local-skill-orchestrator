@@ -1,6 +1,6 @@
 /** 宿主根内启用/禁用与规则切换。 */
 import { confirmationGate } from './shared.ts';
-import { existsSync, renameSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { TOOL_VERSION } from '../../core/index/index.ts';
 import { type LifecycleOutcome } from '../../core/lifecycle/index.ts';
@@ -9,6 +9,7 @@ import type { SkillIndex } from '../../core/metadata/types.ts';
 import { layoutOf } from '../../store/workspace/index.ts';
 import { CODES, type Finding } from '@skill-manager/contract';
 import { finding } from '../../store/findings.ts';
+import { renameWithRetry } from '../../store/atomic/index.ts';
 import { setHostSkillVisibility } from '../../core/adapters/land.ts';
 import { loadHostRegistry } from '../../core/hosts/index.ts';
 import { buildResult, type Change, type Result } from '../result/index.ts';
@@ -75,7 +76,7 @@ async function runPluginRuleToggle(input: {
     });
   }
   const changed = existsSync(paths.from);
-  if (changed) renameSync(paths.from, paths.to);
+  if (changed) renameWithRetry(paths.from, paths.to);
   return buildResult(
     input.command,
     input.findings,

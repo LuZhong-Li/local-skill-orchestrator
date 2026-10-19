@@ -8,11 +8,12 @@
  * 本体只提供副本层面的可见性切换原语，不负责决定哪个目录是副本——
  * 该判断由调用方依据索引中的落位目标给出。
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { KernelError } from '../errors.ts';
 import { CODES } from '@skill-manager/contract';
 import { DISABLED_SUFFIX, SKILL_MD_NAME } from '@skill-manager/contract';
+import { renameWithRetry } from '../atomic/index.ts';
 
 /** 副本内被改名的文件：技能元数据文件本身 */
 export function copyMarkerName(): string {
@@ -47,7 +48,7 @@ export function setCopyVisibility(copyDir: string, enabled: boolean): 'changed' 
         remedy: '请重新安装该 Skill，或检查副本是否完整',
       });
     }
-    renameSync(disabled, active);
+    renameWithRetry(disabled, active);
     return 'changed';
   }
 
@@ -61,7 +62,7 @@ export function setCopyVisibility(copyDir: string, enabled: boolean): 'changed' 
       remedy: '请重新安装该 Skill，或检查副本是否完整',
     });
   }
-  renameSync(active, disabled);
+  renameWithRetry(active, disabled);
   return 'changed';
 }
 

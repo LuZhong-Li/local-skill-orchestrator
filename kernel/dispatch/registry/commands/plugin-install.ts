@@ -1,5 +1,5 @@
 /** 插件安装处理器。 */
-import { cpSync, existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { TOOL_VERSION } from '../../../core/index/index.ts';
@@ -10,6 +10,7 @@ import { layoutOf } from '../../../store/workspace/index.ts';
 import { toKernelError } from '../../../store/errors.ts';
 import { CODES } from '@skill-manager/contract';
 import { finding } from '../../../store/findings.ts';
+import { renameWithRetry } from '../../../store/atomic/index.ts';
 import { buildResult, type Result } from '../../result/index.ts';
 import { flag } from '../../parsers/index.ts';
 import { acquireFromPath, looksRemote, releaseSource } from '../../../core/lifecycle/source.ts';
@@ -161,7 +162,7 @@ export async function pluginInstallCommand(context: CommandContext): Promise<Res
           }),
         ]);
       }
-      renameSync(temp, destination);
+      renameWithRetry(temp, destination);
     } finally {
       if (existsSync(temp)) rmSync(temp, { recursive: true, force: true });
     }

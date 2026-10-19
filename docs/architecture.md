@@ -2015,6 +2015,31 @@ flowchart TB
 | 冒烟 | `smoke:gui` 40 → **61/61** |
 | 测试总数 | 711 → **714 项**（713 通过 + 1 项平台条件跳过） |
 
+### 补充记录 2026-10-19（M4c 二期 T6：三平台写探针与原子换名）
+
+来源：M4c 二期 T6。探针不进入产品分层，只经 CLI 入口驱动；目录级换名统一收口到 store/atomic。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `scripts/probe-reconcile-actions.mjs` | 三平台写动作探针主入口：隔离 HOME、显式 config 根、预览零写入与 apply 断言 | scripts | M4c2-R1 / R4 / R5 / R7 / R8 |
+| 2 | `scripts/probe-reconcile-plugin.mjs` | 插件 x- 段：repair/track/forget/clean 与 adopt/accept 拒绝 | scripts | M4c2-R7 / R8 |
+| 3 | `.github/workflows/verify.yml` | 新增 `reconcile-probe` 三平台 job，与 inventory-probe 并列 | CI | M4c2-R1 / R10 |
+| 4 | `kernel/store/atomic/index.ts` | 导出 `renameWithRetry`；目录与文件换名共用 5 次线性退避 | store | M4c2-R10 |
+| 5 | `kernel/dispatch/reconcile/*` | adopt / accept / clean / adopt-source 的目录换名全部改走统一工具 | dispatch | M4c2-R4 / R5 / R6 |
+| 6 | `tests/e2e/reconcile-failure-matrix.test.ts` | track / forget 账本损坏、accept 计划过期与账本失败回滚 | tests | M4c2-R3 / R6 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 指令总数 | 17；未新增指令或 IPC |
+| 契约规范份数 / Schema 份数 | 7 份 / 8 份，未变动 |
+| 问题码 | 69，未新增 |
+| 分层检查 | `check:arch` 238 源文件 + 1 资产节点 / 913 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；超阈值文件 **0**；App.vue 785 行 |
+| 三平台写探针 | 87 项断言（Windows 本地通过；CI 矩阵待运行记录） |
+| 测试总数 | 714 → **726 项**（725 通过 + 1 项平台条件跳过） |
+
 ---
 
 **文档结束。** 本文档只定义架构、模块、数据流与接口契约，不包含实现代码。

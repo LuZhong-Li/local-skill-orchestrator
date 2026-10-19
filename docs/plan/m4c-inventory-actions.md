@@ -4,7 +4,7 @@
 |---|---|
 | 文档名称 | M4c 二期盘点动作实施计划 |
 | 文档路径 | `docs/plan/m4c-inventory-actions.md` |
-| 文档状态 | **评审通过，T0 / T1 / T2 / T3 / T4 / T5 已完成；T6 待启动**（2026-10-19） |
+| 文档状态 | **评审通过，T0 / T1 / T2 / T3 / T4 / T5 / T6 已完成**（2026-10-19） |
 | 依据 | [`docs/design/m4c-inventory-actions.md`](../design/m4c-inventory-actions.md)；需求 9.3.8、9.3.7；[`docs/research/m4c-inventory-actions-2026-10-19.md`](../research/m4c-inventory-actions-2026-10-19.md) |
 | 基线 | T0 后常规测试 **676 项**（675 通过 + 1 项平台跳过）；`check:arch` 218 文件 / 778 边 / 0 循环；complexity 94；超阈值文件 0 |
 | 边界 | 本文不修改代码、契约或 schema；评审批准后才进入 T0 实现 |
@@ -258,6 +258,33 @@
 4. 生产 GUI 仍只读盘点；动作只在显式预览与确认后发生；
 5. 文档同步：需求 9.3.8、CLI 契约、host landings 规范 / schema 变更记录、README、one-summary、CHANGELOG；
 6. 不计入版本号决策；发版需另行授权。
+
+**落地记录**：
+
+| 项 | 结果 |
+|---|---|
+| 三平台写探针 | `scripts/probe-reconcile-actions.mjs` + `probe-reconcile-plugin.mjs`；verify `reconcile-probe` job 在 `ubuntu-24.04 / windows-latest / macos-15` 运行；87 项断言 |
+| 覆盖 | 六动作预览零写入 → apply → 分类更新；共享根整组；插件 x- repair/track/forget/clean 与 adopt/accept 拒绝；分类批量；POSIX symlink；目标占用失败隔离 |
+| 失败矩阵 | 新增 track / forget 账本损坏、accept 计划过期、accept 账本失败回滚 4 项 e2e；既有 repair 占用、clean 删除/账本失败、共享组账本失败保留 |
+| EPERM | T5 一次观察到 Windows 临时目录 `renameSync` 瞬时 EPERM，未能稳定复现；触发条件为安全软件 / 索引服务短暂持有目录。按稳定风险处理：目录级换名统一走 `renameWithRetry`（5 次，10/20/30/40ms 线性退避，识别 EPERM/EACCES/EBUSY）；静态守卫确保 kernel 只有 `store/atomic` 直接调用 `renameSync` |
+| 版本 | 0.5.0 发版候选；三处 package.json、`TOOL_VERSION`、CHANGELOG 顶部段一致；未打 tag / 未发布 |
+| 测试 | 常规 714 → **726 项**（725 通过 + 1 平台跳过）；`smoke:gui` 61/61；写探针 87 项 |
+| 结构 | 依赖图 238 源文件 + 1 资产节点 / 913 边 / 0 循环；complexity 94；超阈值文件 0 |
+
+**9.3.8 验收映射**：
+
+| 需求 | 结论 | 主要证据 |
+|---|---|---|
+| M4c2-R1 只读盘点与动作入口分离 | 通过 | `scan --inventory` 只读守卫（M4c-5 4 项快照/静态审计）；动作仅经 `reconcile` |
+| M4c2-R2 分类到动作确定性映射 | 通过 | `gui/renderer/src/inventory-actions.ts`、`kernel/dispatch/reconcile/plan.ts` ACTION_RULES、`tests/unit/inventory-actions.test.ts` |
+| M4c2-R3 预览、显式执行与确认 | 通过 | `tests/e2e/reconcile-preview.test.ts`、`reconcile-failure-matrix.test.ts`、GUI 61/61 冒烟 |
+| M4c2-R4 工作区 → 宿主修复 | 通过 | `tests/e2e/reconcile-repair.test.ts`、写探针 repair 段 |
+| M4c2-R5 宿主 → 工作区采纳与接回 | 通过 | `tests/e2e/reconcile-adopt-track.test.ts`、`reconcile-accept-clean.test.ts`、写探针 adopt/track/accept 段 |
+| M4c2-R6 账本孤儿与缺失记录清理 | 通过 | forget/clean e2e、共享根引用计数、`reconcile-failure-matrix.test.ts` |
+| M4c2-R7 共享根、多宿主与未选中对象隔离 | 通过 | `tests/e2e/reconcile-shared-plugin.test.ts`、写探针 shared root 段 |
+| M4c2-R8 CLI、结果封装与契约 | 通过 | `tests/unit/reconcile-options.test.ts`、CLI 契约 4.17、八字段结果、写探针 JSON 断言 |
+| M4c2-R9 GUI 动作入口 | 通过 | `InventoryActionDialog.vue`、`tests/contract/inventory-ui.test.ts`、`smoke:gui` 61/61 |
+| M4c2-R10 兼容、错误与范围边界 | 通过 | 错误码矩阵、`rename-single-source.test.ts`、无自动删除/全修测试、版本守卫 |
 
 ---
 

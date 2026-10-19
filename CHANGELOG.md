@@ -1,6 +1,25 @@
 # 变更记录
 
-## 未发布
+## 0.5.0
+
+> **发布候选（未打 tag / 未发布）**：本段为 v0.5.0 发版草稿，等待发布授权。
+
+### v0.5.0 范围
+
+- **新增 `reconcile` 指令（第 17 条）**：默认只读预览，`--apply --yes` 才执行；支持 `adopt / track / repair / accept / clean / forget` 六动作。
+- **安全边界**：工作区是 repair 默认基线；accept 只接受内容 / 可见性，不猜 source/version；clean 只处理无工作区基线的 orphaned / unreadable；未纳管不自动删除。
+- **共享根与插件**：共享根按物理副本整组事务；插件 `x-` 写独立 `plugin_index.landings`，adopt / accept 明确拒绝。
+- **GUI**：盘点视图逐副本动作入口、默认预览、显式确认、执行后重新盘点；不做一键全修 / 全删。
+- **跨平台**：三平台 reconcile 写动作探针；目录级原子换名统一走有限退避重试，覆盖 Windows 瞬时 EPERM / EACCES / EBUSY。
+- **可维护性**：contract 包、check:arch、复杂度与规模 ratchet、宿主三处合一、scan / lifecycle / manifest 拆分随版本收录。
+
+### M4c 二期 T6：三平台写探针、失败矩阵与 EPERM 收口（2026-10-19）
+
+- **三平台写探针**：新增 `probe:reconcile` 与独立 `reconcile-probe` verify job（Windows / macOS / Linux）；隔离 HOME + 显式 config 根，87 项断言覆盖六动作、预览零写入、共享根整组、插件 x- 四动作、分类批量、POSIX symlink 与目标占用失败隔离。
+- **失败矩阵**：新增 4 项 e2e，覆盖 track / forget 账本损坏、accept 计划过期（E-RECONCILE-002）与 accept 账本写入失败后的中心库 / 索引回滚；既有 repair 占用、clean 删除/账本失败、共享组账本失败继续保留。
+- **EPERM**：T5 观察到 Windows 临时目录目录级 `renameSync` 瞬时 EPERM；根因是 adopt / accept / clean 绕过了原子写的退避策略。现统一为 `renameWithRetry`（5 次、线性退避 10/20/30/40ms），覆盖 EPERM / EACCES / EBUSY；重试耗尽仍原样抛出，不掩盖真实占用。
+- **静态守卫**：`tests/contract/rename-single-source.test.ts` 断言 kernel 内只有 `store/atomic` 直接调用 `renameSync`，reconcile 的目录移动全部走 `renameWithRetry`。
+- **验证**：常规 **714 → 726 项**（725 通过 + 1 平台跳过）；`smoke:gui` 61/61；依赖图 238 源文件 / 913 边 / 0 循环；complexity 94；超阈值文件 0；不发版。
 
 ### M4c 二期动作文档（2026-10-19）
 

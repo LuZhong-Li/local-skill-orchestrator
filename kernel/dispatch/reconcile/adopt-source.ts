@@ -1,5 +1,5 @@
 /** T2 adopt 的来源读取、元数据合成与中心库暂存；不提交索引/账本。 */
-import { existsSync, mkdtempSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   CODES,
@@ -16,7 +16,7 @@ import { ID_PATTERN } from '../../core/metadata/constants.ts';
 import type { SkillIndex } from '../../core/metadata/types.ts';
 import { validateMetaRecord } from '../../core/metadata/validate.ts';
 import type { WorkspaceLayout } from '../../store/workspace/index.ts';
-import { atomicWriteFile } from '../../store/atomic/index.ts';
+import { atomicWriteFile, renameWithRetry } from '../../store/atomic/index.ts';
 import { copyTree, removeTree } from '../../store/library-fs/index.ts';
 import { stringifyYaml } from '../../store/yaml/index.ts';
 
@@ -317,7 +317,7 @@ function normalizeStaging(staging: string): void {
       ),
     ]);
   }
-  if (!existsSync(visible) && existsSync(disabled)) renameSync(disabled, visible);
+  if (!existsSync(visible) && existsSync(disabled)) renameWithRetry(disabled, visible);
 }
 
 function metaOf(
