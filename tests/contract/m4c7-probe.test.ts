@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 const ROOT = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 
@@ -9,7 +9,15 @@ function read(path: string): string {
   return readFileSync(join(ROOT, path), 'utf8');
 }
 
-test('契约：M4c-7 三平台探针接入可复用 verify 工作流', () => {
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return sourceFiles(path);
+    return path.endsWith('.ts') || path.endsWith('.vue') ? [path] : [];
+  });
+}
+
+test('契约：三平台探针接入 verify，且用户可见内核入口不使用 process.exit', () => {
   const workflow = read('.github/workflows/verify.yml');
   const job = workflow.slice(workflow.indexOf('  inventory-probe:'));
   assert.ok(job.length > 0, 'verify.yml 应包含 inventory-probe job');
@@ -42,6 +50,17 @@ test('契约：M4c-7 三平台探针接入可复用 verify 工作流', () => {
   assert.match(releaseVerify, /codesign -dv/);
   assert.match(releaseVerify, /gui-smoke\.mjs --app/);
   assert.match(releaseVerify, /probe-production-kernel\.mjs/);
+  const offenders = [...sourceFiles(join(ROOT, 'kernel')), ...sourceFiles(join(ROOT, 'gui'))]
+    .filter((path) => readFileSync(path, 'utf8').includes('process.exit('))
+    .map((path) => relative(ROOT, path).replaceAll('\\', '/'));
+  assert.deepEqual(offenders, [], `以下文件仍直接 process.exit：${offenders.join(', ')}`);
+  const entryDir = join(ROOT, 'kernel', 'entry');
+  const entries = readdirSync(entryDir).filter((name) => name.endsWith('.ts'));
+  assert.deepEqual(entries.sort(), ['cli.ts', 'exe.ts'], '新增内核入口必须同步审计 stdout 排空');
+  for (const name of entries) {
+    const source = readFileSync(join(entryDir, name), 'utf8');
+    assert.match(source, /process\.exitCode = code/, `${name} 必须使用 exitCode 等待 stdout 排空`);
+  }
 });
 
 test('契约：探针覆盖路径展开、发现、四分类、插件 .md 与未初始化', () => {

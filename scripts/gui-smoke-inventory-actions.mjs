@@ -17,11 +17,15 @@ async function openInventory(context) {
 
 async function refresh(context) {
   const { evaluate, waitFor } = context;
+  await waitFor(
+    'document.querySelector(\'[data-testid="inventory-refresh"]\') !== null && document.querySelector(\'[data-testid="inventory-refresh"]\')?.disabled === false',
+    80,
+  );
   await evaluate('document.querySelector(\'[data-testid="inventory-refresh"]\')?.click()');
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  await new Promise((resolve) => setTimeout(resolve, 800));
   await waitFor(
     "document.querySelector('[data-testid=\"inventory-refresh\"]')?.textContent.includes('重新盘点') === true && document.querySelector('[data-testid=\"inventory-refresh\"]')?.disabled === false",
-    80,
+    120,
   );
 }
 
@@ -50,8 +54,27 @@ async function clickAction(context, action, path) {
 }
 
 async function preview(context, action, path) {
-  const clicked = await clickAction(context, action, path);
-  if (!clicked) throw new Error(`未找到盘点动作入口：${action} ${path}`);
+  let clicked = await clickAction(context, action, path);
+  if (!clicked) {
+    await refresh(context);
+    clicked = await clickAction(context, action, path);
+  }
+  if (!clicked) {
+    const diagnosis = await context.evaluate(
+      `(() => {
+        const path = ${JSON.stringify(path)};
+        const rows = [...document.querySelectorAll('[data-testid="host-inventory"] tr')]
+          .filter((row) => row.innerText.includes(path) || row.innerText.includes(path.split(/[\\\\/]/).pop()))
+          .map((row) => row.innerText.replace(/\\s+/g, ' ').slice(0, 240));
+        return {
+          refresh: document.querySelector('[data-testid="inventory-refresh"]')?.textContent,
+          untracked: document.querySelector('[data-testid="inventory-untracked"]')?.innerText.slice(0, 300),
+          rows,
+        };
+      })()`,
+    );
+    throw new Error(`未找到盘点动作入口：${action} ${path}\n${JSON.stringify(diagnosis)}`);
+  }
   await context.waitFor(
     'document.querySelector(\'[data-testid="inventory-action-dialog"]\') !== null',
     60,
