@@ -538,6 +538,18 @@
 
 > P1-c 已收口；下一批 P1-d plugins/manifest 拆分。
 
+### 6.23 P1-d plugins/manifest 拆分（2026-10-19）
+
+| 项 | 结果 |
+|---|---|
+| 入口 | `kernel/core/plugins/manifest.ts` 636 → **9 行**，只保留公共导出 |
+| 模块 | `manifest-shared` / `manifest-root` / `manifest-host` / `manifest-validate`，均低于 500 行 |
+| 行为 | 插件 T0/T1/T2/T3 与 schema / 宿主单一来源测试 31 项全绿；安全字段、canonical 命名、config 隔离与 M4c x- 盘点不变 |
+| 结构 | `check:arch` 180 文件 / 583 边 / 0 循环 / 0 allowlist；complexity 保持 **94**；超阈值文件 11 → **10** |
+| 测试 | 新增 1 项结构断言；常规 662 → **663 项**（单元 412、契约 135、端到端 116；662 通过 + 1 平台跳过） |
+
+> P1-d 已收口；下一批 P2 收口。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

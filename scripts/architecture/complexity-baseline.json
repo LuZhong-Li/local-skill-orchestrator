@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-19T04:52:07.545Z",
+  "generated_at": "2026-10-19T06:16:17.193Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -545,34 +545,34 @@
         "clearedBy": "P2"
       },
       {
-        "id": "kernel/core/plugins/manifest.ts#validateHost#e5c7804c8f38",
-        "file": "kernel/core/plugins/manifest.ts",
+        "id": "kernel/core/plugins/manifest-host.ts#validateHost#f098d2d99f21",
+        "file": "kernel/core/plugins/manifest-host.ts",
         "function": "validateHost",
         "scope": "validateHost",
-        "signature": "function validateHost(",
+        "signature": "export function validateHost(",
         "complexity": 39,
-        "owner": "plugins-manifest",
-        "clearedBy": "P1-d"
+        "owner": "kernel-core",
+        "clearedBy": "P2"
       },
       {
-        "id": "kernel/core/plugins/manifest.ts#validatePluginManifest#67a2914e56b1",
-        "file": "kernel/core/plugins/manifest.ts",
+        "id": "kernel/core/plugins/manifest-root.ts#validateRoot#0e96c89a97f3",
+        "file": "kernel/core/plugins/manifest-root.ts",
+        "function": "validateRoot",
+        "scope": "validateRoot",
+        "signature": "export function validateRoot(",
+        "complexity": 30,
+        "owner": "kernel-core",
+        "clearedBy": "P2"
+      },
+      {
+        "id": "kernel/core/plugins/manifest-validate.ts#validatePluginManifest#67a2914e56b1",
+        "file": "kernel/core/plugins/manifest-validate.ts",
         "function": "validatePluginManifest",
         "scope": "validatePluginManifest",
         "signature": "export function validatePluginManifest(",
         "complexity": 52,
-        "owner": "plugins-manifest",
-        "clearedBy": "P1-d"
-      },
-      {
-        "id": "kernel/core/plugins/manifest.ts#validateRoot#1d5ffeeb6407",
-        "file": "kernel/core/plugins/manifest.ts",
-        "function": "validateRoot",
-        "scope": "validateRoot",
-        "signature": "function validateRoot(",
-        "complexity": 30,
-        "owner": "plugins-manifest",
-        "clearedBy": "P1-d"
+        "owner": "kernel-core",
+        "clearedBy": "P2"
       },
       {
         "id": "kernel/core/render/index.ts#renderWithPolicy#33a8dc8ca52e",
@@ -988,13 +988,6 @@
         "category": "core",
         "owner": "kernel-core",
         "clearedBy": "P2"
-      },
-      {
-        "file": "kernel/core/plugins/manifest.ts",
-        "lines": 636,
-        "category": "core",
-        "owner": "plugins-manifest",
-        "clearedBy": "P1-d"
       },
       {
         "file": "kernel/core/validation/index.ts",

@@ -10,6 +10,14 @@
 - **测试**：新增 1 项结构断言；常规 661 → **662 项**（单元 412、契约 134、端到端 116；661 通过 + 1 平台跳过）。
 - **边界**：纯重构，不发版；P1-d plugins/manifest 拆分仍在后续批次。
 
+### P1-d：plugins/manifest 拆分（2026-10-19）
+
+- **入口**：`kernel/core/plugins/manifest.ts` 636 → **9 行**，只保留公共导出；实现拆为 `manifest-shared` / `manifest-root` / `manifest-host` / `manifest-validate`。
+- **行为**：插件 T0/T1/T2/T3 与 schema / 宿主单一来源测试 31 项全绿；安全字段拒绝、canonical `x-` 命名、config 隔离、E-ID/E-VER/E-CONFLICT 与 M4c x- 盘点不变。
+- **结构**：`check:arch` 180 文件 / 583 边 / 0 循环 / 0 allowlist；complexity 保持 **94**；超阈值文件 11 → **10**。
+- **测试**：新增 1 项结构断言；常规 662 → **663 项**（单元 412、契约 135、端到端 116；662 通过 + 1 平台跳过）。
+- **边界**：纯重构，不发版；下一批 P2 收口。
+
 ## 0.4.0
 
 > 状态：**已发布为 latest**（[v0.4.0](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.4.0)）。范围见 [`docs/plan/v0.4.0-acceptance.md`](docs/plan/v0.4.0-acceptance.md)。
