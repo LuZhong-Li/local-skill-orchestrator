@@ -219,8 +219,10 @@ test('K-04 刷新：重算指纹、刷新最近变更时间、首次登记时间
   assert.equal(next?.updated_at, LATER);
   assert.notEqual(next?.checksum, record?.checksum, '内容指纹按磁盘重算');
   assert.equal(outcome.data['checksum_after'], next?.checksum);
-  assert.ok(
-    outcome.findings.some((item) => item.code === CODES.DRIFT && item.severity === 'warning'),
+  assert.equal(
+    outcome.findings.some((item) => item.code === CODES.DRIFT),
+    false,
+    '成功刷新不得携带更新前旧快照的漂移警告',
   );
   assert.equal(
     readFileSync(metaFile, 'utf8').includes('version: 2.0.0'),

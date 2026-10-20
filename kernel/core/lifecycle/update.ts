@@ -168,17 +168,10 @@ function updateFromSource(input: UpdateInput, fetchedDir: string | null): Lifecy
   const checksum = computeChecksum(readDir);
   const raw = read.raw;
   const meta = raw as unknown as SkillMeta;
-  const findings: Finding[] = [...metaFindings];
-  if (record.checksum !== '' && record.checksum !== checksum) {
-    findings.push(
-      finding(CODES.DRIFT, {
-        source: 'meta',
-        target: id,
-        message: `本地内容与记录不一致：记录指纹 ${record.checksum}，重算指纹 ${checksum}`,
-        remedy: '本次刷新会按磁盘现状更新记录；如需保留原内容，请先还原磁盘文件',
-      }),
-    );
-  }
+  const findings: Finding[] = [
+    ...metaFindings,
+    ...checkDriftOf({ record, checksum, check, fetchedDir, id }),
+  ];
 
   let targets: ResolvedTarget[];
   try {
@@ -286,4 +279,28 @@ function updateFromSource(input: UpdateInput, fetchedDir: string | null): Lifecy
     ],
     data: { ...summary, copies: copied },
   };
+}
+
+function checkDriftOf(input: {
+  record: SkillIndex['skills'][number];
+  checksum: string;
+  check: boolean | undefined;
+  fetchedDir: string | null;
+  id: string;
+}): Finding[] {
+  if (
+    input.check !== true ||
+    input.fetchedDir !== null ||
+    input.record.checksum === input.checksum
+  ) {
+    return [];
+  }
+  return [
+    finding(CODES.DRIFT, {
+      source: 'meta',
+      target: input.id,
+      message: `本地内容与记录不一致：记录指纹 ${input.record.checksum}，重算指纹 ${input.checksum}`,
+      remedy: '本次检查按磁盘现状报告漂移；如需保留原内容，请先还原磁盘文件',
+    }),
+  ];
 }

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-19T10:05:02.065Z",
+  "generated_at": "2026-10-20T17:04:49.113Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -450,7 +450,7 @@
         "function": "updateFromSource",
         "scope": "updateFromSource",
         "signature": "function updateFromSource(input: UpdateInput, fetchedDir: string | null): LifecycleOutcome {",
-        "complexity": 21,
+        "complexity": 19,
         "owner": "lifecycle",
         "clearedBy": "P1-c"
       },

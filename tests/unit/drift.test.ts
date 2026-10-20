@@ -225,11 +225,7 @@ test('验收五：安装与刷新都会写入与刷新逐文件摘要', async ()
     id: 'alpha',
     now: LATER,
   });
-  assert.deepEqual(
-    codes(updated.findings),
-    [CODES.DRIFT],
-    '刷新先报告本地漂移，再按磁盘现状刷新记录',
-  );
+  assert.deepEqual(codes(updated.findings), [], '成功刷新不得携带更新前旧快照的漂移警告');
   const record = recordOf(updated.index, 'alpha');
   assert.deepEqual(record.digests, computeDigests(library), '刷新后摘要按磁盘重算');
   assert.equal(record.checksum, computeChecksum(library));
