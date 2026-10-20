@@ -111,6 +111,16 @@
 | `path` | 字符串 | 是 | 变更对象的路径 |
 | `detail` | 字符串 | 否 | 补充说明，例如原值与新值 |
 
+### 2.6 批量操作的结果载荷（加法）
+
+批量 `reconcile` 仍使用同一八字段结果封装；批量信息只进入 `data`，不改变顶层字段、退出码或问题码。
+
+- `data.summary`：保留既有 `selected/planned/skipped/destructive/shared_groups`；执行后可增加 `succeeded/failed/cancelled/duration_ms`；
+- `data.results[]`：执行后逐项结果；每项含 `item_id`、`status`（`succeeded` / `failed` / `skipped`）、`target_path`、`findings` / `message` / `reason`；
+- `data.selection_summary`：batch 选择器的分布摘要；旧选择器省略。
+
+计数约束：`succeeded + failed + skipped + cancelled = selected`；预览与执行后的 `selected` 必须一致。新增字段均为可选或仅批量模式出现，旧消费者可忽略。
+
 ---
 
 ## 3. 严重级别
@@ -201,6 +211,8 @@
 | `E-PATH-001` | 错误 | 引用路径不可达或越出工作区 |
 | `E-VER-001` | 错误 | 索引格式版本不受当前工具支持 |
 | `E-VER-002` | 错误 | 插件 manifest 或插件 API 兼容声明不受当前工具支持 |
+
+`W-DRIFT-001` 的触发条件固定为「当前内容基线」与磁盘实际内容不一致；`update` 成功完成内容、索引与副本写入后必须基于新状态重算，不得用更新前旧快照触发该警告。真实漂移仍保留该码与真实原因；问题码本身不变。
 
 #### 依赖类
 

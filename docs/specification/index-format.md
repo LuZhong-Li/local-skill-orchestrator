@@ -31,6 +31,8 @@
 
 字段定义请查阅元数据规范第 4 章，本文档不重复。
 
+**M6 字段边界**：`compatibility`、`allowed_tools`、`metadata`、`extensions` 只进入 `skill_meta.yaml`，不新增到 `skill_index.yaml` 的记录字段；索引继续只承载既有投影与派生字段，避免索引膨胀和投影规则二次定义。
+
 **与插件索引的边界**：本规范只定义 `skill_index.yaml`。插件登记使用独立的 `plugin_index.yaml`，字段、版本、锁与写入生命周期由第六份规范 [`plugin-format.md`](plugin-format.md) 定义；`skill_index.yaml` 不增加 `extensions[]`，插件记录不得写入本索引。
 
 ### 1.3 术语定义

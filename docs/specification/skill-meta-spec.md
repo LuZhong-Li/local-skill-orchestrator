@@ -204,6 +204,10 @@ Skill ID 是 Skill 的全局唯一标识，同时作为该 Skill 所在目录的
 | `description` | 字符串 | 可选 | 声明区 | 功能与适用场景说明 | 长度不超过 1024 个字符；不得为空字符串 |
 | `author` | 字符串 | 可选 | 声明区 | 作者或维护者标识 | 非空字符串；推荐使用可追溯的账号或名称形式 |
 | `license` | 字符串 | 可选 | 声明区 | 许可协议标识 | 推荐使用通用协议标识写法，例如 `MIT`、`Apache-2.0` |
+| `compatibility` | 字符串 | 可选 | 声明区 | 兼容性说明；来自 SKILL.md 官方 `compatibility` | 长度不超过 500 字符；非空 |
+| `allowed_tools` | 字符串 | 可选 | 声明区 | 允许的工具声明；来自 SKILL.md 官方 `allowed-tools` | 非空字符串；保留空格分隔字符串形态 |
+| `metadata` | 映射 | 可选 | 声明区 | SKILL.md 官方 `metadata` 块的原样承载 | 任意映射；管理端只读取 `author/version` 做归一化，其余不解析 |
+| `extensions` | 映射 | 可选 | 声明区 | 未识别非标准字段的只读承载 | 任意映射；键为原始字段路径，值原样保留；不得自动映射为业务字段 |
 | `status` | 字符串枚举 | 必填 | 声明区 | 启用状态 | 仅允许 `enabled` 或 `disabled` 两个取值，见 5.5 |
 | `path` | 字符串 | 必填 | 声明区 | 该 Skill 目录相对于工作区根目录的路径 | 必须位于 `./skills/` 之下；使用正斜杠分隔；禁止绝对路径；禁止包含上级目录跳转标记 |
 | `trigger_keywords` | 字符串数组 | 可选 | 声明区 | 触发关键词列表 | 每项为非空字符串且不超过 32 个字符；列表内不得重复；建议不超过 10 项 |
@@ -279,6 +283,26 @@ Skill ID 是 Skill 的全局唯一标识，同时作为该 Skill 所在目录的
 | `skill_index.yaml` | **必填** | 索引同样是内核产物，写入时必然已具备这些取值 |
 
 因此在元文件上，只有「字段存在但格式不合规」才报告问题；缺失时由内核在登记、安装与扫描时回填。
+
+### 3.7 `SKILL.md` 到 `skill_meta.yaml` 的归一化
+
+`SKILL.md` 是 Skill 内容的源头，`skill_meta.yaml` 是工作区归一化契约。二者职责固定：
+
+| `SKILL.md` 字段 | `skill_meta` 落点 | 规则 |
+|---|---|---|
+| `name` / `description` / `license` | 同名字段 | 直接映射 |
+| `compatibility` | `compatibility` | 官方字符串；长度 ≤ 500 |
+| `allowed-tools` | `allowed_tools` | 保留空格分隔字符串形态 |
+| `metadata` | `metadata` | 原样保留；只读取 `metadata.author` / `metadata.version` |
+| `metadata.author` / `metadata.version` | `author` / `version` | 提升为工作区顶层；原 `metadata` 不删除 |
+| 顶层旧 `author` / `version` | `author` / `version` | 仅兼容读取；与 metadata 冲突时以 metadata 为准并警告 |
+| 非标准字段（含 `mcp-server`） | `extensions` | 键为原始路径，值原样保留；只读、不解析 |
+
+**冲突优先级**：`adopt` 以 `SKILL.md` 为源头；同一 `SKILL.md` 内 `metadata.author/version` 优先于顶层旧字段；`SKILL.md` 的显式声明优先于既有 `skill_meta`。冲突必须产生字段级 warning，不得静默覆盖。
+
+**metadata 与 extensions**：`metadata` 只承载 SKILL.md 官方 metadata 块；`extensions` 只承载未识别非标准字段。二者都不得自动展平、映射到顶层或搬入 `dependencies`。渲染到宿主时，`metadata` 只输出官方允许的字符串映射；嵌套值 / 非字符串值保留在管理端并记录 `dropped` 原因。
+
+**解析库**：frontmatter 的分隔符提取与字段归一化由管理器完成，YAML 语义复用现有 `yaml` 解析器；不引入 `gray-matter`。
 
 ---
 

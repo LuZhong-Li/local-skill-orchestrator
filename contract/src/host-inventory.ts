@@ -1,6 +1,10 @@
 /** M4c-2 物理副本观察的跨层纯类型；不含目录遍历或文件读取逻辑。 */
 import type { HostRootRole } from './host-roots.ts';
-import type { ReconciliationOutput } from './host-reconciliation.ts';
+import type {
+  ReconciliationClassification,
+  ReconciliationEvidence,
+  ReconciliationOutput,
+} from './host-reconciliation.ts';
 import type { ReconciliationFormat, ReconciliationVisibility } from './host-reconciliation.ts';
 
 export type InventoryRootState =
@@ -137,6 +141,58 @@ export type InventoryClassificationKey =
   | 'orphaned_with_workspace'
   | 'orphaned_without_workspace';
 
+/** 跨宿主审计矩阵的单行状态；与 reconcile 分类复用同一证据。 */
+export type InventoryAuditStatus =
+  | 'distributed'
+  | 'missing'
+  | 'drift'
+  | 'visibility_mismatch'
+  | 'undeclared'
+  | 'unmapped'
+  | 'workspace_only'
+  | 'insufficient';
+
+export type InventoryAuditLedgerState = 'active' | 'orphaned' | 'missing' | 'none' | 'unreadable';
+
+/** 一行表示 skill × targets[] 声明项 × scope。 */
+export interface InventoryAuditRow {
+  skill_id: string;
+  target: string;
+  scope: 'global' | 'project';
+  host_id?: string;
+  expected_enabled: boolean;
+  ledger_state: InventoryAuditLedgerState;
+  target_path?: string;
+  copy_path?: string;
+  copy_version?: string;
+  source_checksum?: string;
+  source_version?: string;
+  content_digest?: string;
+  status: InventoryAuditStatus;
+  classification?: ReconciliationClassification;
+  evidence: ReconciliationEvidence;
+  reasons: string[];
+  observed_at: string;
+}
+
+export interface InventoryAuditSummary {
+  declared: number;
+  distributed: number;
+  missing: number;
+  drift: number;
+  visibility_mismatch: number;
+  undeclared: number;
+  unmapped: number;
+  workspace_only: number;
+  insufficient: number;
+}
+
+export interface InventoryAuditData {
+  observed_at: string;
+  summary: InventoryAuditSummary;
+  rows: InventoryAuditRow[];
+}
+
 export type InventoryClassificationCounts = Record<InventoryClassificationKey, number>;
 
 export interface InventoryClassificationGroups {
@@ -202,6 +258,8 @@ export interface InventoryScanData {
   corrupt: ReconciledInventoryCorruptCopy[];
   missing: MissingInventoryCopy[];
   summary: InventorySummary;
+  /** 仅在 scan --inventory --audit 时出现；旧消费者可忽略。 */
+  audit?: InventoryAuditData;
   degradation: {
     host_landings: 'ok' | 'missing' | 'unreadable';
     plugin_landings: 'ok' | 'missing' | 'unreadable';

@@ -81,7 +81,7 @@
 
 写工作区之外的路径属高影响操作：沿用确认机制（非终端环境必须给出 `--yes`，否则拒绝执行并返回参数类错误），并支持 `--dry-run` 预览将写入的工作区外路径。
 
-**重复给出的处理**：同一命令中重复出现同一选项按**参数类错误**拒绝（`E-INPUT-002`），**不静默取最后值**——该口径对布尔选项与取值选项一致，防止误写的参数被悄悄丢弃。设计上可重复的取值选项在各自语法中标记为 `...`（当前仅 `scan` 的 `--root`），重复给出时按数组聚合。选项的可重复性在解析器的登记表中显式声明，默认单值。
+**重复给出的处理**：同一命令中重复出现同一选项按**参数类错误**拒绝（`E-INPUT-002`），**不静默取最后值**——该口径对布尔选项与取值选项一致，防止误写的参数被悄悄丢弃。设计上可重复的取值选项在各自语法中标记为 `...`（`scan` / `reconcile` 的 `--root`，以及 `reconcile` 的 `--id` / `--role`），重复给出时按数组聚合。选项的可重复性在解析器的登记表中显式声明，默认单值。
 
 ### 2.3 通用行为
 
@@ -214,7 +214,7 @@
 
 **用途**：发现当前环境中的 Skill 并刷新索引记录；当索引缺失或损坏时，本指令同时承担索引重建职责。
 
-**语法**：`skill-manager scan [--kind <skill|plugin>] [--root <路径>...] [--dry-run] [--inventory]`
+**语法**：`skill-manager scan [--kind <skill|plugin>] [--root <路径>...] [--dry-run] [--inventory] [--audit]`
 
 **前置条件**：workspace 模式要求工作区已初始化；待扫描的根目录可达。`--inventory` 模式允许工作区未初始化，不要求索引存在或可读。
 
@@ -256,6 +256,7 @@
 7. M4c-3 起，`data.copies[]` 与 `data.corrupt[]` 每条增加 `reconciliation`（classification / ledger_source / managed-content-source 三轴 evidence / reasons / drift_reasons / authority）；账本 active 记录在磁盘未观察到时进入 `data.missing[]`，并带 host/root_role/format/consumed_by 与同一 reconciliation 形状。`data.degradation` 给出 host / plugin 账本状态。插件 content/source 不得标 authoritative；主计数与最终分类聚合仍不在本模式输出。
 8. M4c-4 起，`data.summary.main` 给出 `{total_copies, unique_skills}`（仅 `root_role=user` 的有效去重副本）；`data.summary.roles.{user,system,platform,project}` 各自给出 total_copies / unique_skills / by_classification / corrupt_count / groups；`data.summary.classification_groups` 聚合 managed、drift、missing、untracked、undetermined、unreadable、not_distributed、orphaned（含工作区在/不在）。新增 `data.hosts[]` 的 `hosts → roots → copies/corrupt/missing` 层级；扁平 copies 仍是去重下钻源。人类可读输出首行突出 user 主计数；默认不展开副本明细，`--verbose` 才展开。
 9. 只读验证：盘点源码静态守卫只允许只读 fs API，禁止写文件、目录、锁、索引、落位与账本提交；动态验证对工作区与全部宿主根做递归文件清单、mtime 与内容哈希快照，前后必须一致。损坏账本、缺失 / 不可读根、未初始化工作区和大规模副本均纳入验证。
+10. `--audit` 只能与 `--inventory` 同用；开启后在 `data.audit` 增加跨宿主审计矩阵（rows / summary / observed_at）。不传时不改变既有 `data` 字段；审计只读，不写索引、账本、日志或缓存。期望集合来自 `skill_meta.targets[]`，`missing` / `undeclared` / `unmapped` / `insufficient` 的口径见 9.3.9 R7 与设计文档。
 
 ### 4.5 `list`
 
@@ -694,7 +695,9 @@
 
 ```text
 skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
-  (--path <物理副本路径> | --id <Skill 标识> --host <宿主|all> |
+  (--path <物理副本路径> |
+   --id <Skill 标识>... --host <宿主|all> |
+   --role <user|system|platform|project>... [--root <根路径>...] |
    --classification <分类> [--host <宿主|all>] [--root <根路径>...])
   [--target <工作区目标标识>] [--apply] [--dry-run] [--yes]
 ```
@@ -720,12 +723,14 @@ T4 执行范围：六个动作均支持共享根整组与插件 `x-` 宿主。�
 
 **选择器与互斥**：
 
-1. `--path` 精确选择一个物理副本；不得与 `--id`、`--host`、`--classification` 混用。
-2. `--id` 必须与 `--host` 同时给出；`--host all` 选择该 Skill 的全部已知宿主副本。
-3. `--classification` 只用于允许分类批量的动作，且必须同时给出 `--host` 或 `--root`；`clean` / `forget` 不接受仅按分类批量。
-4. `--root` 是盘点根过滤器，不是删除授权；路径必须来自最近一次盘点结果。
-5. `--target` 只用于 `adopt`，指定工作区的目标标识；省略时使用工作区默认目标。中心库路径始终按 `skills/<skill_id>` 推导，`--target` 只写入合成元文件的 `targets[]` 声明；该声明路径按 `.<目标标识>/skills/<skill_id>` 推导。目标路径已被其他 Skill 占用时返回明确错误并提示显式 `--target`。
-6. 本指令不接受裸 `--all`、`--kind` 或位置参数；其他指令专用选项按参数类错误拒绝。
+1. `--path` 精确选择一个物理副本；不得与 `--id`、`--role`、`--host`、`--classification` 混用。
+2. `--id` 可重复；每个 `--id` 必须与 `--host` 同时给出；`--host all` 选择该 Skill 的全部已知宿主副本。重复 `--id` 在 plan 层取并集并按物理路径去重。
+3. `--role` 可重复，取值仅允许 `user` / `system` / `platform` / `project`；选择对应角色的宿主根。写动作仍只对 `user` 执行，非 `user` 计划项标 `skipped`；不因角色选择隐式扩大到未选中的 root / host。
+4. `--classification` 只用于允许分类批量的动作，且必须同时给出 `--host` 或 `--root`；`clean` / `forget` 不接受仅按分类批量；`clean` 允许整角色 / 当前筛选全选，但共享根必须整组处理。
+5. `--root` 是盘点根过滤器，不是删除授权；路径必须来自最近一次盘点结果。
+6. batch 选择器（`--id` / `--role` / `--root` / `--classification`）按并集合并；同一物理副本只生成一个 item，共享根按事务组保护。
+7. `--target` 只用于 `adopt`，指定工作区的目标标识；省略时使用工作区默认目标。中心库路径始终按 `skills/<skill_id>` 推导，`--target` 只写入合成元文件的 `targets[]` 声明；该声明路径按 `.<目标标识>/skills/<skill_id>` 推导。目标路径已被其他 Skill 占用时返回明确错误并提示显式 `--target`。
+8. 本指令不接受裸 `--all`、`--kind` 或位置参数；其他指令专用选项按参数类错误拒绝。
 
 **预览与执行**：
 

@@ -40,6 +40,27 @@
       "minLength": 1,
       "description": "许可协议标识，例如 MIT、Apache-2.0"
     },
+    "compatibility": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "兼容性说明；来自 SKILL.md 官方 compatibility 字段"
+    },
+    "allowed_tools": {
+      "type": "string",
+      "minLength": 1,
+      "description": "允许的工具声明；来自 SKILL.md 官方 allowed-tools 字段，保留空格分隔字符串形态"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "SKILL.md 官方 metadata 块的原样承载；管理器侧不解析私有嵌套"
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "未识别非标准字段的只读承载；键为原始字段路径，值原样保留"
+    },
     "status": {
       "type": "string",
       "enum": ["enabled", "disabled"],

@@ -18,7 +18,7 @@ export const RECONCILE_REASON_NON_USER_ROLE = 'non_user_role_read_only';
 export const RECONCILE_WARNING_SHARED_NON_USER_ROLE = 'shared_root_non_user_role';
 
 export type ReconcileAction = (typeof RECONCILE_ACTIONS)[number];
-export type ReconcileSelectionMode = 'path' | 'id-host' | 'classification';
+export type ReconcileSelectionMode = 'path' | 'id-host' | 'classification' | 'batch';
 export type ReconcileSourceOfTruth = 'host' | 'workspace' | 'ledger';
 export type ReconcileWriteAction = 'add' | 'modify' | 'remove';
 export type ReconcileWriteKind =
@@ -37,11 +37,25 @@ export interface ReconcileSelection {
   action: ReconcileAction;
   path?: string;
   id?: string;
+  /** batch 选择器：多个 Skill 标识；T1 起由 parser 聚合为数组。 */
+  ids?: string[];
   host?: string;
   classification?: InventoryClassificationKey;
   roots: string[];
+  /** batch 选择器：按角色选择；写动作仍只执行 user。 */
+  roles?: HostRootRole[];
   target?: string;
   apply: boolean;
+}
+
+/** 批量选择器在 flatten 前的分布摘要；T1 生成，GUI / CLI 只读消费。 */
+export interface ReconcileSelectionSummary {
+  total: number;
+  by_skill: Record<string, number>;
+  by_root: Record<string, number>;
+  by_role: Partial<Record<HostRootRole, number>>;
+  by_host: Record<string, number>;
+  by_classification: Partial<Record<InventoryClassificationKey, number>>;
 }
 
 export interface ReconcileBefore {
@@ -113,6 +127,11 @@ export interface ReconcilePlanSummary {
   skipped: number;
   destructive: number;
   shared_groups: number;
+  /** T1 起执行结果可按同一字段形状回填；预览时保持缺省。 */
+  succeeded?: number;
+  failed?: number;
+  cancelled?: number;
+  duration_ms?: number;
 }
 
 /** `reconcile` 的稳定预览载荷；T0 只产出计划，不执行写入。 */
@@ -125,6 +144,7 @@ export interface ReconcilePreviewData {
   items: ReconcilePlanItem[];
   transaction_groups: ReconcileTransactionGroup[];
   summary: ReconcilePlanSummary;
+  selection_summary?: ReconcileSelectionSummary;
   notes: string[];
 }
 
@@ -133,6 +153,10 @@ export interface ReconcileResultItem {
   status: 'succeeded' | 'failed' | 'skipped';
   target_path: string;
   message?: string;
+  /** 失败发生的阶段，供 GUI 定位；T1 起填充。 */
+  stage?: string;
+  /** 稳定的单项失败 / 跳过原因；T1 起填充。 */
+  reason?: string;
   findings?: Finding[];
   changes?: Change[];
   after?: ReconcileExpected;
