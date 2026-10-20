@@ -7,6 +7,7 @@ import {
   RECONCILE_REASON_NON_USER_ROLE,
   type Change,
   type Finding,
+  type HostLandingVisibility,
   type ReconcileApplyData,
   type ReconcilePlanItem,
   type ReconcileResultItem,
@@ -187,7 +188,7 @@ function repairItem(input: {
     ];
     return { result: failedResult(input.item, findings), findings, changes: [] };
   }
-  const visibility = record.status === 'disabled' ? 'disabled' : 'visible';
+  const visibility = repairVisibilityOf(input.item, record.status);
   const hostValue = input.item.host_ids[0];
   if (hostValue === undefined) {
     const findings = [
@@ -233,6 +234,16 @@ function repairItem(input: {
     const findings = [errorFinding(error, input.item.target_path)];
     return { result: failedResult(input.item, findings), findings, changes: [] };
   }
+}
+
+function repairVisibilityOf(
+  item: ReconcilePlanItem,
+  status: SkillIndex['skills'][number]['status'],
+): HostLandingVisibility {
+  if (item.before.classification_key === 'not_distributed' && item.visibility !== undefined) {
+    return item.visibility;
+  }
+  return status === 'disabled' ? 'disabled' : 'visible';
 }
 
 function forgetItem(input: { item: ReconcilePlanItem; layout: WorkspaceLayout; now: string }): {

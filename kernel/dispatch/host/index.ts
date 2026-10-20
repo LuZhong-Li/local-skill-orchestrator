@@ -126,7 +126,7 @@ function missingRequiredCopy(input: {
   };
 }
 
-function channelOf(input: {
+export function hostChannelOf(input: {
   hostValue: string;
   layout: WorkspaceLayout;
   index: SkillIndex;
@@ -180,7 +180,7 @@ export function runHostLanding(input: {
   if (metaRead.raw === null) {
     return { findings: metaRead.findings, changes: [], data: {} };
   }
-  const built = channelOf({
+  const built = hostChannelOf({
     hostValue: input.hostValue,
     layout: input.layout,
     index: input.index,

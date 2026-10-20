@@ -1,51 +1,23 @@
 /** reconcile 的物理副本候选与 not_distributed 合成项；只读。 */
-import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type {
-  InventoryCopyVisibility,
   HostRootRole,
   InventoryRootView,
   MissingInventoryCopy,
-  ReconciliationFormat,
-  ReconciliationOutput,
   ReconciledInventoryCopy,
   ReconciledInventoryCorruptCopy,
   ReconcileSelection,
 } from '@skill-manager/contract';
 import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
 import { reconcileHostCopy } from '../../core/host-landings/reconcile.ts';
-import { collectUnifiedLandings } from '../../core/host-landings/uninstall.ts';
-import { computeLandingChecksum } from '../../core/integrity/index.ts';
+import { readMetaFile } from '../../core/metadata/read.ts';
 import { loadHostLandings } from '../../store/host-landings/index.ts';
-import { loadPluginIndex } from '../../store/plugin-registry/index.ts';
 import type { InventorySnapshot } from '../scan/inventory.ts';
+import { hostChannelOf } from '../host/index.ts';
+import { pluginOrphanCandidates } from './plugin-candidates.ts';
+import { unique, type Candidate } from './candidate-model.ts';
 
-export interface Candidate {
-  physical_key: string;
-  target_path: string;
-  host_ids: string[];
-  consumed_by: string[];
-  format: ReconciliationFormat;
-  visibility?: InventoryCopyVisibility;
-  skill_id?: string;
-  content_digest?: string;
-  exists: boolean;
-  root_ids: string[];
-  /** 物理副本被哪些 root_role 消费；只有全为 user 才允许写动作。 */
-  root_roles: HostRootRole[];
-  reconciliation: ReconciliationOutput;
-  is_plugin: boolean;
-  /** 同一物理副本被不同 form 的根同时消费：T4 必须拒绝而不是任选。 */
-  format_conflict: boolean;
-  /** 同一物理副本同时被内置与插件账本消费：拒绝猜测归属。 */
-  ledger_conflict: boolean;
-}
-
-export function unique(values: readonly (string | undefined)[]): string[] {
-  return [
-    ...new Set(values.filter((value): value is string => value !== undefined && value !== '')),
-  ];
-}
+export { unique, type Candidate } from './candidate-model.ts';
 
 function uniqueRoles(values: readonly HostRootRole[]): HostRootRole[] {
   return [...new Set(values)];
@@ -128,164 +100,241 @@ export function allCandidates(snapshot: InventorySnapshot): Candidate[] {
   return [...map.values()];
 }
 
-function pluginOrphanCandidates(snapshot: InventorySnapshot): Candidate[] {
-  const loaded = loadPluginIndex(snapshot.layout.pluginIndexFile);
-  if (loaded.index === null) return [];
+export function notDistributedCandidates(
+  snapshot: InventorySnapshot,
+  selection: ReconcileSelection,
+  observed: readonly Candidate[],
+): Candidate[] {
+  const index = snapshot.workspace.index;
+  if (index === null) return [];
+  const explicitIds = unique([...(selection.ids ?? []), selection.id]);
+  if (!notDistributedSelectionEnabled(selection, explicitIds)) return [];
+  const ids = notDistributedIds(snapshot, selection, explicitIds);
   const result: Candidate[] = [];
-  for (const record of loaded.index.landings) {
-    if (record.state !== 'orphaned') continue;
-    const unified = collectUnifiedLandings(null, loaded.index, record.skill_id).find(
-      (item) => item.record === record,
-    );
-    if (unified === undefined) continue;
-    const candidate = pluginOrphanCandidate(snapshot, record, unified);
-    if (candidate !== undefined) result.push(candidate);
+  for (const id of ids) {
+    const record = index.skills.find((item) => item.id === id);
+    if (record === undefined) continue;
+    const countBefore = result.length;
+    for (const target of record.targets) {
+      if (!targetSelected(target.target, target.scope, selection)) continue;
+      const candidate = targetCandidate(snapshot, record, target, selection, observed, result);
+      if (candidate !== undefined) result.push(candidate);
+    }
+    if (result.length === countBefore) {
+      result.push(...guardedRootCandidates(snapshot, record.id, selection, observed, result));
+    }
   }
   return result;
 }
 
-function pluginOrphanCandidate(
+function targetSelected(
+  target: string,
+  scope: 'global' | 'project',
+  selection: ReconcileSelection,
+): boolean {
+  if (selection.host !== undefined && selection.host !== 'all' && selection.host !== target) {
+    return false;
+  }
+  const role: HostRootRole = scope === 'project' ? 'project' : 'user';
+  return selection.roles === undefined || selection.roles.length === 0
+    ? true
+    : selection.roles.includes(role);
+}
+
+function targetCandidate(
   snapshot: InventorySnapshot,
-  record: import('@skill-manager/contract').PluginLanding,
-  unified: ReturnType<typeof collectUnifiedLandings>[number],
+  record: NonNullable<InventorySnapshot['workspace']['index']>['skills'][number],
+  target: { target: string; scope: 'global' | 'project'; enabled: boolean },
+  selection: ReconcileSelection,
+  observed: readonly Candidate[],
+  result: readonly Candidate[],
 ): Candidate | undefined {
-  if (!existsSync(unified.physical_path)) return undefined;
-  const format = unified.format;
-  const workspaceRecord = snapshot.workspace.index?.skills.find(
-    (item) => item.id === record.skill_id,
+  const index = snapshot.workspace.index;
+  if (index === null) return undefined;
+  const planned = plannedTargetOf(snapshot, index, record, target.target);
+  if (!planned.ok) return unavailableTargetCandidate(record.id, target, planned.reason);
+  const { channel, entry, targetPath } = planned;
+  const physicalKey = inventoryPhysicalKey(targetPath);
+  if (candidateObserved(physicalKey, observed, result)) return undefined;
+  const matchingRoots = snapshot.roots.filter((root) =>
+    distributionPathMatches(targetPath, root.path),
   );
-  const digest =
-    format === 'skill' || format === 'rules'
-      ? computeLandingChecksum({ targetPath: unified.physical_path, format })
-      : undefined;
+  if (!distributionRootSelected(matchingRoots, selection.roots)) return undefined;
+  const rootRoles = rootRolesOf(matchingRoots, target.scope);
+  const visibility = target.enabled ? 'visible' : 'disabled';
   return {
-    physical_key: inventoryPhysicalKey(unified.physical_path),
-    target_path: unified.physical_path,
-    host_ids: [record.host_id],
-    consumed_by: [record.host_id],
-    format,
-    ...(format === 'skill'
-      ? {
-          visibility: existsSync(join(unified.physical_path, 'SKILL.md.disabled'))
-            ? ('disabled' as const)
-            : ('visible' as const),
-        }
-      : {}),
-    skill_id: record.skill_id,
-    ...(digest === undefined ? {} : { content_digest: digest }),
-    exists: true,
-    root_ids: [],
-    root_roles: [pluginRootRole(snapshot, record.host_id, unified.physical_path)],
-    reconciliation: {
-      classification: 'orphaned',
-      ledger_source: 'plugin_landings',
-      authority: 'authoritative',
-      evidence: {
-        managed: 'authoritative',
-        content: 'insufficient',
-        source: 'insufficient',
-      },
-      reasons: ['orphaned_plugin_ledger'],
-      drift_reasons: [],
-      untracked_candidate: false,
-      orphaned: {
-        copy_present: true,
-        workspace_record_present: workspaceRecord !== undefined,
-      },
-    },
-    is_plugin: true,
+    physical_key: physicalKey,
+    target_path: targetPath,
+    host_ids: [channel.hostId],
+    consumed_by: unique([channel.hostId, ...entry.consumed_by]),
+    format: channel.form === 'rules' ? 'rules' : 'skill',
+    visibility,
+    skill_id: record.id,
+    exists: false,
+    root_ids: unique(matchingRoots.map((root) => root.root_id)),
+    root_roles: rootRoles,
+    reconciliation: distributionReconciliation(
+      snapshot,
+      record,
+      channel.hostId,
+      targetPath,
+      visibility,
+    ),
+    is_plugin: channel.plugin !== undefined,
     format_conflict: false,
     ledger_conflict: false,
   };
 }
 
-function notDistributedRoots(
+type PlannedTarget =
+  | {
+      ok: true;
+      channel: NonNullable<ReturnType<typeof hostChannelOf>['channel']>;
+      entry: NonNullable<ReturnType<typeof hostChannelOf>['channel']>['plan']['entries'][number];
+      targetPath: string;
+    }
+  | { ok: false; reason: string };
+
+function plannedTargetOf(
   snapshot: InventorySnapshot,
-  selection: ReconcileSelection,
-): InventoryRootView[] {
-  return snapshot.roots.filter((root) => notDistributedRootSelected(root, selection));
+  index: NonNullable<InventorySnapshot['workspace']['index']>,
+  record: NonNullable<InventorySnapshot['workspace']['index']>['skills'][number],
+  hostValue: string,
+): PlannedTarget {
+  const skillDir = join(snapshot.layout.root, record.path);
+  const meta = readMetaFile(skillDir, record.id);
+  if (meta.raw === null) return { ok: false, reason: 'skill_meta_unreadable' };
+  const channel = hostChannelOf({
+    hostValue,
+    layout: snapshot.layout,
+    index,
+    skillDir,
+    raw: meta.raw,
+  }).channel;
+  const entry = channel?.plan.entries.find((item) => item.landable);
+  if (channel === undefined || entry === undefined) {
+    return {
+      ok: false,
+      reason: hostValue.startsWith('x-')
+        ? 'plugin_host_unavailable'
+        : 'host_distribution_unavailable',
+    };
+  }
+  return {
+    ok: true,
+    channel,
+    entry,
+    targetPath: channel.form === 'rules' ? entry.target_path : entry.root_path,
+  };
 }
 
-function hostSelected(root: InventoryRootView, selection: ReconcileSelection): boolean {
-  return (
-    selection.host === undefined || selection.host === 'all' || root.host_id === selection.host
-  );
-}
-
-function roleSelected(root: InventoryRootView, selection: ReconcileSelection): boolean {
-  return (
-    selection.roles === undefined ||
-    selection.roles.length === 0 ||
-    selection.roles.includes(root.role)
-  );
-}
-
-function rootSelected(root: InventoryRootView, selection: ReconcileSelection): boolean {
-  if (selection.roots.length === 0) return true;
-  if (selection.roots.includes(root.root_id)) return true;
-  const rootKey = inventoryPhysicalKey(root.path);
-  return selection.roots.some((value) => inventoryPhysicalKey(value) === rootKey);
-}
-
-function notDistributedRootSelected(
-  root: InventoryRootView,
-  selection: ReconcileSelection,
-): boolean {
-  if (root.host_group !== 'builtin') return false;
-  if (root.kind === 'rules') return false;
-  if (!existsSync(root.path)) return false;
-  return (
-    hostSelected(root, selection) && roleSelected(root, selection) && rootSelected(root, selection)
-  );
-}
-
-function pluginRootRole(
-  snapshot: InventorySnapshot,
-  hostId: string,
-  targetPath: string,
-): HostRootRole {
-  const key = inventoryPhysicalKey(targetPath);
-  const root = snapshot.roots
-    .filter((item) => {
-      if (item.host_id !== hostId) return false;
-      const base = inventoryPhysicalKey(item.path);
-      return key === base || key.startsWith(`${base}/`) || key.startsWith(`${base}\\`);
-    })
-    .sort((left, right) => right.path.length - left.path.length)[0];
-  return root?.role ?? 'user';
-}
-
-function notDistributedCandidate(
-  snapshot: InventorySnapshot,
-  id: string,
-  root: InventoryRootView,
+function candidateObserved(
+  physicalKey: string,
   observed: readonly Candidate[],
   result: readonly Candidate[],
-): Candidate | undefined {
-  const index = snapshot.workspace.index;
-  const record = index?.skills.find((item) => item.id === id);
-  if (record === undefined) return undefined;
-  const targetPath = join(root.path, id);
-  const physicalKey = inventoryPhysicalKey(targetPath);
-  if (
-    existsSync(targetPath) ||
-    observed.some((item) => item.physical_key === physicalKey) ||
-    result.some((item) => item.physical_key === physicalKey)
-  ) {
-    return undefined;
-  }
+): boolean {
+  return [...observed, ...result].some((item) => item.physical_key === physicalKey);
+}
+
+function distributionRootSelected(
+  roots: readonly InventoryRootView[],
+  selectedRoots: readonly string[],
+): boolean {
+  return selectedRoots.length === 0 || roots.some((root) => rootSelected(root, selectedRoots));
+}
+
+function rootRolesOf(
+  roots: readonly InventoryRootView[],
+  scope: 'global' | 'project',
+): HostRootRole[] {
+  if (roots.length > 0) return uniqueRoles(roots.map((root) => root.role));
+  return [scope === 'project' ? 'project' : 'user'];
+}
+
+function rootSelected(root: InventoryRootView, selectedRoots: readonly string[]): boolean {
+  if (selectedRoots.includes(root.root_id)) return true;
+  const rootKey = inventoryPhysicalKey(root.path);
+  return selectedRoots.some((value) => inventoryPhysicalKey(value) === rootKey);
+}
+
+function guardedRootCandidates(
+  snapshot: InventorySnapshot,
+  skillId: string,
+  selection: ReconcileSelection,
+  observed: readonly Candidate[],
+  result: readonly Candidate[],
+): Candidate[] {
+  if (selection.roots.length === 0 || selection.host === 'all') return [];
+  return snapshot.roots.flatMap((root): Candidate[] => {
+    if (root.role === 'user' || root.kind === 'rules' || !rootSelected(root, selection.roots))
+      return [];
+    if (selection.host !== undefined && root.host_id !== selection.host) return [];
+    const targetPath = join(root.path, skillId);
+    const key = inventoryPhysicalKey(targetPath);
+    if (
+      observed.some((item) => item.physical_key === key) ||
+      result.some((item) => item.physical_key === key)
+    ) {
+      return [];
+    }
+    return [
+      {
+        physical_key: key,
+        target_path: targetPath,
+        host_ids: [root.host_id],
+        consumed_by: unique([root.host_id, ...root.consumed_by]),
+        format: 'skill',
+        visibility: 'visible',
+        skill_id: skillId,
+        exists: false,
+        root_ids: [root.root_id],
+        root_roles: [root.role],
+        reconciliation: {
+          classification: 'undetermined',
+          ledger_source: 'none',
+          authority: 'insufficient',
+          evidence: {
+            managed: 'insufficient',
+            content: 'insufficient',
+            source: 'insufficient',
+          },
+          reasons: ['non_user_role_read_only'],
+          drift_reasons: [],
+          untracked_candidate: false,
+        },
+        is_plugin: false,
+        format_conflict: false,
+        ledger_conflict: false,
+        unavailable_reason: 'non_user_role_read_only',
+      },
+    ];
+  });
+}
+
+function distributionPathMatches(targetPath: string, rootPath: string): boolean {
+  const target = inventoryPhysicalKey(targetPath);
+  const root = inventoryPhysicalKey(rootPath);
+  return target === root || target.startsWith(`${root}/`) || target.startsWith(`${root}\\`);
+}
+
+function distributionReconciliation(
+  snapshot: InventorySnapshot,
+  record: NonNullable<InventorySnapshot['workspace']['index']>['skills'][number],
+  hostId: string,
+  targetPath: string,
+  visibility: 'visible' | 'disabled',
+) {
   const ledgerRecord = loadHostLandings(snapshot.layout.hostLandingsFile).index?.landings.find(
-    (item) =>
-      item.skill_id === id && item.host_id === root.host_id && item.target_path === targetPath,
+    (item) => item.skill_id === record.id && item.host_id === hostId,
   );
-  const reconciliation = reconcileHostCopy({
+  return reconcileHostCopy({
     observed: {
-      host_id: root.host_id,
+      host_id: hostId,
       target_path: targetPath,
       exists: false,
       readable: false,
       format: 'skill',
-      visibility: 'visible',
+      visibility,
     },
     ...(ledgerRecord === undefined
       ? { ledger_state: 'missing' as const }
@@ -311,42 +360,42 @@ function notDistributedCandidate(
     },
     root_readable: true,
   });
-  return {
-    physical_key: physicalKey,
-    target_path: targetPath,
-    host_ids: [root.host_id],
-    consumed_by: unique([root.host_id, ...root.consumed_by]),
-    format: 'skill',
-    visibility: 'visible',
-    skill_id: id,
-    exists: false,
-    root_ids: [root.root_id],
-    root_roles: [root.role],
-    reconciliation,
-    is_plugin: false,
-    format_conflict: false,
-    ledger_conflict: false,
-  };
 }
 
-export function notDistributedCandidates(
-  snapshot: InventorySnapshot,
-  selection: ReconcileSelection,
-  observed: readonly Candidate[],
-): Candidate[] {
-  if (snapshot.workspace.index === null) return [];
-  const explicitIds = unique([...(selection.ids ?? []), selection.id]);
-  if (!notDistributedSelectionEnabled(selection, explicitIds)) return [];
-  const ids = notDistributedIds(snapshot, selection, explicitIds);
-  const roots = notDistributedRoots(snapshot, selection);
-  const result: Candidate[] = [];
-  for (const id of ids) {
-    for (const root of roots) {
-      const candidate = notDistributedCandidate(snapshot, id, root, observed, result);
-      if (candidate !== undefined) result.push(candidate);
-    }
-  }
-  return result;
+function unavailableTargetCandidate(
+  skillId: string,
+  target: { target: string; scope: 'global' | 'project'; enabled: boolean },
+  reason: string,
+): Candidate {
+  return {
+    physical_key: `${skillId}:${target.target}`,
+    target_path: target.target,
+    host_ids: [target.target],
+    consumed_by: [target.target],
+    format: 'skill',
+    visibility: target.enabled ? 'visible' : 'disabled',
+    skill_id: skillId,
+    exists: false,
+    root_ids: [],
+    root_roles: [target.scope === 'project' ? 'project' : 'user'],
+    reconciliation: {
+      classification: 'undetermined',
+      ledger_source: 'none',
+      authority: 'insufficient',
+      evidence: {
+        managed: 'insufficient',
+        content: 'insufficient',
+        source: 'insufficient',
+      },
+      reasons: [reason],
+      drift_reasons: [],
+      untracked_candidate: false,
+    },
+    is_plugin: target.target.startsWith('x-'),
+    format_conflict: false,
+    ledger_conflict: false,
+    unavailable_reason: reason,
+  };
 }
 
 function notDistributedSelectionEnabled(

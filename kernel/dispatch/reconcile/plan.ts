@@ -59,8 +59,9 @@ function classificationMatches(candidate: Candidate, classification: string): bo
 function selectCandidates(snapshot: InventorySnapshot, selection: ReconcileSelection): Candidate[] {
   const candidates = allCandidates(snapshot);
   const selected = selectObservedCandidates(candidates, snapshot, selection);
-  if (selected.length > 0 || selection.mode === 'path') return selected;
-  return [...selected, ...notDistributedCandidates(snapshot, selection, selected)];
+  if (selection.mode === 'path') return selected;
+  const targets = notDistributedCandidates(snapshot, selection, candidates);
+  return [...new Map([...selected, ...targets].map((item) => [item.physical_key, item])).values()];
 }
 
 function selectObservedCandidates(
@@ -327,6 +328,7 @@ function actionShape(
   candidate: Candidate,
 ): ActionShape {
   const reason =
+    candidate.unavailable_reason ??
     nonUserRoleReason(candidate) ??
     actionEligibilityReason(snapshot, candidate, selection.action) ??
     cleanEligibilityReason(snapshot, candidate, selection.action) ??

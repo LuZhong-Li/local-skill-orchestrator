@@ -35,10 +35,10 @@ async function json(argv: string[], interaction?: Interaction) {
   };
 }
 
-function setup(id = 'repair-skill') {
+function setup(id = 'repair-skill', target = 'claude') {
   const root = makeTempDir('sm-repair-e2e-');
   const hostRoot = makeHostRoot('sm-repair-host-');
-  const source = makeSkillSource(id, { description: `${id} fixture` });
+  const source = makeSkillSource(id, { description: `${id} fixture`, target });
   return { root, hostRoot, source, id };
 }
 
@@ -91,7 +91,7 @@ test('T1 repair：missing 副本重建并写回 active 账本', async (t) => {
 });
 
 test('T1 repair：not_distributed、drift 与 orphaned 可按工作区恢复', async (t) => {
-  const { root, hostRoot, source, id } = setup('repair-modes');
+  const { root, hostRoot, source, id } = setup('repair-modes', 'doubao');
   t.after(isolateHostEnvironment(root));
   await initWithHost(root, hostRoot);
   assert.equal((await capture(['install', source, '--workspace', root, '--yes'])).code, 0);

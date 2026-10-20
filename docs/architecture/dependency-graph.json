@@ -867,6 +867,12 @@
       "layer": "dispatch"
     },
     {
+      "path": "kernel/dispatch/reconcile/candidate-model.ts",
+      "kind": "source",
+      "region": "kernel-dispatch",
+      "layer": "dispatch"
+    },
+    {
       "path": "kernel/dispatch/reconcile/candidates.ts",
       "kind": "source",
       "region": "kernel-dispatch",
@@ -922,6 +928,12 @@
     },
     {
       "path": "kernel/dispatch/reconcile/plan.ts",
+      "kind": "source",
+      "region": "kernel-dispatch",
+      "layer": "dispatch"
+    },
+    {
+      "path": "kernel/dispatch/reconcile/plugin-candidates.ts",
       "kind": "source",
       "region": "kernel-dispatch",
       "layer": "dispatch"
@@ -5202,24 +5214,38 @@
     },
     {
       "from": "kernel/dispatch/reconcile/candidates.ts",
-      "to": "kernel/core/host-landings/uninstall.ts",
-      "specifier": "../../core/host-landings/uninstall.ts",
-      "from_layer": "dispatch",
-      "to_layer": "core"
-    },
-    {
-      "from": "kernel/dispatch/reconcile/candidates.ts",
-      "to": "kernel/core/integrity/index.ts",
-      "specifier": "../../core/integrity/index.ts",
-      "from_layer": "dispatch",
-      "to_layer": "core"
-    },
-    {
-      "from": "kernel/dispatch/reconcile/candidates.ts",
       "to": "kernel/core/inventory/discover.ts",
       "specifier": "../../core/inventory/discover.ts",
       "from_layer": "dispatch",
       "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/candidates.ts",
+      "to": "kernel/core/metadata/read.ts",
+      "specifier": "../../core/metadata/read.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/candidates.ts",
+      "to": "kernel/dispatch/host/index.ts",
+      "specifier": "../host/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/candidates.ts",
+      "to": "kernel/dispatch/reconcile/candidate-model.ts",
+      "specifier": "./candidate-model.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/candidates.ts",
+      "to": "kernel/dispatch/reconcile/plugin-candidates.ts",
+      "specifier": "./plugin-candidates.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
     },
     {
       "from": "kernel/dispatch/reconcile/candidates.ts",
@@ -5232,13 +5258,6 @@
       "from": "kernel/dispatch/reconcile/candidates.ts",
       "to": "kernel/store/host-landings/index.ts",
       "specifier": "../../store/host-landings/index.ts",
-      "from_layer": "dispatch",
-      "to_layer": "store"
-    },
-    {
-      "from": "kernel/dispatch/reconcile/candidates.ts",
-      "to": "kernel/store/plugin-registry/index.ts",
-      "specifier": "../../store/plugin-registry/index.ts",
       "from_layer": "dispatch",
       "to_layer": "store"
     },
@@ -5640,6 +5659,48 @@
       "specifier": "../scan/inventory.ts",
       "from_layer": "dispatch",
       "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/plugin-candidates.ts",
+      "to": "kernel/core/host-landings/uninstall.ts",
+      "specifier": "../../core/host-landings/uninstall.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/plugin-candidates.ts",
+      "to": "kernel/core/integrity/index.ts",
+      "specifier": "../../core/integrity/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/plugin-candidates.ts",
+      "to": "kernel/core/inventory/discover.ts",
+      "specifier": "../../core/inventory/discover.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/plugin-candidates.ts",
+      "to": "kernel/dispatch/reconcile/candidate-model.ts",
+      "specifier": "./candidate-model.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/plugin-candidates.ts",
+      "to": "kernel/dispatch/scan/inventory.ts",
+      "specifier": "../scan/inventory.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/plugin-candidates.ts",
+      "to": "kernel/store/plugin-registry/index.ts",
+      "specifier": "../../store/plugin-registry/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "store"
     },
     {
       "from": "kernel/dispatch/reconcile/selection.ts",
@@ -8107,16 +8168,16 @@
     }
   ],
   "stats": {
-    "source_files": 249,
+    "source_files": 251,
     "asset_nodes": 1,
-    "nodes": 250,
-    "edges": 943,
+    "nodes": 252,
+    "edges": 950,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 11,
       "core": 69,
-      "dispatch": 62,
+      "dispatch": 64,
       "entry": 2,
       "gui": 48,
       "public": 1,
@@ -8126,7 +8187,7 @@
     "outgoing": {
       "contract": 18,
       "core": 294,
-      "dispatch": 481,
+      "dispatch": 488,
       "entry": 8,
       "gui": 83,
       "public": 6,
@@ -8135,8 +8196,8 @@
     },
     "incoming": {
       "contract": 18,
-      "core": 337,
-      "dispatch": 194,
+      "core": 339,
+      "dispatch": 199,
       "entry": 1,
       "gui": 83,
       "public": 1,
@@ -8145,7 +8206,7 @@
     },
     "cross_layer_edges": {
       "core->store": 112,
-      "dispatch->core": 153,
+      "dispatch->core": 155,
       "dispatch->store": 143,
       "entry->core": 1,
       "entry->dispatch": 5,
