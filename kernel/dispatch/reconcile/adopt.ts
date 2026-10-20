@@ -170,9 +170,10 @@ function commit(input: AdoptInput, prepared: PreparedAdopt): ReconcileExecutionI
       status: 'succeeded',
       target_path: input.item.target_path,
       after: input.item.after,
+      ...(prepared.findings.length === 0 ? {} : { findings: prepared.findings }),
       changes,
     },
-    findings: [],
+    findings: prepared.findings,
     changes,
   };
 }

@@ -19,6 +19,7 @@ import type { WorkspaceLayout } from '../../store/workspace/index.ts';
 import { atomicWriteFile, renameWithRetry } from '../../store/atomic/index.ts';
 import { copyTree, removeTree } from '../../store/library-fs/index.ts';
 import { stringifyYaml } from '../../store/yaml/index.ts';
+import { normalizeAdoptFrontmatter, type NormalizedAdoptFrontmatter } from './adopt-frontmatter.ts';
 
 const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const TARGET_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
@@ -40,11 +41,16 @@ export interface AdoptIdentity {
   version?: string;
   author?: string;
   license?: string;
+  compatibility?: string;
+  allowedTools?: string;
+  metadata?: Record<string, unknown>;
+  extensions?: Record<string, unknown>;
   triggerKeywords?: string[];
   status: 'enabled' | 'disabled';
   targetId: string;
   target: ResolvedTarget;
   hostDigest: string;
+  findings: Finding[];
 }
 
 interface FrontmatterIdentity {
@@ -53,8 +59,13 @@ interface FrontmatterIdentity {
   version?: string;
   author?: string;
   license?: string;
+  compatibility?: string;
+  allowedTools?: string;
+  metadata?: Record<string, unknown>;
+  extensions?: Record<string, unknown>;
   triggerKeywords?: string[];
   status: 'enabled' | 'disabled';
+  findings: Finding[];
 }
 
 export interface PreparedAdopt extends AdoptIdentity {
@@ -83,29 +94,21 @@ function markerPath(item: ReconcilePlanItem): string {
   return join(item.target_path, name);
 }
 
-function textOf(raw: Record<string, unknown>, key: string): string | undefined {
-  const value = raw[key];
-  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
-}
-
 function validSkillId(value: string | undefined): value is string {
   if (value === undefined) return false;
   const trimmed = value.trim();
   return trimmed !== '' && trimmed.length <= 64 && ID_PATTERN.test(trimmed);
 }
 
-function versionOf(raw: Record<string, unknown>): string | undefined {
-  const value = textOf(raw, 'version');
+function versionOf(value: string | undefined): string | undefined {
   return value !== undefined && VERSION_PATTERN.test(value) ? value : undefined;
 }
 
-function validKeywords(raw: Record<string, unknown>): string[] | undefined {
-  if (!Array.isArray(raw['trigger_keywords'])) return undefined;
-  const values = raw['trigger_keywords'].filter(
-    (value): value is string => typeof value === 'string' && value.length > 0 && value.length <= 32,
-  );
-  const unique = [...new Set(values)];
-  return unique.length === 0 ? undefined : unique;
+function assignDefined<T extends object>(target: T, values: Record<string, unknown>): T {
+  for (const [key, value] of Object.entries(values)) {
+    if (value !== undefined) (target as Record<string, unknown>)[key] = value;
+  }
+  return target;
 }
 
 function assertAdoptableShape(item: ReconcilePlanItem): void {
@@ -142,6 +145,35 @@ function assertAdoptableShape(item: ReconcilePlanItem): void {
   }
 }
 
+function requiredIdentityOf(
+  normalized: NormalizedAdoptFrontmatter,
+  marker: string,
+): { skillId: string; description: string } {
+  const name = normalized.skillId;
+  if (!validSkillId(name)) {
+    throw new AdoptError([
+      invalid(
+        CODES.ID_INVALID,
+        marker,
+        'adopt 需要 frontmatter 中合法的 name 作为 Skill 标识',
+        '先修复 name（全小写短横线）或使用 clean/repair',
+      ),
+    ]);
+  }
+  const description = normalized.description;
+  if (description === undefined) {
+    throw new AdoptError([
+      invalid(
+        CODES.FIELD_REQUIRED,
+        marker,
+        'adopt 需要 frontmatter 中非空的 description',
+        '先补齐 description 或使用 clean/repair',
+      ),
+    ]);
+  }
+  return { skillId: name.trim(), description };
+}
+
 function frontmatterIdentity(item: ReconcilePlanItem): FrontmatterIdentity {
   const marker = markerPath(item);
   const front = readSkillFrontmatter(marker);
@@ -155,42 +187,26 @@ function frontmatterIdentity(item: ReconcilePlanItem): FrontmatterIdentity {
       ),
     ]);
   }
-  const raw = front.raw;
-  const name = textOf(raw, 'name');
-  if (!validSkillId(name)) {
-    throw new AdoptError([
-      invalid(
-        CODES.ID_INVALID,
-        marker,
-        'adopt 需要 frontmatter 中合法的 name 作为 Skill 标识',
-        '先修复 name（全小写短横线）或使用 clean/repair',
-      ),
-    ]);
-  }
-  const description = textOf(raw, 'description');
-  if (description === undefined) {
-    throw new AdoptError([
-      invalid(
-        CODES.FIELD_REQUIRED,
-        marker,
-        'adopt 需要 frontmatter 中非空的 description',
-        '先补齐 description 或使用 clean/repair',
-      ),
-    ]);
-  }
-  const version = versionOf(raw);
-  const author = textOf(raw, 'author');
-  const license = textOf(raw, 'license');
-  const triggerKeywords = validKeywords(raw);
-  return {
-    skillId: name.trim(),
-    description,
-    ...(version === undefined ? {} : { version }),
-    ...(author === undefined ? {} : { author }),
-    ...(license === undefined ? {} : { license }),
-    ...(triggerKeywords === undefined ? {} : { triggerKeywords }),
-    status: item.visibility === 'disabled' ? 'disabled' : 'enabled',
-  };
+  const normalized = normalizeAdoptFrontmatter(front.raw, marker);
+  const required = requiredIdentityOf(normalized, marker);
+  const version = versionOf(normalized.version);
+  return assignDefined<FrontmatterIdentity>(
+    {
+      ...required,
+      status: item.visibility === 'disabled' ? 'disabled' : 'enabled',
+      findings: normalized.findings,
+    },
+    {
+      version,
+      author: normalized.author,
+      license: normalized.license,
+      compatibility: normalized.compatibility,
+      allowedTools: normalized.allowedTools,
+      metadata: normalized.metadata,
+      extensions: normalized.extensions,
+      triggerKeywords: normalized.triggerKeywords,
+    },
+  );
 }
 
 function targetIdentity(input: {
@@ -332,6 +348,10 @@ function metaOf(
     description: identity.description,
     ...(identity.author === undefined ? {} : { author: identity.author }),
     ...(identity.license === undefined ? {} : { license: identity.license }),
+    ...(identity.compatibility === undefined ? {} : { compatibility: identity.compatibility }),
+    ...(identity.allowedTools === undefined ? {} : { allowed_tools: identity.allowedTools }),
+    ...(identity.metadata === undefined ? {} : { metadata: identity.metadata }),
+    ...(identity.extensions === undefined ? {} : { extensions: identity.extensions }),
     ...(identity.triggerKeywords === undefined
       ? {}
       : { trigger_keywords: identity.triggerKeywords }),
@@ -357,6 +377,7 @@ function identityOf(input: AdoptInput): AdoptIdentity {
   const { item, layout, index, selection } = input;
   assertAdoptableShape(item);
   const front = frontmatterIdentity(item);
+  const { findings, ...frontFields } = front;
   const target = targetIdentity({
     layout,
     index,
@@ -368,9 +389,10 @@ function identityOf(input: AdoptInput): AdoptIdentity {
   assertLibraryAdoptable(layout, index, front.skillId, hostDigest);
   return {
     hostDir: item.target_path,
-    ...front,
+    ...frontFields,
     ...target,
     hostDigest,
+    findings,
   };
 }
 
@@ -397,6 +419,7 @@ export function prepareAdopt(input: AdoptInput): PreparedAdopt {
       checksum,
       ...(digests === undefined ? {} : { digests }),
       meta,
+      findings: identity.findings,
     };
   } catch (error) {
     if (existsSync(staging)) removeTree(staging);

@@ -50,6 +50,10 @@ export interface SkillMeta {
   description?: string;
   author?: string;
   license?: string;
+  compatibility?: string;
+  allowed_tools?: string;
+  metadata?: Record<string, unknown>;
+  extensions?: Record<string, unknown>;
   status: SkillStatus;
   path: string;
   trigger_keywords?: string[];

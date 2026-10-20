@@ -13,6 +13,7 @@
  */
 import {
   ID_PATTERN,
+  MAX_COMPATIBILITY_LENGTH,
   MAX_DESCRIPTION_LENGTH,
   MAX_NAME_LENGTH,
   MAX_TRIGGER_KEYWORD_LENGTH,
@@ -57,6 +58,46 @@ function requiredFinding(field: string, ctx: MetaContext): Finding {
     message: `缺少必填字段 ${field}`,
     remedy: `请在元文件中补充 ${field}`,
   });
+}
+
+function validateOptionalString(
+  value: unknown,
+  field: string,
+  ctx: MetaContext,
+  maxLength?: number,
+): Finding[] {
+  if (value === undefined) return [];
+  if (!isNonEmptyString(value)) return [typeFinding(field, '非空字符串', ctx)];
+  if (maxLength !== undefined && value.length > maxLength) {
+    return [
+      finding(CODES.FIELD_LENGTH, {
+        source: 'meta',
+        target: `${ctx.dirName}.${field}`,
+        message: `字段 ${field} 长度超过上限 ${maxLength}`,
+        remedy: `请把 ${field} 缩短到 ${maxLength} 个字符以内`,
+      }),
+    ];
+  }
+  return [];
+}
+
+function validateOptionalMap(value: unknown, field: string, ctx: MetaContext): Finding[] {
+  if (value === undefined) return [];
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? []
+    : [typeFinding(field, '映射', ctx)];
+}
+
+function validateDeclarationMetadata(raw: Record<string, unknown>, ctx: MetaContext): Finding[] {
+  return [
+    ...validateOptionalString(raw['author'], 'author', ctx),
+    ...validateOptionalString(raw['license'], 'license', ctx),
+    ...validateOptionalString(raw['version'], 'version', ctx),
+    ...validateOptionalString(raw['compatibility'], 'compatibility', ctx, MAX_COMPATIBILITY_LENGTH),
+    ...validateOptionalString(raw['allowed_tools'], 'allowed_tools', ctx),
+    ...validateOptionalMap(raw['metadata'], 'metadata', ctx),
+    ...validateOptionalMap(raw['extensions'], 'extensions', ctx),
+  ];
 }
 
 /** 校验标识命名与目录名一致性 */
@@ -415,6 +456,7 @@ export function validateMetaRecord(raw: Record<string, unknown>, ctx: MetaContex
   }
 
   findings.push(...validateTriggerKeywords(raw['trigger_keywords'], ctx));
+  findings.push(...validateDeclarationMetadata(raw, ctx));
   findings.push(...validateSource(raw['source'], ctx));
   findings.push(...validateTargets(raw['targets'], ctx));
 

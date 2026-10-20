@@ -31,7 +31,7 @@ export interface RenderSource {
   /** 触发关键词：标准无对应字段，按降级规则并入描述 */
   trigger_keywords?: string[];
   /** 用户显式声明透传的扩展字段（键值均为字符串） */
-  extensions?: Record<string, string>;
+  extensions?: Record<string, unknown>;
   /** 指令正文；SKILL.md 产物中位于元数据块之后 */
   body?: string;
 }

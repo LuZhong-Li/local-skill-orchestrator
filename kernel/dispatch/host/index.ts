@@ -34,15 +34,29 @@ function skillBodyOf(skillDir: string): string | undefined {
 /** 由元文件字段与指令正文组装渲染输入 */
 export function renderSourceOf(skillDir: string, raw: Record<string, unknown>): RenderSource {
   const source: RenderSource = { id: String(raw['id']) };
-  for (const key of ['description', 'license', 'version', 'author'] as const) {
+  for (const key of [
+    'description',
+    'license',
+    'version',
+    'author',
+    'compatibility',
+    'allowed_tools',
+  ] as const) {
     const value = raw[key];
     if (typeof value === 'string' && value.trim() !== '') source[key] = value;
   }
+  addExtensions(source, raw);
   addKeywords(source, raw);
   addDependencies(source, raw);
   const body = skillBodyOf(skillDir);
   if (body !== undefined) source.body = body;
   return source;
+}
+
+function addExtensions(source: RenderSource, raw: Record<string, unknown>): void {
+  const extensions = raw['extensions'];
+  if (extensions === null || typeof extensions !== 'object' || Array.isArray(extensions)) return;
+  source.extensions = { ...(extensions as Record<string, unknown>) };
 }
 
 function addKeywords(source: RenderSource, raw: Record<string, unknown>): void {
