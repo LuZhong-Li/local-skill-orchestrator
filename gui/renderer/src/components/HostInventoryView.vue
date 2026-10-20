@@ -4,7 +4,12 @@
  * 确认后才经 reconcile --apply 写入。本组件不访问 preload / Node。
  */
 import { computed, onMounted, ref } from 'vue';
-import type { InventoryScanData, ReconcileAction, Result } from '@skill-manager/contract';
+import type {
+  InventoryExportResult,
+  InventoryScanData,
+  ReconcileAction,
+  Result,
+} from '@skill-manager/contract';
 import InventorySummary from './host-inventory/InventorySummary.vue';
 import InventoryHostGroups from './host-inventory/InventoryHostGroups.vue';
 import InventoryCopyDetails from './host-inventory/InventoryCopyDetails.vue';
@@ -12,6 +17,7 @@ import InventoryActionDialog from './host-inventory/InventoryActionDialog.vue';
 
 const props = defineProps<{
   run: (argv: string[]) => Promise<Result<Record<string, unknown>>>;
+  exportInventory: (data: InventoryScanData) => Promise<InventoryExportResult>;
 }>();
 
 const data = ref<InventoryScanData | null>(null);
@@ -20,6 +26,9 @@ const error = ref('');
 const actionOpen = ref(false);
 const action = ref<ReconcileAction>('adopt');
 const actionPath = ref('');
+const exporting = ref(false);
+const exportMessage = ref('');
+const exportError = ref('');
 
 const untracked = computed(
   () =>
@@ -62,6 +71,27 @@ function closeAction(): void {
   actionOpen.value = false;
 }
 
+async function exportResult(): Promise<void> {
+  if (data.value === null || exporting.value) return;
+  exporting.value = true;
+  exportMessage.value = '';
+  exportError.value = '';
+  try {
+    const result = await props.exportInventory(data.value);
+    if (result.canceled) {
+      exportMessage.value = '已取消导出，未写入任何文件。';
+    } else if (result.error !== undefined && result.error !== '') {
+      exportError.value = `导出失败：${result.error}`;
+    } else {
+      exportMessage.value = `已导出：${result.path ?? ''}`;
+    }
+  } catch (cause) {
+    exportError.value = `导出失败：${cause instanceof Error ? cause.message : String(cause)}`;
+  } finally {
+    exporting.value = false;
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -75,11 +105,26 @@ onMounted(load);
             盘点本身只读；每个副本的动作入口先生成预览，确认后才会写入。不会一键全修或全删。
           </p>
         </div>
-        <button class="primary" data-testid="inventory-refresh" :disabled="loading" @click="load">
-          {{ loading ? '正在盘点…' : '重新盘点' }}
-        </button>
+        <div class="view-actions">
+          <button
+            data-testid="inventory-export"
+            :disabled="loading || exporting || data === null"
+            @click="exportResult"
+          >
+            {{ exporting ? '正在导出…' : '导出' }}
+          </button>
+          <button class="primary" data-testid="inventory-refresh" :disabled="loading" @click="load">
+            {{ loading ? '正在盘点…' : '重新盘点' }}
+          </button>
+        </div>
       </div>
       <p v-if="error !== ''" class="bad" data-testid="inventory-error">{{ error }}</p>
+      <p v-if="exportMessage !== ''" class="export-ok" data-testid="inventory-export-message">
+        {{ exportMessage }}
+      </p>
+      <p v-if="exportError !== ''" class="bad" data-testid="inventory-export-error">
+        {{ exportError }}
+      </p>
       <p v-if="loading && data === null" class="muted" data-testid="inventory-loading">
         正在读取宿主根与副本，请稍候…
       </p>
@@ -196,6 +241,12 @@ onMounted(load);
   flex-wrap: wrap;
 }
 
+.view-actions {
+  display: flex;
+  gap: calc(var(--space) * 2);
+  align-items: center;
+}
+
 .workspace-banner p {
   margin: 0;
 }
@@ -223,6 +274,10 @@ onMounted(load);
 .action-hint {
   margin: 0;
   font-size: 12px;
+}
+
+.export-ok {
+  color: var(--success);
 }
 
 .bad {

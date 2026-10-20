@@ -646,6 +646,8 @@
 | 测试 | 新增 6 项（2 unit / 4 contract）；常规 652 → **658 项**（单元 412、契约 130、端到端 116；657 通过 + 1 平台跳过） |
 | 结构 | `check:arch` 167 文件 / 511 边 / 0 循环 / 0 allowlist；complexity 保持 **94**；`scripts/gui-smoke.mjs` 743 → **660** 行 |
 
+**后续增量（2026-10-20）**：盘点工具栏新增「导出」，由主进程保存对话框写入用户显式选择的 JSON；导出内容与 `scan --inventory --json` 的 data 一致，取消零写入，不修改工作区 / settings / 宿主。`smoke:gui` 64 → **69/69**，新增 1MB 级序列化单测。
+
 ### M4c-7 三平台 CI fixture 探针（已完成 2026-10-19）
 
 **目标**：在 Windows / Linux / macOS runner 上用 fixture 验证路径 / 识别 / 去重 / 四分类；真实用户目录待真机。

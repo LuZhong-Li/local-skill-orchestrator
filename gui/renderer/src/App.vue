@@ -18,6 +18,7 @@ import PluginDetailDialog from './components/PluginDetailDialog.vue';
 import HostInventoryView from './components/HostInventoryView.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
 import { useKernel } from './composables/useKernel.ts';
+import { exportInventory } from './composables/useInventoryExport.ts';
 import { runSequentialUpdates, type UpdateRunResult } from './update-runner.ts';
 import { pluginInstallNotice } from './plugin-presentation.ts';
 import {
@@ -470,7 +471,11 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
         @open="openDetail"
       />
 
-      <HostInventoryView v-else-if="view === 'inventory'" :run="kernel.run" />
+      <HostInventoryView
+        v-else-if="view === 'inventory'"
+        :run="kernel.run"
+        :export-inventory="exportInventory"
+      />
 
       <section v-else-if="view === 'validation'" class="content">
         <p class="muted">

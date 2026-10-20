@@ -1960,6 +1960,8 @@ M4c 一期只读：只盘点、只对账、只呈现，不改变任何文件。
 
 **M4c-4 动作角色边界（dogfood 修正）**：计数与动作按角色隔离；`reconcile` 六动作只对 `root_role=user` 的物理副本生效。`system` / `platform` / `project` 副本以及共享根中混入非 user 角色的组一律 `skipped`，原因 `non_user_role_read_only`，不写文件 / 账本 / 索引；这些副本由对应工具管理，GUI 未纳管清单只列 user 可操作副本，非 user 分组只读展示。
 
+**M4c-4 GUI 导出（2026-10-20）**：全机盘点视图提供「导出」，把当前 `scan --inventory --json` 的 data 原样交主进程，由保存对话框写入用户显式选择的文件（默认 `skill-inventory.json`）。取消零写入；不写工作区、`settings.json`、宿主或账本；导出与 reconcile 写动作严格区分，不改变盘点结果与分类。
+
 验收标准：
 
 1. 同一夹具的 CLI 输出与 GUI 计数一致；

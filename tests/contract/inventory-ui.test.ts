@@ -18,7 +18,8 @@ function nonEmptyLines(path: string): number {
 test('契约：M4c-6 盘点视图独立挂载，App.vue 规模只降不增', () => {
   const app = read('gui/renderer/src/App.vue');
   assert.match(app, /import HostInventoryView from/);
-  assert.match(app, /<HostInventoryView v-else-if="view === 'inventory'" :run="kernel\.run" \/>/);
+  assert.match(app, /<HostInventoryView[\s\S]*?:run="kernel\.run"[\s\S]*?\/>/);
+  assert.match(app, /:export-inventory="exportInventory"/);
   assert.match(app, /data-nav="inventory"/);
   assert.ok(
     nonEmptyLines('gui/renderer/src/App.vue') <= 858,

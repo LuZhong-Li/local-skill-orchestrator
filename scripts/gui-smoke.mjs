@@ -218,8 +218,6 @@ async function main() {
     diagnostics.push(
       `渲染层地址：${String(await evaluate('location.href'))}｜标题：${String(await evaluate('document.title'))}`,
     );
-    diagnostics.push(`正文本地长度：${String(await evaluate('document.body.innerText.length'))}`);
-    diagnostics.push(`预加载接口：${String(await evaluate('typeof window.skillManager?.invoke'))}`);
     diagnostics.push(
       `直接经预加载调用一次 list：${String(
         await evaluate(
@@ -301,8 +299,9 @@ async function main() {
       (await evaluate("document.querySelector('.statusbar')?.innerText.includes('scan')")) === true,
     );
 
-    await runPluginSmoke({ evaluate, waitFor, check, workspace });
-    await runInventoryActionChecks({ evaluate, waitFor, check, workspace, hostHome, hostLocal });
+    const smokeContext = { evaluate, waitFor, check, workspace, hostHome, hostLocal, userData };
+    await runPluginSmoke(smokeContext);
+    await runInventoryActionChecks(smokeContext);
     // T2/T3：设置默认关闭；即时检查触发角标，点击角标进入已有结果视图。
     await evaluate(
       "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '设置')?.click()",

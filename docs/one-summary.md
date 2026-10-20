@@ -738,6 +738,19 @@
 
 > 未发版，随下一补丁或下一版本。
 
+### 6.37 全机盘点结果导出（2026-10-20）
+
+| 项 | 结果 |
+|---|---|
+| 入口 | 盘点工具栏「重新盘点」旁新增「导出」，默认 `skill-inventory.json` |
+| IPC | 渲染层将已有 `InventoryScanData` 纯化后经 `inventory:export` 交主进程；主进程 `dialog.showSaveDialog` 写用户选择文件 |
+| 内容 | 与 `scan --inventory --json` 的 data 一致：summary/roles/hosts/copies/missing/corrupt/degradation/workspace |
+| 边界 | 取消零写入；不写工作区、settings、宿主、账本；导出不是 reconcile，不改变分类 |
+| 测试 | 1MB 级序列化单测；GUI 导出冒烟 669KB / 204 副本完整解析、取消零写入、工作区/宿主/settings 字节不变；常规 **732 项**（731 通过 + 1 平台跳过） |
+| 冒烟 | `smoke:gui` 64 → **69/69** |
+
+> 未发版，随下一补丁或下一版本。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

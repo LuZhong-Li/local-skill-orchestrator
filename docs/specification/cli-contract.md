@@ -712,6 +712,8 @@ skill-manager reconcile --action <adopt|track|repair|accept|clean|forget>
 
 **角色写保护**：六动作只对 `root_role = user` 的物理副本生效。`system` / `platform` / `project` 副本，以及共享根中混入任一非 user 角色的物理副本，一律在计划中标记为 `skipped`，`reason = non_user_role_read_only`，`writes` 与 `ledger_changes` 均为空；不写文件、账本、索引或临时目录。系统 / 平台 / 项目副本由对应工具管理。混合角色共享根另带 `shared_root_non_user_role` 告警。GUI 的未纳管清单只列出 user 可操作副本；非 user 副本在角色分组中只读展示并标注「由对应工具管理」。
 
+**GUI 导出**：全机盘点视图提供「导出」。渲染层把已有 `scan --inventory --json` 的 `data` 原样交主进程；主进程用保存对话框（默认 `skill-inventory.json`，JSON 过滤）写入用户显式选择的文件。取消时零写入；不写工作区、`settings.json`、宿主或任何账本；导出不是 `reconcile` 动作，不改变盘点结果与分类。
+
 T4 执行范围：六个动作均支持共享根整组与插件 `x-` 宿主。共享物理副本按 realpath + Windows casefold 去重为一个事务组：repair / accept 只写一次物理副本并同步全部 active 账本；adopt 只建一份中心库；track 为全部消费宿主补账；forget 只转移选中宿主记录；clean 按引用计数决定是否删除物理副本。同一物理路径被不同 form 或内置/插件两套账本同时消费时返回 `shared_root_form_conflict` / `shared_root_ledger_conflict`，不得任选。
 
 插件 `x-` 宿主：`track` / `repair` / `clean` / `forget` 写 `plugin_index.landings`，repair 使用插件 profile/adapter 重渲染；插件禁用或不可用时 repair 拒绝。`adopt` / `accept` 明确拒绝，插件技能源不进入工作区中心库。内置 `host_landings` 与插件账本互不串写。
@@ -925,6 +927,7 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 | 46 | 2026-10-19 | 第 4.17 节 T3 执行口径：`accept` 支持 content / visibility，保留工作区元文件、拒绝 source/version 漂移并更新索引与账本；`clean` 仅处理无工作区 orphaned 或无基线 corrupt/unreadable，使用同卷临时快照、成功后删除，禁止分类批量。六动作均具备 `--apply` 执行能力 |
 | 47 | 2026-10-19 | 第 4.17 节 T4 口径：共享根 realpath+casefold 事务组、物理写一次/多账本同步、forget/clean 引用计数与 form/ledger 冲突拒绝；插件 `x-` 的 track/repair/clean/forget 写 `plugin_index.landings`，adopt/accept 拒绝；分类批量逐项结果与共享组原子性边界 |
 | 48 | 2026-10-19 | 第 4.17 节 dogfood 角色写保护：六动作仅对 `root_role=user` 生效；system/platform/project 与混合角色共享根一律 `skipped` / `non_user_role_read_only`，零写入；输出增加 `root_roles`，混合角色共享根带 `shared_root_non_user_role` 告警 |
+| 49 | 2026-10-20 | 全机盘点 GUI 导出：主进程保存对话框写用户选择文件；导出内容与 `scan --inventory --json` 的 data 完全一致；取消零写入，不影响工作区 / settings / 宿主 / 账本 |
 
 ---
 

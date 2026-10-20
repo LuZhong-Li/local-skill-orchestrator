@@ -207,3 +207,10 @@ export interface InventoryScanData {
     plugin_landings: 'ok' | 'missing' | 'unreadable';
   };
 }
+
+/** GUI 导出结果：仅主进程写用户选择的目标文件。 */
+export interface InventoryExportResult {
+  canceled: boolean;
+  path?: string;
+  error?: string;
+}

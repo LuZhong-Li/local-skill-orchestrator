@@ -93,6 +93,18 @@
       "layer": "gui"
     },
     {
+      "path": "gui/main/inventory-export-format.ts",
+      "kind": "source",
+      "region": "gui-main",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/main/inventory-export.ts",
+      "kind": "source",
+      "region": "gui-main",
+      "layer": "gui"
+    },
+    {
       "path": "gui/main/plugins/hosts.ts",
       "kind": "source",
       "region": "gui-main",
@@ -280,6 +292,12 @@
     },
     {
       "path": "gui/renderer/src/components/ValidationDialog.vue",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/composables/useInventoryExport.ts",
       "kind": "source",
       "region": "gui-renderer",
       "layer": "gui"
@@ -1317,6 +1335,12 @@
       "layer": "scripts"
     },
     {
+      "path": "scripts/gui-smoke-inventory-export.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
       "path": "scripts/gui-smoke-inventory.mjs",
       "kind": "source",
       "region": "scripts",
@@ -1587,6 +1611,13 @@
     },
     {
       "from": "gui/main/index.ts",
+      "to": "gui/main/inventory-export.ts",
+      "specifier": "./inventory-export.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/main/index.ts",
       "to": "gui/main/plugins/ipc.ts",
       "specifier": "./plugins/ipc.ts",
       "from_layer": "gui",
@@ -1603,6 +1634,13 @@
       "from": "gui/main/index.ts",
       "to": "gui/main/updates/ipc.ts",
       "specifier": "./updates/ipc.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/main/inventory-export.ts",
+      "to": "gui/main/inventory-export-format.ts",
+      "specifier": "./inventory-export-format.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -1813,6 +1851,13 @@
       "from": "gui/renderer/src/App.vue",
       "to": "gui/renderer/src/components/ValidationDialog.vue",
       "specifier": "./components/ValidationDialog.vue",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/App.vue",
+      "to": "gui/renderer/src/composables/useInventoryExport.ts",
+      "specifier": "./composables/useInventoryExport.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -7760,6 +7805,20 @@
       "to_layer": "scripts"
     },
     {
+      "from": "scripts/gui-smoke-inventory-actions.mjs",
+      "to": "scripts/gui-smoke-inventory-export.mjs",
+      "specifier": "./gui-smoke-inventory-export.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
+    },
+    {
+      "from": "scripts/gui-smoke-inventory-export.mjs",
+      "to": "scripts/gui-smoke-fixtures.mjs",
+      "specifier": "./gui-smoke-fixtures.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
+    },
+    {
       "from": "scripts/gui-smoke-inventory.mjs",
       "to": "scripts/gui-smoke-fixtures.mjs",
       "specifier": "./gui-smoke-fixtures.mjs",
@@ -7838,10 +7897,10 @@
     }
   ],
   "stats": {
-    "source_files": 238,
+    "source_files": 242,
     "asset_nodes": 1,
-    "nodes": 239,
-    "edges": 914,
+    "nodes": 243,
+    "edges": 919,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
@@ -7849,9 +7908,9 @@
       "core": 69,
       "dispatch": 55,
       "entry": 2,
-      "gui": 45,
+      "gui": 48,
       "public": 1,
-      "scripts": 44,
+      "scripts": 45,
       "store": 12
     },
     "outgoing": {
@@ -7859,9 +7918,9 @@
       "core": 294,
       "dispatch": 457,
       "entry": 8,
-      "gui": 80,
+      "gui": 83,
       "public": 6,
-      "scripts": 30,
+      "scripts": 32,
       "store": 21
     },
     "incoming": {
@@ -7869,9 +7928,9 @@
       "core": 330,
       "dispatch": 181,
       "entry": 1,
-      "gui": 80,
+      "gui": 83,
       "public": 1,
-      "scripts": 29,
+      "scripts": 31,
       "store": 274
     },
     "cross_layer_edges": {

@@ -2067,6 +2067,27 @@ flowchart TB
 | 冒烟 | `smoke:gui` 61 → **64/64** |
 | 测试总数 | 727 → **731 项**（730 通过 + 1 项平台条件跳过） |
 
+### 补充记录 2026-10-20（GUI 盘点结果导出）
+
+来源：全机盘点导出功能。导出由主进程写用户显式选择的文件，盘点与内核通道保持只读。
+
+| 序号 | 位置 | 新增 / 调整 | 所属层 | 依据 |
+|---|---|---|---|---|
+| 1 | `gui/main/inventory-export.ts` | `inventory:export` IPC：保存对话框 / 取消 / 错误结果 | gui-main | M4c-R9 |
+| 2 | `gui/main/inventory-export-format.ts` | 序列化与单目标文件写入；1MB 级 JSON 不截断 | gui-main | M4c-R9 |
+| 3 | `gui/preload/index.ts` / `gui/renderer/env.d.ts` | 白名单 `inventory.export(data)` | gui | M4c-R9 |
+| 4 | `gui/renderer/src/composables/useInventoryExport.ts` | reactive proxy 纯化后交 IPC | gui | M4c-R9 |
+| 5 | `gui/renderer/src/components/HostInventoryView.vue` | 工具栏「导出」与成功/取消/失败提示 | gui | M4c-R9 |
+
+#### 计数校验（本批次）
+
+| 校验项 | 结果 |
+|---|---|
+| 分层检查 | `check:arch` 242 文件 / 919 边 / 0 循环 / 0 allowlist |
+| 复杂函数基线 | 保持 **94**；超阈值文件 **0**；App.vue 790 行 |
+| 冒烟 | `smoke:gui` 64 → **69/69**（导出结构、取消零写入、工作区/宿主/settings 不变） |
+| 测试总数 | 731 → **732 项**（731 通过 + 1 项平台条件跳过） |
+
 ---
 
 **文档结束。** 本文档只定义架构、模块、数据流与接口契约，不包含实现代码。

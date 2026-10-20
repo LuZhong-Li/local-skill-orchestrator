@@ -1,10 +1,11 @@
 /**
  * 预加载脚本：向渲染层暴露最小白名单接口。
  *
- * 只暴露四个方法，全部转发为一次内核调用；不暴露任何 Node 模块、文件系统或任意进程能力。
+ * 只暴露白名单方法；不暴露任何 Node 模块、文件系统或任意进程能力。
  * 「哪些指令需要确认」由内核判定，渲染层只负责把预览结果展示给用户。
  */
 import { contextBridge, ipcRenderer } from 'electron';
+import type { InventoryExportResult, InventoryScanData } from '@skill-manager/contract';
 
 const api = {
   /** 直发一条指令：只读查询与已确认的写操作都走这里 */
@@ -31,6 +32,11 @@ const api = {
       ipcRenderer.invoke('kernel:invoke', ['disable', id, '--kind', 'plugin']),
     uninstall: (id: string): Promise<unknown> =>
       ipcRenderer.invoke('kernel:invoke', ['uninstall', id, '--kind', 'plugin']),
+  },
+  inventory: {
+    /** 仅把当前盘点结果交给主进程保存到用户显式选择的文件 */
+    export: (data: InventoryScanData): Promise<InventoryExportResult> =>
+      ipcRenderer.invoke('inventory:export', data),
   },
   updates: {
     /** 手动触发一次只读检查 */

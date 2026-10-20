@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { treeHash } from './gui-smoke-fixtures.mjs';
+import { runInventoryExportChecks } from './gui-smoke-inventory-export.mjs';
 
 function cut(value, length) {
   return String(value).replace(/\s+/g, ' ').slice(0, length);
@@ -206,6 +207,7 @@ export async function runInventoryActionChecks(context) {
   await openInventory(context);
   await refresh(context);
   await checkRoleIsolation(context);
+  await runInventoryExportChecks(context);
   await preview(context, 'adopt', history);
   const adoptPreview = await dialogText(context);
   check(
