@@ -4436,6 +4436,18 @@ M4c 一期只读：只盘点、只对账、只呈现，不改变任何文件。
 | 结构指标 | 238 文件 / 914 边 / 0 循环；complexity 94；超阈值文件 0 |
 | 边界 | 未发版；不改变指令数、问题码或 schema |
 
+### 发布记录 2026-10-20（v0.5.2）
+
+| 校验项 | 结果 |
+|---|---|
+| 版本 | `0.5.2`；tag `v0.5.2` → `ea4e6ed`；三方一致 |
+| Pack | [39369569286](https://github.com/LuZhong-Li/skill-manager/actions/runs/39369569286) 四 leg + Release job Success |
+| Release Verify | [39370720855](https://github.com/LuZhong-Li/skill-manager/actions/runs/39370720855) 四 job 全 Success；Windows GUI 69/69；三平台发布物 `actions=6 / pipe_copies=302` |
+| 角色写保护 | Windows/macOS 发布物 system/project（Windows 含 platform）六动作全 skipped、零写入 |
+| 导出 | 生产 GUI 导出 JSON 读回校验、取消零写入、工作区/宿主/settings 字节不变 |
+| 测试 | 常规 732 项（731 通过 + 1 平台跳过）；慢测试 1；写探针 102 |
+| 结构 | 242 文件 / 919 边 / 0 循环；complexity 94；App.vue 790 行 |
+
 ---
 
 **文档结束**。本文档仅描述需求，不包含实现。一期功能清单在进入实现阶段后冻结，后续变更需先更新本文档再实施。

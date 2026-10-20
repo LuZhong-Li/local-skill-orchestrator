@@ -751,6 +751,20 @@
 
 > 未发版，随下一补丁或下一版本。
 
+### 6.38 v0.5.2 发布：角色写保护 + 盘点导出（2026-10-20）
+
+| 项 | 结果 |
+|---|---|
+| tag | `v0.5.2` → `ea4e6ed` |
+| Pack | [39369569286](https://github.com/LuZhong-Li/skill-manager/actions/runs/39369569286) 四 leg + Release job Success |
+| Release | [v0.5.2](https://github.com/LuZhong-Li/skill-manager/releases/tag/v0.5.2)，latest、非 draft / prerelease；6 资产 + SHA256SUMS |
+| 生产 GUI | Windows portable + app.asar `smoke:gui` **69/69**；导出读回/取消零写入、非 user 副本无动作 |
+| 发布物内核 | Windows / macOS arm64 / macOS x64：`actions=6`、`pipe_copies=302`、约 1.03MB JSON 完整；system/project（Windows 含 platform）写保护全 skipped/零写入 |
+| 测试 | 常规 **732 项**（731 通过 + 1 平台跳过）；慢测试 1；写探针 102 |
+| 结构 | 依赖图 242 文件 / 919 边 / 0 循环；complexity 94；App.vue 790 行 |
+
+> v0.5.2 已发布；v0.1.0 Release 提示指向 v0.5.2，v0.1.1~v0.5.0 未改动。
+
 ---
 
 ### 7.5 内核核查批次（2026-10-17）

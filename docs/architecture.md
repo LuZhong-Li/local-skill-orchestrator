@@ -2087,6 +2087,7 @@ flowchart TB
 | 复杂函数基线 | 保持 **94**；超阈值文件 **0**；App.vue 790 行 |
 | 冒烟 | `smoke:gui` 64 → **69/69**（导出结构、取消零写入、工作区/宿主/settings 不变） |
 | 测试总数 | 731 → **732 项**（731 通过 + 1 项平台条件跳过） |
+| v0.5.2 发布验证 | Pack [39369569286](https://github.com/LuZhong-Li/skill-manager/actions/runs/39369569286) + Release Verify [39370720855](https://github.com/LuZhong-Li/skill-manager/actions/runs/39370720855) 全 Success；Windows GUI 69/69；三平台发布物 `actions=6 / pipe_copies=302`，system/project（Windows 含 platform）角色写保护全 skipped |
 
 ---
 

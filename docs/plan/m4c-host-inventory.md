@@ -648,6 +648,8 @@
 
 **后续增量（2026-10-20）**：盘点工具栏新增「导出」，由主进程保存对话框写入用户显式选择的 JSON；导出内容与 `scan --inventory --json` 的 data 一致，取消零写入，不修改工作区 / settings / 宿主。`smoke:gui` 64 → **69/69**，新增 1MB 级序列化单测。
 
+**v0.5.2 发布（2026-10-20）**：tag `v0.5.2` → `ea4e6ed`；Pack 39369569286、Release Verify 39370720855 全 Success；Windows GUI 69/69；三平台发布物 `actions=6 / pipe_copies=302`，system/project（Windows 含 platform）角色写保护全 skipped；Release 为 latest。
+
 ### M4c-7 三平台 CI fixture 探针（已完成 2026-10-19）
 
 **目标**：在 Windows / Linux / macOS runner 上用 fixture 验证路径 / 识别 / 去重 / 四分类；真实用户目录待真机。

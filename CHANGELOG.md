@@ -2,7 +2,7 @@
 
 ## 0.5.2
 
-> **发布候选（未打 tag / 未发布）**：角色写保护 + GUI 盘点导出。
+> **已发布**：tag `v0.5.2` → `ea4e6ed`；角色写保护 + GUI 盘点导出。
 
 ### v0.5.2 范围
 
@@ -10,6 +10,13 @@
 - **新增**：全机盘点结果可导出 JSON；主进程保存对话框只写用户显式选择的文件，取消零写入，不触碰工作区 / settings / 宿主 / 账本。
 - **口径**：非标准嵌套 `metadata` 统一不解析；`agent-skill-creator` 1/20 使用该私有格式，其余 19 个 user 技能不使用。完整 SKILL.md 内容仍原样进入中心库。
 - **targets 来源**：`adopt` 的 `targets[0]` 来自 `--target` → 工作区 `config.default_target` → `claude` 兜底，不读取 SKILL.md；源宿主记录在 `host_landings`。本次从 codex 采纳时工作区默认 target 为 claude；如需 codex 目标可显式 `--target codex` 或修改 `default_target`。
+
+### 验证
+
+- Pack [39369569286](https://github.com/LuZhong-Li/skill-manager/actions/runs/39369569286) 四 leg + Release job Success；Release Verify [39370720855](https://github.com/LuZhong-Li/skill-manager/actions/runs/39370720855) 四 job 全 Success。
+- 生产 GUI（Windows portable + app.asar）：`smoke:gui` **69/69**，含导出读回/取消零写入、盘点只读、非 user 副本无动作。
+- 发布物内核：Windows / macOS arm64 / macOS x64 均 `actions=6`、`pipe_copies=302`、约 1.03MB JSON 完整解析；system/project（Windows 另含 platform）角色写保护全部 skipped/零写入。
+- 常规 732 项（731 通过 + 1 平台跳过）；慢测试 1；写探针 102；`check` / typecheck / lint / format / build 全绿。
 
 ### Dogfood 修正：reconcile 角色写保护（2026-10-20）
 
