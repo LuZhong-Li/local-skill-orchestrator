@@ -1,6 +1,6 @@
 {
   "name": "@skill-manager/kernel",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "元数据内核：指令调度层、领域服务层与文件存储层",
   "type": "module",
@@ -15,7 +15,7 @@
     "yaml": "^2.7.0"
   },
   "devDependencies": {
-    "@skill-manager/contract": "0.5.1",
+    "@skill-manager/contract": "0.5.2",
     "@types/semver": "^7.8.0"
   }
 }

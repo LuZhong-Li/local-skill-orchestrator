@@ -86,7 +86,7 @@ function walk(absolute, relative, digest) {
 }
 
 function stateHash() {
-  return `${treeHash(workspace)}|${treeHash(home)}`;
+  return `${treeHash(workspace)}|${treeHash(home)}|${treeHash(local)}`;
 }
 
 function writeSource(id) {
@@ -119,7 +119,10 @@ function writeSource(id) {
 }
 
 function writeHostSkill(id, description = `${id} fixture`) {
-  const dir = join(home, '.claude', 'skills', id);
+  return writeSkillAt(join(home, '.claude', 'skills', id), id, description);
+}
+
+function writeSkillAt(dir, id, description = `${id} fixture`) {
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, 'SKILL.md'),
@@ -278,6 +281,71 @@ async function scanThroughPipe() {
   });
 }
 
+function checkRoleGuard() {
+  const roles = [
+    {
+      name: 'system',
+      path: join(home, '.codex', 'skills', '.system', 'role-guard-system'),
+      enabled: true,
+    },
+    {
+      name: 'project',
+      path: join(workspace, '.claude', 'skills', 'role-guard-project'),
+      enabled: true,
+    },
+    {
+      name: 'platform',
+      path: join(
+        local,
+        'Doubao',
+        'User Data',
+        'Default',
+        '.doubao',
+        'agent_mode',
+        'workspace',
+        '.skills',
+        'role-guard-platform',
+      ),
+      enabled: process.platform === 'win32',
+    },
+  ];
+  for (const role of roles.filter((item) => item.enabled)) {
+    writeSkillAt(role.path, `role-guard-${role.name}`);
+    const before = stateHash();
+    const data = json([
+      'reconcile',
+      '--action',
+      'adopt',
+      '--path',
+      role.path,
+      '--workspace',
+      workspace,
+    ]).data;
+    const item = data.items[0];
+    expect(
+      `${role.name} 角色写保护 skipped`,
+      item?.status === 'skipped' && item?.reason === 'non_user_role_read_only',
+      JSON.stringify(item),
+    );
+    expect(
+      `${role.name} 角色写保护零写入`,
+      item?.writes.length === 0 && item?.ledger_changes.length === 0,
+    );
+    const applied = json([
+      'reconcile',
+      '--action',
+      'adopt',
+      '--path',
+      role.path,
+      '--workspace',
+      workspace,
+      '--apply',
+      '--yes',
+    ]).data;
+    expect(`${role.name} 角色 apply 不写入`, applied.applied === false && stateHash() === before);
+  }
+}
+
 async function main() {
   mkdirSync(home, { recursive: true });
   mkdirSync(local, { recursive: true });
@@ -295,6 +363,7 @@ async function main() {
   const piped = await scanThroughPipe();
   expect('大 JSON 管道不截断', piped.bytes > 65536, JSON.stringify(piped));
   expect('管道解析出全部批量副本', piped.copies >= 300, JSON.stringify(piped));
+  checkRoleGuard();
   console.log(
     `PRODUCTION_KERNEL_RESULT=ok version=${version} actions=6 pipe_copies=${String(piped.copies)} bytes=${String(piped.bytes)}`,
   );

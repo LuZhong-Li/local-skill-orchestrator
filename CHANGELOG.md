@@ -1,6 +1,15 @@
 # 变更记录
 
-## 未发布
+## 0.5.2
+
+> **发布候选（未打 tag / 未发布）**：角色写保护 + GUI 盘点导出。
+
+### v0.5.2 范围
+
+- **修复**：`reconcile` 写动作增加角色写保护；system / platform / project 与混合角色共享根一律只读（`non_user_role_read_only`），防止误纳管、覆盖或删除内置技能。缺失记录的根归属改为最长路径优先。
+- **新增**：全机盘点结果可导出 JSON；主进程保存对话框只写用户显式选择的文件，取消零写入，不触碰工作区 / settings / 宿主 / 账本。
+- **口径**：非标准嵌套 `metadata` 统一不解析；`agent-skill-creator` 1/20 使用该私有格式，其余 19 个 user 技能不使用。完整 SKILL.md 内容仍原样进入中心库。
+- **targets 来源**：`adopt` 的 `targets[0]` 来自 `--target` → 工作区 `config.default_target` → `claude` 兜底，不读取 SKILL.md；源宿主记录在 `host_landings`。本次从 codex 采纳时工作区默认 target 为 claude；如需 codex 目标可显式 `--target codex` 或修改 `default_target`。
 
 ### Dogfood 修正：reconcile 角色写保护（2026-10-20）
 
