@@ -67,7 +67,7 @@ test('架构：scan 在索引检查前保留 M4c-1 inventory 分流点，且不�
   const route = index.indexOf('return workspaceScanCommand(plan, now);');
   assert.ok(plan >= 0 && route > plan, '必须先形成计划，再进入 workspace 执行');
   assert.match(index, /M4c-1 inventory 分流点/);
-  assert.match(index, /if \(plan\.mode === 'inventory'\) return inventoryScanCommand\(plan\)/);
+  assert.match(index, /if \(plan\.mode === 'inventory'\) return inventoryScanCommand\(plan, now\)/);
   assert.match(index, /inventory → 只展开根，不加锁、不写 last_scan_at/);
 
   const options = read('kernel/dispatch/scan/options.ts');

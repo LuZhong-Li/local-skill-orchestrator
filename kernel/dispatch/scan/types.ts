@@ -21,6 +21,7 @@ export interface WorkspaceScanPlan {
 export interface InventoryScanPlan {
   mode: 'inventory';
   workspaceRoot: string;
+  audit: boolean;
 }
 
 /** workspace 与 inventory 两条互斥路径；插件模式由 scan 入口先行分流。 */

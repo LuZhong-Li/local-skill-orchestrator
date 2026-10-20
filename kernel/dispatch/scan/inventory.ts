@@ -7,20 +7,23 @@ import { inventoryRootsForAll } from '../../core/hosts/inventory.ts';
 import { loadHostRegistry } from '../../core/hosts/index.ts';
 import { discoverInventoryCopies } from '../../core/inventory/discover.ts';
 import { aggregateInventory } from './aggregate.ts';
+import { inventoryAuditOf } from './audit.ts';
 import { reconcileInventory } from './reconcile.ts';
+import type { InventorySnapshot, WorkspaceReadState } from './snapshot.ts';
 import { loadPluginCatalog } from '../../core/plugins/host.ts';
 import { inventoryRootsForPluginCatalog } from '../../core/plugins/inventory.ts';
 import { CODES, type Finding } from '@skill-manager/contract';
 import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { layoutOf, type WorkspaceLayout } from '../../store/workspace/index.ts';
-import type { ParsedArgs } from '../parsers/index.ts';
+import { flag, type ParsedArgs } from '../parsers/index.ts';
 import { buildResult, type Result } from '../result/index.ts';
 import type { InventoryScanPlan } from './types.ts';
-import type { SkillIndex } from '../../core/metadata/types.ts';
+export type { InventorySnapshot, WorkspaceReadState } from './snapshot.ts';
 
 const INVENTORY_ALLOWED_OPTIONS = new Set([
   'inventory',
+  'audit',
   'workspace',
   'json',
   'machine',
@@ -34,6 +37,16 @@ const INVENTORY_CONFLICTS = new Set(['kind', 'root', 'dry-run']);
 
 /** `--inventory` 与现有 scan 选项的互斥/白名单（参数类错误）。 */
 export function inventoryOptionsError(args: ParsedArgs): Result<unknown> | null {
+  if (flag(args, 'audit') && args.options['inventory'] !== true) {
+    return buildResult('scan', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--audit',
+        message: '--audit 只能与 --inventory 同用',
+        remedy: '请补充 --inventory；审计是盘点结果的只读投影',
+      }),
+    ]);
+  }
   if (args.options['inventory'] !== true) return null;
   if (args.positionals.length > 0) {
     return buildResult('scan', [
@@ -60,13 +73,6 @@ export function inventoryOptionsError(args: ParsedArgs): Result<unknown> | null 
     ]);
   }
   return null;
-}
-
-export interface WorkspaceReadState {
-  state: 'ok' | 'uninitialized' | 'unreadable';
-  index: SkillIndex | null;
-  config: Record<string, unknown>;
-  findings: Finding[];
 }
 
 function readWorkspaceState(layout: WorkspaceLayout): WorkspaceReadState {
@@ -139,16 +145,6 @@ function pluginRootsOf(layout: WorkspaceLayout): {
   }
 }
 
-export interface InventorySnapshot {
-  layout: WorkspaceLayout;
-  workspace: WorkspaceReadState;
-  roots: InventoryRootView[];
-  discovered: ReturnType<typeof discoverInventoryCopies>;
-  reconciled: ReturnType<typeof reconcileInventory>;
-  aggregated: ReturnType<typeof aggregateInventory>;
-  findings: Finding[];
-}
-
 /** 只读生成盘点快照；供 scan --inventory 与 reconcile 预览共用。 */
 export function inventorySnapshotOf(workspaceRoot: string): InventorySnapshot {
   const layout = layoutOf(workspaceRoot);
@@ -186,7 +182,7 @@ export function inventorySnapshotOf(workspaceRoot: string): InventorySnapshot {
 }
 
 /** 展开内置与已启用插件的候选根；本函数不判断路径是否存在。 */
-export function inventoryScanCommand(plan: InventoryScanPlan): Result<unknown> {
+export function inventoryScanCommand(plan: InventoryScanPlan, observedAt: string): Result<unknown> {
   const snapshot = inventorySnapshotOf(plan.workspaceRoot);
   const data: InventoryScanData = {
     mode: 'inventory',
@@ -198,6 +194,7 @@ export function inventoryScanCommand(plan: InventoryScanPlan): Result<unknown> {
     missing: snapshot.reconciled.missing,
     summary: snapshot.aggregated.summary,
     degradation: snapshot.reconciled.degradation,
+    ...(plan.audit ? { audit: inventoryAuditOf(snapshot, observedAt) } : {}),
   };
   return buildResult('scan', snapshot.findings, [], { data });
 }

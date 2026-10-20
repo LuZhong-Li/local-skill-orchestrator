@@ -12,6 +12,14 @@ function args(options: Record<string, string | true | string[]>): ParsedArgs {
 test('M4c-1 参数：inventory 与 kind/root/dry-run 互斥，workspace 与输出选项允许', () => {
   assert.equal(inventoryOptionsError(args({ inventory: true, workspace: '/w' })), null);
   assert.equal(inventoryOptionsError(args({ inventory: true, workspace: '/w', json: true })), null);
+  assert.equal(
+    inventoryOptionsError(args({ inventory: true, workspace: '/w', audit: true })),
+    null,
+  );
+  assert.equal(
+    inventoryOptionsError(args({ workspace: '/w', audit: true }))?.findings[0]?.target,
+    '--audit',
+  );
   for (const [name, value] of [
     ['kind', 'skill'],
     ['root', ['skills']],
@@ -26,8 +34,9 @@ test('M4c-1 参数：inventory 与 kind/root/dry-run 互斥，workspace 与输�
     positionals: ['unexpected'],
   });
   assert.equal(positional?.exit_code, 2, '位置参数应按参数类错误拒绝');
-  const plan = scanPlanOf(args({ inventory: true, workspace: '/w' }));
+  const plan = scanPlanOf(args({ inventory: true, workspace: '/w', audit: true }));
   assert.equal(plan.mode, 'inventory');
+  assert.equal(plan.audit, true);
 });
 
 test('M4c-1 根解析：环境变量缺失时保留根并标记原因，不抛错', () => {

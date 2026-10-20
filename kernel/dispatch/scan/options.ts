@@ -5,7 +5,11 @@ import type { InventoryScanPlan, WorkspaceScanPlan } from './types.ts';
 
 export function scanPlanOf(args: ParsedArgs): WorkspaceScanPlan | InventoryScanPlan {
   if (flag(args, 'inventory')) {
-    return { mode: 'inventory', workspaceRoot: workspaceRootOf(args) };
+    return {
+      mode: 'inventory',
+      workspaceRoot: workspaceRootOf(args),
+      audit: flag(args, 'audit'),
+    };
   }
   return {
     mode: 'workspace',

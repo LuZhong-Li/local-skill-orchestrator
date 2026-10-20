@@ -26,6 +26,6 @@ export async function scanHandler({ args, now }: ScanCommandInput) {
   // 必须在任何工作区索引存在性检查之前分流：
   //   inventory → 只展开根，不加锁、不写 last_scan_at，允许未初始化；
   //   workspace → 保持既有加锁、发现与索引写入。
-  if (plan.mode === 'inventory') return inventoryScanCommand(plan);
+  if (plan.mode === 'inventory') return inventoryScanCommand(plan, now);
   return workspaceScanCommand(plan, now);
 }
