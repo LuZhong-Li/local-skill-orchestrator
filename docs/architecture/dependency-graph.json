@@ -921,6 +921,12 @@
       "layer": "dispatch"
     },
     {
+      "path": "kernel/dispatch/reconcile/selection.ts",
+      "kind": "source",
+      "region": "kernel-dispatch",
+      "layer": "dispatch"
+    },
+    {
       "path": "kernel/dispatch/reconcile/track.ts",
       "kind": "source",
       "region": "kernel-dispatch",
@@ -5573,8 +5579,29 @@
     },
     {
       "from": "kernel/dispatch/reconcile/plan.ts",
+      "to": "kernel/dispatch/reconcile/selection.ts",
+      "specifier": "./selection.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/plan.ts",
       "to": "kernel/dispatch/scan/inventory.ts",
       "specifier": "../scan/inventory.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/selection.ts",
+      "to": "kernel/core/inventory/discover.ts",
+      "specifier": "../../core/inventory/discover.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/selection.ts",
+      "to": "kernel/dispatch/reconcile/candidates.ts",
+      "specifier": "./candidates.ts",
       "from_layer": "dispatch",
       "to_layer": "dispatch"
     },
@@ -7897,16 +7924,16 @@
     }
   ],
   "stats": {
-    "source_files": 242,
+    "source_files": 243,
     "asset_nodes": 1,
-    "nodes": 243,
-    "edges": 919,
+    "nodes": 244,
+    "edges": 922,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 11,
       "core": 69,
-      "dispatch": 55,
+      "dispatch": 56,
       "entry": 2,
       "gui": 48,
       "public": 1,
@@ -7916,7 +7943,7 @@
     "outgoing": {
       "contract": 18,
       "core": 294,
-      "dispatch": 457,
+      "dispatch": 460,
       "entry": 8,
       "gui": 83,
       "public": 6,
@@ -7925,8 +7952,8 @@
     },
     "incoming": {
       "contract": 18,
-      "core": 330,
-      "dispatch": 181,
+      "core": 331,
+      "dispatch": 183,
       "entry": 1,
       "gui": 83,
       "public": 1,
@@ -7935,7 +7962,7 @@
     },
     "cross_layer_edges": {
       "core->store": 112,
-      "dispatch->core": 146,
+      "dispatch->core": 147,
       "dispatch->store": 139,
       "entry->core": 1,
       "entry->dispatch": 5,

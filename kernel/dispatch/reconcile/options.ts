@@ -1,6 +1,7 @@
 /** `reconcile` 的参数与选择器校验；只解析，不读盘、不写盘。 */
 import { CODES, RECONCILE_ACTIONS } from '@skill-manager/contract';
 import type {
+  HostRootRole,
   InventoryClassificationKey,
   ReconcileAction,
   ReconcileSelection,
@@ -10,6 +11,7 @@ import { flag, option, optionList, type ParsedArgs } from '../parsers/index.ts';
 import { buildResult, type Result } from '../result/index.ts';
 
 const ACTIONS = new Set<string>(RECONCILE_ACTIONS);
+const ROLES = new Set<HostRootRole>(['user', 'system', 'platform', 'project']);
 const CLASSIFICATIONS = new Set<InventoryClassificationKey>([
   'managed_consistent',
   'drift',
@@ -30,6 +32,7 @@ const ALLOWED_OPTIONS = new Set([
   'id',
   'host',
   'classification',
+  'role',
   'root',
   'target',
   'apply',
@@ -112,37 +115,62 @@ function forbiddenFlagsError(args: ParsedArgs): Result<unknown> | undefined {
 
 function pathSelectorError(args: ParsedArgs): Result<unknown> | undefined {
   const path = option(args, 'path');
-  const id = option(args, 'id');
+  const ids = optionList(args, 'id');
+  const roles = optionList(args, 'role') as HostRootRole[];
   const host = option(args, 'host');
   const classification = option(args, 'classification');
+  const roots = optionList(args, 'root');
   if (
     path !== undefined &&
-    (id !== undefined || host !== undefined || classification !== undefined)
+    (ids.length > 0 ||
+      roles.length > 0 ||
+      host !== undefined ||
+      classification !== undefined ||
+      roots.length > 0)
   ) {
     return invalid(
       '--path',
-      '--path 不能与 --id / --host / --classification 混用',
-      '精确路径选择单独使用，或用 --id 与 --host 组合',
+      '--path 不能与 --id / --role / --host / --classification / --root 混用',
+      '精确路径选择单独使用，或用 batch 选择器选择多个副本',
     );
   }
   return undefined;
 }
 
 function idHostSelectorError(args: ParsedArgs): Result<unknown> | undefined {
-  const id = option(args, 'id');
+  const ids = optionList(args, 'id');
   const host = option(args, 'host');
   const classification = option(args, 'classification');
-  if (id !== undefined && host === undefined) {
+  const roles = optionList(args, 'role');
+  const roots = optionList(args, 'root');
+  if (ids.length > 0 && host === undefined) {
     return invalid('--id', '使用 --id 时必须同时给出 --host', '请补充 --host <宿主|all>');
   }
-  if (host !== undefined && id === undefined && classification === undefined) {
+  if (
+    host !== undefined &&
+    ids.length === 0 &&
+    roles.length === 0 &&
+    roots.length === 0 &&
+    classification === undefined
+  ) {
     return invalid(
       '--host',
       '单独给出 --host 不足以选择动作对象',
-      '请同时给出 --id，或给出 --classification',
+      '请同时给出 --id、--role、--root，或给出 --classification',
     );
   }
   return undefined;
+}
+
+function roleSelectorError(args: ParsedArgs): Result<unknown> | undefined {
+  const roles = optionList(args, 'role');
+  const unknown = roles.find((role) => !ROLES.has(role as HostRootRole));
+  if (unknown === undefined) return undefined;
+  return invalid(
+    '--role',
+    `未知的宿主根角色：${unknown}`,
+    '仅允许 user、system、platform、project',
+  );
 }
 
 function classificationSelectorError(args: ParsedArgs): Result<unknown> | undefined {
@@ -174,6 +202,7 @@ function selectorShapeError(args: ParsedArgs): Result<unknown> | undefined {
   for (const error of [
     pathSelectorError(args),
     idHostSelectorError(args),
+    roleSelectorError(args),
     classificationSelectorError(args),
   ]) {
     if (error !== undefined) return error;
@@ -206,18 +235,22 @@ function actionSelectorError(
 
 function missingSelectorError(args: ParsedArgs): Result<unknown> | undefined {
   const path = option(args, 'path');
-  const id = option(args, 'id');
+  const ids = optionList(args, 'id');
+  const roles = optionList(args, 'role');
+  const roots = optionList(args, 'root');
   const host = option(args, 'host');
   const classification = option(args, 'classification');
   if (
     path === undefined &&
-    !(id !== undefined && host !== undefined) &&
+    !(ids.length > 0 && host !== undefined) &&
+    roles.length === 0 &&
+    roots.length === 0 &&
     classification === undefined
   ) {
     return missing(
       'selection',
       'reconcile 没有选择对象',
-      '请给出 --path，或 --id 与 --host，或 --classification（配合 --host / --root）',
+      '请给出 --path、--id 与 --host、--role、--root，或 --classification（配合 --host / --root）',
     );
   }
   return undefined;
@@ -255,23 +288,56 @@ function commonOptionsError(args: ParsedArgs): Result<unknown> | undefined {
   return undefined;
 }
 
+function isBatchSelection(
+  ids: readonly string[],
+  roles: readonly HostRootRole[],
+  roots: readonly string[],
+  classification: InventoryClassificationKey | undefined,
+): boolean {
+  return (
+    ids.length > 1 ||
+    roles.length > 0 ||
+    (roots.length > 0 && ids.length === 0 && classification === undefined) ||
+    (ids.length > 0 && (roots.length > 0 || classification !== undefined))
+  );
+}
+
+function selectionModeOf(
+  path: string | undefined,
+  ids: readonly string[],
+  roles: readonly HostRootRole[],
+  roots: readonly string[],
+  classification: InventoryClassificationKey | undefined,
+): ReconcileSelection['mode'] {
+  if (path !== undefined) return 'path';
+  if (isBatchSelection(ids, roles, roots, classification)) return 'batch';
+  return ids.length > 0 ? 'id-host' : 'classification';
+}
+
 function selectionOf(args: ParsedArgs, action: ReconcileAction): ReconcileSelection {
   const path = option(args, 'path');
-  const id = option(args, 'id');
+  const ids = optionList(args, 'id');
+  const roles = optionList(args, 'role') as HostRootRole[];
   const host = option(args, 'host');
   const classification = option(args, 'classification') as InventoryClassificationKey | undefined;
+  const roots = optionList(args, 'root');
   const target = option(args, 'target');
-  return {
-    mode: path !== undefined ? 'path' : id !== undefined ? 'id-host' : 'classification',
+  const selection: ReconcileSelection = {
+    mode: selectionModeOf(path, ids, roles, roots, classification),
     action,
-    ...(path === undefined ? {} : { path }),
-    ...(id === undefined ? {} : { id }),
-    ...(host === undefined ? {} : { host }),
-    ...(classification === undefined ? {} : { classification }),
-    roots: optionList(args, 'root'),
-    ...(target === undefined ? {} : { target }),
+    roots,
     apply: flag(args, 'apply'),
   };
+  if (path !== undefined) selection.path = path;
+  if (ids.length > 0) {
+    if (selection.mode === 'id-host') selection.id = ids[0]!;
+    else selection.ids = ids;
+  }
+  if (host !== undefined) selection.host = host;
+  if (classification !== undefined) selection.classification = classification;
+  if (roles.length > 0) selection.roles = roles;
+  if (target !== undefined) selection.target = target;
+  return selection;
 }
 
 /** 返回动作选择器；错误以完整结果封装返回，避免路由层重复拼 finding。 */

@@ -1,6 +1,7 @@
 /** T4 reconcile 执行器：共享根 / 插件 x- 的六动作编排。 */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { performance } from 'node:perf_hooks';
 import {
   CODES,
   RECONCILE_REASON_NON_USER_ROLE,
@@ -45,6 +46,8 @@ function unavailable(item: ReconcilePlanItem): ReconcileExecutionItem {
       item_id: item.item_id,
       status: 'failed',
       target_path: item.target_path,
+      stage: 'execute',
+      reason: CODES.RECONCILE_ACTION_UNSUPPORTED,
       findings,
       ...(item.after === undefined ? {} : { after: item.after }),
     },
@@ -124,8 +127,32 @@ function failedResult(item: ReconcilePlanItem, findings: Finding[]): ReconcileRe
     item_id: item.item_id,
     status: 'failed',
     target_path: item.target_path,
+    stage: 'execute',
+    reason: findings[0]?.code ?? 'reconcile_item_failed',
     findings,
     ...(item.after === undefined ? {} : { after: item.after }),
+  };
+}
+
+function unexpectedExecutionError(
+  item: ReconcilePlanItem,
+  cause: unknown,
+): { result: ReconcileResultItem; findings: Finding[]; changes: Change[] } {
+  const findings = [errorFinding(cause, item.target_path)];
+  return {
+    result: failedResult(item, findings),
+    findings,
+    changes: [],
+  };
+}
+
+function withResultMetadata(result: ReconcileResultItem): ReconcileResultItem {
+  if (result.status !== 'failed') return result;
+  return {
+    ...result,
+    stage: result.stage ?? 'execute',
+    reason:
+      result.reason ?? result.findings?.[0]?.code ?? result.message ?? 'reconcile_item_failed',
   };
 }
 
@@ -374,6 +401,7 @@ export function executeReconcilePlan(input: {
   index: SkillIndex | null;
   now: string;
 }): ReconcileExecution {
+  const startedAt = performance.now();
   const results: ReconcileResultItem[] = [];
   const findings: Finding[] = [];
   const changes: Change[] = [];
@@ -383,20 +411,39 @@ export function executeReconcilePlan(input: {
         item_id: item.item_id,
         status: 'skipped',
         target_path: item.target_path,
+        stage: 'plan',
+        ...(item.reason === undefined ? {} : { reason: item.reason }),
         ...(item.reason === undefined ? {} : { message: item.reason }),
       });
       continue;
     }
-    const execution = executionOf(input, item);
-    results.push(execution.result);
+    let execution: ReconcileExecutionItem;
+    try {
+      execution = executionOf(input, item);
+    } catch (error) {
+      execution = unexpectedExecutionError(item, error);
+    }
+    results.push(withResultMetadata(execution.result));
     findings.push(...execution.findings);
     changes.push(...execution.changes);
   }
+  const succeeded = results.filter((item) => item.status === 'succeeded').length;
+  const failed = results.filter((item) => item.status === 'failed').length;
+  const skipped = results.filter((item) => item.status === 'skipped').length;
+  const cancelled = input.plan.summary.cancelled ?? 0;
   return {
     data: {
       ...input.plan,
       applied: results.some((item) => item.status === 'succeeded'),
       results,
+      summary: {
+        ...input.plan.summary,
+        succeeded,
+        failed,
+        skipped,
+        cancelled,
+        duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
+      },
     },
     findings,
     changes,

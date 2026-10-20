@@ -29,6 +29,7 @@ export const BOOLEAN_OPTIONS = new Set([
   'list',
   'inventory',
   'apply',
+  'audit',
 ]);
 
 /**
@@ -56,6 +57,7 @@ export const VALUE_OPTIONS = new Set([
   'path',
   'classification',
   'action',
+  'role',
 ]);
 
 /**
@@ -65,7 +67,7 @@ export const VALUE_OPTIONS = new Set([
  * 未登记的取值选项与全部布尔选项在同一命令中重复出现时按参数类错误拒绝——
  * 静默取最后值会悄悄丢弃用户写下的前一个取值。
  */
-export const REPEATABLE_OPTIONS = new Set(['root']);
+export const REPEATABLE_OPTIONS = new Set(['id', 'role', 'root']);
 
 /** 该选项是否设计为可重复（可在审计与测试中逐项核对） */
 export function isRepeatableOption(name: string): boolean {

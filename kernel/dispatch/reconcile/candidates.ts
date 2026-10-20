@@ -203,19 +203,39 @@ function notDistributedRoots(
   snapshot: InventorySnapshot,
   selection: ReconcileSelection,
 ): InventoryRootView[] {
-  return snapshot.roots.filter(
-    (root) =>
-      root.host_group === 'builtin' &&
-      root.kind !== 'rules' &&
-      existsSync(root.path) &&
-      (selection.host === undefined ||
-        selection.host === 'all' ||
-        root.host_id === selection.host) &&
-      (selection.roots.length === 0 ||
-        selection.roots.includes(root.root_id) ||
-        selection.roots.some(
-          (value) => inventoryPhysicalKey(value) === inventoryPhysicalKey(root.path),
-        )),
+  return snapshot.roots.filter((root) => notDistributedRootSelected(root, selection));
+}
+
+function hostSelected(root: InventoryRootView, selection: ReconcileSelection): boolean {
+  return (
+    selection.host === undefined || selection.host === 'all' || root.host_id === selection.host
+  );
+}
+
+function roleSelected(root: InventoryRootView, selection: ReconcileSelection): boolean {
+  return (
+    selection.roles === undefined ||
+    selection.roles.length === 0 ||
+    selection.roles.includes(root.role)
+  );
+}
+
+function rootSelected(root: InventoryRootView, selection: ReconcileSelection): boolean {
+  if (selection.roots.length === 0) return true;
+  if (selection.roots.includes(root.root_id)) return true;
+  const rootKey = inventoryPhysicalKey(root.path);
+  return selection.roots.some((value) => inventoryPhysicalKey(value) === rootKey);
+}
+
+function notDistributedRootSelected(
+  root: InventoryRootView,
+  selection: ReconcileSelection,
+): boolean {
+  if (root.host_group !== 'builtin') return false;
+  if (root.kind === 'rules') return false;
+  if (!existsSync(root.path)) return false;
+  return (
+    hostSelected(root, selection) && roleSelected(root, selection) && rootSelected(root, selection)
   );
 }
 
@@ -315,11 +335,9 @@ export function notDistributedCandidates(
   observed: readonly Candidate[],
 ): Candidate[] {
   if (snapshot.workspace.index === null) return [];
-  if (selection.mode !== 'id-host' && selection.classification !== 'not_distributed') return [];
-  const ids =
-    selection.mode === 'id-host'
-      ? [selection.id].filter((id): id is string => id !== undefined)
-      : snapshot.workspace.index.skills.map((item) => item.id);
+  const explicitIds = unique([...(selection.ids ?? []), selection.id]);
+  if (!notDistributedSelectionEnabled(selection, explicitIds)) return [];
+  const ids = notDistributedIds(snapshot, selection, explicitIds);
   const roots = notDistributedRoots(snapshot, selection);
   const result: Candidate[] = [];
   for (const id of ids) {
@@ -329,4 +347,23 @@ export function notDistributedCandidates(
     }
   }
   return result;
+}
+
+function notDistributedSelectionEnabled(
+  selection: ReconcileSelection,
+  explicitIds: readonly string[],
+): boolean {
+  if (selection.classification === 'not_distributed') return true;
+  if (selection.mode !== 'id-host' && selection.mode !== 'batch') return false;
+  return explicitIds.length > 0;
+}
+
+function notDistributedIds(
+  snapshot: InventorySnapshot,
+  selection: ReconcileSelection,
+  explicitIds: readonly string[],
+): string[] {
+  if (explicitIds.length > 0) return [...explicitIds];
+  if (selection.classification !== 'not_distributed') return [];
+  return snapshot.workspace.index?.skills.map((item) => item.id) ?? [];
 }

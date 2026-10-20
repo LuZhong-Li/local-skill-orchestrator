@@ -35,6 +35,37 @@ test('reconcile 参数：id + host 与分类批量均可用', () => {
   assert.equal(byClass.selection?.mode, 'classification');
 });
 
+test('reconcile 参数：重复 id 聚合为 batch，并保留 host 限定', () => {
+  const result = parse(['--action', 'repair', '--id', 'alpha', '--id', 'beta', '--host', 'all']);
+  assert.equal(result.error, undefined);
+  assert.equal(result.selection?.mode, 'batch');
+  assert.deepEqual(result.selection?.ids, ['alpha', 'beta']);
+  assert.equal(result.selection?.host, 'all');
+});
+
+test('reconcile 参数：重复 role / root 聚合为 batch 选择器', () => {
+  const byRole = parse(['--action', 'clean', '--role', 'user', '--role', 'project']);
+  assert.equal(byRole.error, undefined);
+  assert.equal(byRole.selection?.mode, 'batch');
+  assert.deepEqual(byRole.selection?.roles, ['user', 'project']);
+
+  const byRoot = parse(['--action', 'repair', '--root', '/root/a', '--root', '/root/b']);
+  assert.equal(byRoot.error, undefined);
+  assert.equal(byRoot.selection?.mode, 'batch');
+  assert.deepEqual(byRoot.selection?.roots, ['/root/a', '/root/b']);
+});
+
+test('reconcile 参数：path 与 role 互斥，id 仍要求 host', () => {
+  assert.equal(
+    codeOf(parse(['--action', 'repair', '--path', '/tmp/host/alpha', '--role', 'user'])),
+    'E-INPUT-002',
+  );
+  assert.equal(
+    codeOf(parse(['--action', 'repair', '--id', 'alpha', '--id', 'beta'])),
+    'E-INPUT-002',
+  );
+});
+
 test('reconcile 参数：缺 action、未知 action、缺选择器均拒绝', () => {
   assert.equal(codeOf(parse(['--path', '/tmp/host/alpha'])), 'E-INPUT-001');
   assert.equal(codeOf(parse(['--action', 'invent', '--path', '/tmp/host/alpha'])), 'E-INPUT-002');

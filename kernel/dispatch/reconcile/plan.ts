@@ -17,12 +17,12 @@ import {
   RECONCILE_WARNING_SHARED_NON_USER_ROLE,
 } from '@skill-manager/contract';
 import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
-import type { InventoryRootView } from '@skill-manager/contract';
 import type { InventorySnapshot } from '../scan/inventory.ts';
 import { allCandidates, notDistributedCandidates, unique, type Candidate } from './candidates.ts';
 import { ledgerHostIds } from './group.ts';
 import { notesOf } from './plan-notes.ts';
 import { ledgerChanges, ledgerSourceOf } from './ledger-changes.ts';
+import { rootMatches, selectBatchCandidates, selectionSummaryOf } from './selection.ts';
 
 interface ActionShape {
   status: 'planned' | 'skipped';
@@ -52,27 +52,6 @@ function hostMatches(candidate: Candidate, host: string | undefined): boolean {
   return host === undefined || host === 'all' || candidate.host_ids.includes(host);
 }
 
-function rootPathMatches(targetPath: string, root: InventoryRootView): boolean {
-  const target = inventoryPhysicalKey(targetPath);
-  const base = inventoryPhysicalKey(root.path);
-  return target === base || target.startsWith(`${base}/`) || target.startsWith(`${base}\\`);
-}
-
-function rootMatches(
-  candidate: Candidate,
-  selectedRoots: readonly string[],
-  roots: readonly InventoryRootView[],
-): boolean {
-  if (selectedRoots.length === 0) return true;
-  return (
-    roots.some(
-      (root) =>
-        selectedRoots.includes(root.root_id) &&
-        (candidate.root_ids.includes(root.root_id) || rootPathMatches(candidate.target_path, root)),
-    ) || selectedRoots.some((value) => candidate.root_ids.includes(value))
-  );
-}
-
 function classificationMatches(candidate: Candidate, classification: string): boolean {
   return actionableKeyOf(candidate) === classification;
 }
@@ -97,6 +76,9 @@ function selectObservedCandidates(
     return candidates.filter(
       (item) => item.skill_id === selection.id && hostMatches(item, selection.host),
     );
+  }
+  if (selection.mode === 'batch') {
+    return selectBatchCandidates(candidates, snapshot.roots, selection, actionableKeyOf);
   }
   return candidates.filter(
     (item) =>
@@ -499,6 +481,7 @@ export function buildReconcilePreview(
     applied: false,
     items,
     transaction_groups: groups,
+    selection_summary: selectionSummaryOf(candidates, actionableKeyOf),
     summary: {
       selected: items.length,
       planned: items.filter((item) => item.status === 'planned').length,
