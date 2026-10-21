@@ -43,6 +43,49 @@ export async function runI18nSmoke({ evaluate, waitFor, check, userData, reload 
     ),
   );
 
+  await evaluate('document.querySelector(\'[data-nav="inventory"]\')?.click()');
+  await waitFor('document.querySelector(\'[data-testid="host-inventory"]\') !== null', 60);
+  await waitFor(
+    '[...document.querySelectorAll(\'input[type="checkbox"][data-path]:not(:disabled)\')].length > 0',
+    80,
+  );
+  await evaluate(
+    '[...document.querySelectorAll(\'input[type="checkbox"][data-path]:not(:disabled)\')][0]?.click()',
+  );
+  await waitFor(
+    "document.querySelector('[data-testid=\"batch-selected-count\"]')?.textContent?.includes('selected') === true",
+    60,
+  );
+  const batchBar = String(
+    await evaluate("document.querySelector('[data-testid=\"batch-action-bar\"]')?.innerText ?? ''"),
+  );
+  await evaluate(
+    '[...document.querySelectorAll(\'[data-testid^="batch-action-"]\')].find((item) => item.disabled === false)?.click()',
+  );
+  await waitFor(
+    'document.querySelector(\'[data-testid="inventory-action-dialog"]\') !== null && document.querySelector(\'[data-testid="inventory-action-loading"]\') === null',
+    100,
+  );
+  const batchDialog = String(
+    await evaluate(
+      "document.querySelector('[data-testid=\"inventory-action-dialog\"]')?.innerText ?? ''",
+    ),
+  );
+  check(
+    '切换英语后批量选择与预览文案保持英语',
+    /^\d+ selected/m.test(batchBar) &&
+      /(Adopt into workspace|Record in ledger|Repair host copy|Accept local changes|Clean copy|Stop tracking)/.test(
+        batchBar,
+      ) &&
+      /copies selected for/.test(batchDialog) &&
+      batchDialog.includes('Files to write') &&
+      batchDialog.includes('Ledger changes') &&
+      batchDialog.includes('Warnings'),
+    `${batchBar.slice(0, 120)}｜${batchDialog.slice(0, 220)}`,
+  );
+  await evaluate('document.querySelector(\'[data-testid="inventory-action-cancel"]\')?.click()');
+  await waitFor('document.querySelector(\'[data-testid="inventory-action-dialog"]\') === null', 60);
+
   await evaluate(
     "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings')?.click()",
   );

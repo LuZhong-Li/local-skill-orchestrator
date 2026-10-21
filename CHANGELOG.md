@@ -1,5 +1,39 @@
 # 变更记录
 
+## 0.6.0
+
+> **未发布**：v0.6.0 release candidate；待 Pack / Release / 三平台验证。
+
+### 中文摘要
+
+- **批量治理**：盘点支持多选、根级全选与批量 reconcile；一次汇总预览后逐副本执行，展示真实进度、成功/失败/取消汇总和单项 `stage/reason`，单副本失败不污染整批。
+- **跨宿主审计**：`scan --inventory --audit` 按 `skill_meta.targets[]` 建立 skill × host 审计矩阵，区分 distributed / missing / drift / visibility mismatch / undeclared / insufficient。
+- **元数据归一化**：adopt 解析 Agent Skills 六字段；`author/version` 从 `metadata` 提升到工作区 `skill_meta.yaml` 顶层，未知字段只读保留到 `extensions`。
+- **跨宿主修复**：已纳管 Skill 可通过 reconcile repair 的 `not_distributed` 场景补发到声明的新 target，复用既有渲染与账本通道。
+- **更新措辞修复**：成功 update 后不再使用更新前旧快照误报 `W-DRIFT-001`；真实篡改仍会被检出。
+- **中英双语**：GUI 支持 en / zh-CN，跟随系统并持久化手动选择；CLI 输出、问题码、JSON 键与枚举保持英文契约。
+- **界面优化**：盘点角色分组、根状态标签、空根提示、长路径/host/Skill 标识截断与 tooltip 统一，布局不横向溢出。
+
+### English Summary
+
+- **Batch governance**: inventory now supports multi-select, root-level select-all, consolidated preview, sequential per-copy execution, live progress, and succeeded/failed/skipped/cancelled summaries with per-item `stage/reason`.
+- **Cross-host audit**: `scan --inventory --audit` builds a skill × host matrix from `skill_meta.targets[]`, distinguishing distributed, missing, drift, visibility mismatch, undeclared, and insufficient evidence.
+- **Metadata normalization**: adopt reads the six Agent Skills frontmatter fields, promotes `author/version` from `metadata` into top-level workspace metadata, and preserves unknown fields read-only under `extensions`.
+- **New-target repair**: managed Skills can be distributed to newly declared targets through reconcile repair's `not_distributed` path.
+- **Update warning fix**: successful updates no longer emit stale `W-DRIFT-001` warnings from pre-update snapshots; real post-update tampering is still reported.
+- **Bilingual GUI**: en and zh-CN resources support system-following and persisted manual selection. CLI output, problem codes, JSON keys, enums, and exit codes remain stable English contracts.
+- **Inventory polish**: consistent role and root-state presentation, explicit empty-root guidance, and ellipsis + tooltip handling for long paths, host IDs, and Skill IDs.
+
+### Known Issues
+
+- `npm audit` reports 8 moderate findings inherited from the `electron-builder` packaging chain (`@electron/get` → `global-agent` → `roarr` → `sprintf-js`, GHSA-hp3w-g68c-fv3c). This release intentionally does not change the packaging toolchain; tracked as a known issue.
+
+### Verification
+
+- Regular tests: **786 items** (785 pass + 1 platform-specific skip).
+- GUI smoke: **88/88**, including bilingual batch copy and production-rendered inventory presentation.
+- Contract / e2e / three-platform inventory audit probe, lint, typecheck, formatting, build, architecture graph, and complexity ratchets are release gates.
+
 ## 0.5.2
 
 > **已发布**：tag `v0.5.2` → `ea4e6ed`；角色写保护 + GUI 盘点导出。

@@ -158,6 +158,10 @@ function scan(fixture, workspace) {
   return runJson(fixture, ['scan', '--inventory', '--workspace', workspace]).data;
 }
 
+function scanAudit(fixture, workspace) {
+  return runJson(fixture, ['scan', '--inventory', '--audit', '--workspace', workspace]).data.audit;
+}
+
 function rootOf(data, rootId) {
   return data.roots.find((item) => item.root_id === rootId);
 }
@@ -280,6 +284,28 @@ function checkClassification(fixture, workspace, source) {
     managedCopy?.reconciliation.classification,
   );
   expect('managed 证据权威', managedCopy?.reconciliation.authority === 'authoritative');
+  const audit = scanAudit(fixture, workspace);
+  const auditRows = audit.rows.filter((row) => row.skill_id === 'probe-skill');
+  const claudeAudit = auditRows.find((row) => row.target === 'claude');
+  expect(
+    'audit 期望集合来自 targets：声明 target distributed',
+    claudeAudit?.status === 'distributed',
+    JSON.stringify(auditRows),
+  );
+  expect(
+    'audit 不把共享根其他宿主当作声明 target',
+    auditRows
+      .filter((row) => row.target === 'codex' || row.target === 'cursor')
+      .every((row) => row.status === 'undeclared'),
+    JSON.stringify(auditRows),
+  );
+  expect(
+    'audit row observed_at 使用同次盘点时刻',
+    auditRows.length > 0 &&
+      auditRows.every((row) => row.observed_at === audit.observed_at) &&
+      !Number.isNaN(Date.parse(audit.observed_at)),
+    `${audit.observed_at}`,
+  );
   writeFileSync(
     join(fixture.shared, 'probe-skill', 'SKILL.md'),
     skillText('probe-skill', 'changed'),
