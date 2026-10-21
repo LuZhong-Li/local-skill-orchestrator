@@ -123,6 +123,7 @@ jobs:
         run: node scripts/gui-smoke.mjs --app "$env:PORTABLE"
 
       - name: 解包 Release portable 并跑内核六动作
+        if: always()
         shell: pwsh
         run: |
           $seven = 'C:\Program Files\7-Zip\7z.exe'

@@ -1527,6 +1527,12 @@
       "layer": "scripts"
     },
     {
+      "path": "scripts/gui-smoke-workspace-gate.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
       "path": "scripts/gui-smoke.mjs",
       "kind": "source",
       "region": "scripts",
@@ -8617,6 +8623,13 @@
       "to_layer": "scripts"
     },
     {
+      "from": "scripts/gui-smoke.mjs",
+      "to": "scripts/gui-smoke-workspace-gate.mjs",
+      "specifier": "./gui-smoke-workspace-gate.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
+    },
+    {
       "from": "scripts/pack.mjs",
       "to": "scripts/pack-plan.mjs",
       "specifier": "./pack-plan.mjs",
@@ -8639,10 +8652,10 @@
     }
   ],
   "stats": {
-    "source_files": 270,
+    "source_files": 271,
     "asset_nodes": 1,
-    "nodes": 271,
-    "edges": 1001,
+    "nodes": 272,
+    "edges": 1002,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
@@ -8652,7 +8665,7 @@
       "entry": 2,
       "gui": 63,
       "public": 1,
-      "scripts": 49,
+      "scripts": 50,
       "store": 12
     },
     "outgoing": {
@@ -8662,7 +8675,7 @@
       "entry": 8,
       "gui": 130,
       "public": 6,
-      "scripts": 36,
+      "scripts": 37,
       "store": 21
     },
     "incoming": {
@@ -8672,7 +8685,7 @@
       "entry": 1,
       "gui": 130,
       "public": 1,
-      "scripts": 35,
+      "scripts": 36,
       "store": 278
     },
     "cross_layer_edges": {

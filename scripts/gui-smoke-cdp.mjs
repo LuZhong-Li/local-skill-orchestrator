@@ -1,4 +1,22 @@
 /** Minimal Chrome DevTools Protocol connection used by GUI smoke tests. */
+export async function waitForTarget(port, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
+      const targets = await response.json();
+      const page = targets.find(
+        (item) => item.type === 'page' && !String(item.url).startsWith('devtools://'),
+      );
+      if (page !== undefined) return page;
+    } catch {
+      // 端口尚未就绪，继续等
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300));
+  }
+  throw new Error('等待渲染层目标超时');
+}
+
 export function connectDebugger(webSocketDebuggerUrl) {
   const socket = new WebSocket(webSocketDebuggerUrl);
   const pending = new Map();

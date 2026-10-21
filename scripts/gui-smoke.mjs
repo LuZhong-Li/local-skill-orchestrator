@@ -19,11 +19,12 @@ import { fileURLToPath } from 'node:url';
 import { prepareHostFixture, prepareWorkspace, remoteMeta } from './gui-smoke-fixtures.mjs';
 import { runEmptyWorkspaceInventoryChecks } from './gui-smoke-inventory.mjs';
 import { runInventoryActionChecks } from './gui-smoke-inventory-actions.mjs';
-import { connectDebugger } from './gui-smoke-cdp.mjs';
+import { connectDebugger, waitForTarget } from './gui-smoke-cdp.mjs';
 import { runPluginSmoke } from './gui-smoke-plugin.mjs';
 import { killTree, readTextOrFallback } from './gui-smoke-launch.mjs';
 import { runI18nSmoke } from './gui-smoke-i18n.mjs';
 import { printSmokeReport } from './gui-smoke-report.mjs';
+import { installBrowserProblemCapture, waitForWorkspaceInit } from './gui-smoke-workspace-gate.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GUI = join(ROOT, 'gui');
@@ -104,24 +105,6 @@ if (appIndex >= 0 && (appArgument === undefined || appArgument.startsWith('--'))
  */
 const packagedApp = appArgument === undefined ? undefined : resolve(appArgument);
 
-async function waitForTarget(port, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
-      const targets = await response.json();
-      const page = targets.find(
-        (item) => item.type === 'page' && !String(item.url).startsWith('devtools://'),
-      );
-      if (page !== undefined) return page;
-    } catch {
-      // 端口尚未就绪，继续等
-    }
-    await new Promise((resolve) => setTimeout(resolve, 300));
-  }
-  throw new Error('等待渲染层目标超时');
-}
-
 async function main() {
   const PORT = await freePort();
   const gitPort = await freePort();
@@ -177,7 +160,7 @@ async function main() {
   const diagnostics = [];
 
   try {
-    const target = await waitForTarget(PORT, 30000);
+    const target = await waitForTarget(PORT, 90_000);
     diagnostics.push(`目标页面：${String(target.url)}｜${String(target.title)}`);
     const client = connectDebugger(target.webSocketDebuggerUrl);
     await client.ready;
@@ -190,6 +173,7 @@ async function main() {
       });
       return response.result?.result?.value;
     };
+    await installBrowserProblemCapture(evaluate);
     const captureScreenshot = async (name) => {
       const response = await client.send('Page.captureScreenshot', { format: 'png' });
       const path = join(tmpdir(), `skill-manager-${name}-${String(process.pid)}.png`);
@@ -253,6 +237,7 @@ async function main() {
     await evaluate(
       "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('初始化工作区'))?.click()",
     );
+    await waitForWorkspaceInit({ workspace, evaluate, stderr });
     for (let index = 0; index < 40; index += 1) {
       const done = await evaluate("document.body.innerText.includes('还没有已管理的 Skill')");
       if (done === true) break;
