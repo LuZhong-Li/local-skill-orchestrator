@@ -37,6 +37,13 @@ export function remoteMeta(url, ref, version) {
   ].join('\n');
 }
 
+export function prepareUserData(root) {
+  writeFileSync(
+    join(root, 'settings.json'),
+    `${JSON.stringify({ language: { mode: 'manual', value: 'zh-CN' } }, null, 2)}\n`,
+  );
+}
+
 export function prepareWorkspace(url) {
   const root = mkdtempSync(join(tmpdir(), 'sm-gui-smoke-'));
   const skill = join(root, 'skills', 'smoke-skill');

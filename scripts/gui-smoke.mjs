@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 /**
- * 桌面外壳的冒烟检查：启动 Electron，经 DevTools 协议确认界面真的渲染成功，
- * 并走一遍「空工作区引导 → 初始化 → 扫描 → 卡片列表」的真实链路。
+ * 桌面外壳冒烟：启动 Electron，经 DevTools 走完空工作区、初始化、扫描与卡片列表，
+ * 并验证插件、库存、更新/备份与双语切换等真实界面链路。
  *
- * 这条检查补的是自动化盲区：单元测试覆盖内核与桥接层，但「窗口是否真的画出来、
- * 渲染层能否经预加载脚本调通内核」只有把应用跑起来才能确认。
  * 用法：node scripts/gui-smoke.mjs（开发产物）
  *       node scripts/gui-smoke.mjs --app <可执行文件路径>（针对打包产物，需要图形会话；
  *       相对路径按当前目录解析，例如 build/desktop/win-unpacked/skill-manager.exe）
@@ -16,7 +14,12 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prepareHostFixture, prepareWorkspace, remoteMeta } from './gui-smoke-fixtures.mjs';
+import {
+  prepareHostFixture,
+  prepareUserData,
+  prepareWorkspace,
+  remoteMeta,
+} from './gui-smoke-fixtures.mjs';
 import { runEmptyWorkspaceInventoryChecks } from './gui-smoke-inventory.mjs';
 import { runInventoryActionChecks } from './gui-smoke-inventory-actions.mjs';
 import { connectDebugger, waitForTarget } from './gui-smoke-cdp.mjs';
@@ -133,6 +136,7 @@ async function main() {
   const hostLocal = mkdtempSync(join(tmpdir(), 'sm-gui-local-'));
   prepareHostFixture(hostHome, hostLocal);
   const userData = mkdtempSync(join(tmpdir(), 'sm-gui-user-data-'));
+  prepareUserData(userData);
   const electron = packagedApp ?? electronExecutable();
   const child = spawn(
     electron,
