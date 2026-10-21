@@ -19,8 +19,13 @@ import {
 } from '../../host-inventory-presentation.ts';
 import InventoryActionMenu from './InventoryActionMenu.vue';
 import { t } from '../../i18n/index.ts';
+import { copyKey, isCopySelectable } from '../../inventory-batch.ts';
 
-const emit = defineEmits<{ action: [action: ReconcileAction, path: string] }>();
+const emit = defineEmits<{
+  action: [action: ReconcileAction, path: string];
+  'toggle-selection': [key: string];
+  'toggle-all': [selected: boolean];
+}>();
 function forwardAction(action: ReconcileAction, path: string): void {
   emit('action', action, path);
 }
@@ -32,15 +37,36 @@ withDefaults(
     missing?: MissingInventoryCopy[];
     testId?: string;
     emptyText?: string;
+    // 批量选择：被选中的 key 集合
+    selectedKeys?: Set<string>;
+    // 是否显示选择列
+    showSelection?: boolean;
   }>(),
   {
     copies: () => [],
     corrupt: () => [],
     missing: () => [],
     testId: 'inventory-copies',
-    emptyText: t('inventory.noCopies'),
+    emptyText: () => t('inventory.noCopies'),
+    selectedKeys: () => new Set<string>(),
+    showSelection: false,
   },
 );
+
+function toggleCopy(key: string, selectable: boolean): void {
+  if (!selectable) return;
+  emit('toggle-selection', key);
+}
+
+function toggleAll(
+  selectableCopies: Array<
+    ReconciledInventoryCopy | ReconciledInventoryCorruptCopy | MissingInventoryCopy
+  >,
+  selected: boolean,
+): void {
+  // 只翻转可选项
+  emit('toggle-all', selected);
+}
 </script>
 
 <template>
@@ -49,6 +75,35 @@ withDefaults(
       <table class="copy-table">
         <thead>
           <tr>
+            <th v-if="showSelection" class="col-select">
+              <input
+                type="checkbox"
+                data-testid="select-all-copies"
+                :checked="
+                  copies.filter((c) => isCopySelectable(c)).length > 0 &&
+                  copies
+                    .filter((c) => isCopySelectable(c))
+                    .every((c) => selectedKeys.has(copyKey(c)))
+                "
+                :indeterminate.prop="
+                  copies
+                    .filter((c) => isCopySelectable(c))
+                    .some((c) => selectedKeys.has(copyKey(c))) &&
+                  !copies
+                    .filter((c) => isCopySelectable(c))
+                    .every((c) => selectedKeys.has(copyKey(c)))
+                "
+                :disabled="copies.filter((c) => isCopySelectable(c)).length === 0"
+                @change="
+                  toggleAll(
+                    copies,
+                    !copies
+                      .filter((c) => isCopySelectable(c))
+                      .every((c) => selectedKeys.has(copyKey(c))),
+                  )
+                "
+              />
+            </th>
             <th>Skill</th>
             <th>{{ $t('inventory.columns.version') }}</th>
             <th>{{ $t('inventory.columns.path') }}</th>
@@ -60,7 +115,21 @@ withDefaults(
           </tr>
         </thead>
         <tbody>
-          <tr v-for="copy in copies" :key="copy.physical_key">
+          <tr
+            v-for="copy in copies"
+            :key="copy.physical_key"
+            :class="{ 'row-selected': showSelection && selectedKeys.has(copyKey(copy)) }"
+          >
+            <td v-if="showSelection" class="col-select">
+              <input
+                type="checkbox"
+                :data-testid="`select-copy-${copy.physical_key}`"
+                :data-path="copy.path"
+                :checked="selectedKeys.has(copyKey(copy))"
+                :disabled="!isCopySelectable(copy)"
+                @change="toggleCopy(copyKey(copy), isCopySelectable(copy))"
+              />
+            </td>
             <td>
               <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
               <span class="muted host">{{ copy.host_id }}</span>
@@ -104,6 +173,27 @@ withDefaults(
       <table class="copy-table corrupt-table">
         <thead>
           <tr>
+            <th v-if="showSelection" class="col-select">
+              <input
+                type="checkbox"
+                data-testid="select-all-corrupt"
+                :checked="
+                  corrupt.filter((c) => isCopySelectable(c)).length > 0 &&
+                  corrupt
+                    .filter((c) => isCopySelectable(c))
+                    .every((c) => selectedKeys.has(copyKey(c)))
+                "
+                :disabled="corrupt.filter((c) => isCopySelectable(c)).length === 0"
+                @change="
+                  toggleAll(
+                    corrupt,
+                    !corrupt
+                      .filter((c) => isCopySelectable(c))
+                      .every((c) => selectedKeys.has(copyKey(c))),
+                  )
+                "
+              />
+            </th>
             <th>{{ $t('inventory.columns.corruptCopy') }}</th>
             <th>{{ $t('inventory.columns.path') }}</th>
             <th>{{ $t('inventory.columns.reason') }}</th>
@@ -111,7 +201,20 @@ withDefaults(
           </tr>
         </thead>
         <tbody>
-          <tr v-for="copy in corrupt" :key="`corrupt-${copy.physical_key}`">
+          <tr
+            v-for="copy in corrupt"
+            :key="`corrupt-${copy.physical_key}`"
+            :class="{ 'row-selected': showSelection && selectedKeys.has(copyKey(copy)) }"
+          >
+            <td v-if="showSelection" class="col-select">
+              <input
+                type="checkbox"
+                :data-path="copy.path"
+                :checked="selectedKeys.has(copyKey(copy))"
+                :disabled="!isCopySelectable(copy)"
+                @change="toggleCopy(copyKey(copy), isCopySelectable(copy))"
+              />
+            </td>
             <td>
               <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
               <span class="muted host">{{ copy.host_id }}</span>
@@ -132,6 +235,27 @@ withDefaults(
       <table class="copy-table missing-table">
         <thead>
           <tr>
+            <th v-if="showSelection" class="col-select">
+              <input
+                type="checkbox"
+                data-testid="select-all-missing"
+                :checked="
+                  missing.filter((c) => isCopySelectable(c)).length > 0 &&
+                  missing
+                    .filter((c) => isCopySelectable(c))
+                    .every((c) => selectedKeys.has(copyKey(c)))
+                "
+                :disabled="missing.filter((c) => isCopySelectable(c)).length === 0"
+                @change="
+                  toggleAll(
+                    missing,
+                    !missing
+                      .filter((c) => isCopySelectable(c))
+                      .every((c) => selectedKeys.has(copyKey(c))),
+                  )
+                "
+              />
+            </th>
             <th>{{ $t('inventory.columns.missingCopy') }}</th>
             <th>{{ $t('inventory.columns.path') }}</th>
             <th>{{ $t('inventory.columns.ledger') }}</th>
@@ -141,7 +265,20 @@ withDefaults(
           </tr>
         </thead>
         <tbody>
-          <tr v-for="copy in missing" :key="`missing-${copy.host_id}-${copy.target_path}`">
+          <tr
+            v-for="copy in missing"
+            :key="`missing-${copy.host_id}-${copy.target_path}`"
+            :class="{ 'row-selected': showSelection && selectedKeys.has(copyKey(copy)) }"
+          >
+            <td v-if="showSelection" class="col-select">
+              <input
+                type="checkbox"
+                :data-path="copy.target_path"
+                :checked="selectedKeys.has(copyKey(copy))"
+                :disabled="!isCopySelectable(copy)"
+                @change="toggleCopy(copyKey(copy), isCopySelectable(copy))"
+              />
+            </td>
             <td>
               <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
               <span class="muted host">{{ copy.host_id }}</span>
@@ -268,5 +405,15 @@ th {
   color: var(--text-muted);
   border-color: var(--border);
   background: var(--surface-muted);
+}
+
+.col-select {
+  width: 32px;
+  padding-left: calc(var(--space) * 1.5);
+  padding-right: calc(var(--space) * 1.5);
+}
+
+.row-selected {
+  background: var(--accent-soft);
 }
 </style>

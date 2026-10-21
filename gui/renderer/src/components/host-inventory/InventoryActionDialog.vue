@@ -1,6 +1,8 @@
 <script setup lang="ts">
 /**
- * reconcile 动作事务：挂载即只读预览，用户确认后本组件发 --apply。
+ * reconcile 动作对话框：单副本 / 批量共用。
+ * - 单副本：path 精确选择，一次预览 + 一次执行。
+ * - 批量：多副本 id 选择，一次预览 → 顺序逐 item apply 显示进度。
  * 预览、执行与错误状态都在本组件内闭环，避免父子状态错位。
  */
 import { computed, onMounted, ref } from 'vue';
@@ -8,20 +10,27 @@ import type {
   Finding,
   ReconcileAction,
   ReconcileApplyData,
+  ReconcilePlanItem,
   ReconcilePreviewData,
+  ReconcileResultItem,
   Result,
 } from '@skill-manager/contract';
 import DialogShell from '../DialogShell.vue';
-import { classificationLabel, formatLabel } from '../../host-inventory-presentation.ts';
+
 import { inventoryActionLabel } from '../../inventory-actions.ts';
+import type { BatchTarget } from '../../inventory-batch.ts';
 import { localizedFindingsText } from '../../i18n/error-text.ts';
 import { t } from '../../i18n/index.ts';
 
 const props = defineProps<{
   action: ReconcileAction;
-  path: string;
+  path?: string;
+  targets?: BatchTarget[];
   run: (argv: string[]) => Promise<Result<Record<string, unknown>>>;
+  // 是否为批量模式
+  batch?: boolean;
 }>();
+
 const emit = defineEmits<{ close: []; done: [] }>();
 
 const preview = ref<ReconcilePreviewData | null>(null);
@@ -31,8 +40,11 @@ const loading = ref(false);
 const executing = ref(false);
 const error = ref('');
 const confirmed = ref(false);
+const cancelRequested = ref(false);
+const currentItemIndex = ref(0);
 
 const destructive = computed(() => props.action === 'clean' || props.action === 'accept');
+
 const shared = computed(() =>
   (preview.value?.transaction_groups ?? [])
     .filter((group) => group.shared)
@@ -47,7 +59,8 @@ const shared = computed(() =>
       ],
     })),
 );
-const writes = computed(() => {
+
+const writeItems = computed(() => {
   const seen = new Set<string>();
   return (preview.value?.items ?? []).flatMap((item) =>
     item.writes.filter((write) => {
@@ -58,9 +71,41 @@ const writes = computed(() => {
     }),
   );
 });
+
+const ledgerChanges = computed(() => {
+  const items: Array<{
+    item_id: string;
+    target_path: string;
+    changes: { record_key: string; source: string; from_state: string; to_state: string }[];
+  }> = [];
+  for (const item of preview.value?.items ?? []) {
+    if (item.ledger_changes.length > 0) {
+      items.push({
+        item_id: item.item_id,
+        target_path: item.target_path,
+        changes: item.ledger_changes,
+      });
+    }
+  }
+  return items;
+});
+
+const warnings = computed(() => {
+  const warnFindings = findings.value.filter((f) => f.severity === 'warning');
+  const itemWarnings = (preview.value?.items ?? [])
+    .filter((item) => item.status === 'skipped')
+    .map((item) => ({
+      code: 'SKIPPED',
+      target: item.target_path,
+      message: item.reason ?? '',
+    }));
+  return [...warnFindings, ...itemWarnings];
+});
+
 const backups = computed(() => [
   ...new Set((preview.value?.items ?? []).flatMap((item) => item.backups)),
 ]);
+
 const canExecute = computed(
   () =>
     !loading.value &&
@@ -70,12 +115,269 @@ const canExecute = computed(
     (!destructive.value || confirmed.value),
 );
 
+const progressPercent = computed(() => {
+  const planned = preview.value?.summary.planned ?? 0;
+  if (planned === 0 || !props.batch) return 0;
+  const current = currentItemIndex.value;
+  return Math.min(100, Math.round((current / planned) * 100));
+});
+
 function messageOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
 function findingsText(items: Finding[]): string {
   return localizedFindingsText(items);
+}
+
+function buildPreviewArgv(): string[] {
+  const argv = ['reconcile', '--action', props.action];
+  if (props.path) {
+    argv.push('--path', props.path);
+  }
+  return argv;
+}
+
+function targetArgv(target: BatchTarget): string[] {
+  if (target.id !== undefined && target.host !== undefined) {
+    return ['--id', target.id, '--host', target.host];
+  }
+  return ['--path', target.path ?? ''];
+}
+
+async function loadBatchPreview(targets: BatchTarget[]): Promise<ReconcilePreviewData | null> {
+  const plans: ReconcilePreviewData[] = [];
+  for (const target of targets) {
+    const response = await props.run([
+      'reconcile',
+      '--action',
+      props.action,
+      ...targetArgv(target),
+    ]);
+    findings.value.push(...response.findings);
+    const payload = response.data as unknown as ReconcilePreviewData;
+    if (!response.ok || payload?.mode !== 'reconcile') {
+      error.value =
+        findingsText(response.findings) ||
+        t('inventory.actionDialog.previewFailed', { code: response.exit_code });
+      return null;
+    }
+    plans.push(payload);
+  }
+  return mergeBatchPlans(plans);
+}
+
+function mergeBatchPlans(plans: ReconcilePreviewData[]): ReconcilePreviewData | null {
+  const first = plans[0];
+  if (first === undefined) return null;
+  const items = [
+    ...new Map(
+      plans.flatMap((plan) => plan.items).map((item) => [item.physical_key, item]),
+    ).values(),
+  ];
+  const transactionGroups = [
+    ...new Map(
+      plans.flatMap((plan) => plan.transaction_groups).map((group) => [group.group_id, group]),
+    ).values(),
+  ];
+  const planned = items.filter((item) => item.status === 'planned');
+  return {
+    ...first,
+    selection: {
+      mode: 'batch',
+      action: props.action,
+      roots: [],
+      apply: false,
+    },
+    items,
+    transaction_groups: transactionGroups,
+    summary: {
+      selected: items.length,
+      planned: planned.length,
+      skipped: items.length - planned.length,
+      destructive: planned.filter((item) => item.action === 'accept' || item.action === 'clean')
+        .length,
+      shared_groups: transactionGroups.filter((group) => group.shared).length,
+    },
+    notes: [...new Set(plans.flatMap((plan) => plan.notes))],
+  };
+}
+
+function itemSelectionArgv(item: ReconcilePlanItem): string[] {
+  if (
+    item.before.classification_key === 'not_distributed' &&
+    item.skill_id !== undefined &&
+    item.host_ids[0] !== undefined
+  ) {
+    return ['--id', item.skill_id, '--host', item.host_ids[0]];
+  }
+  return ['--path', item.target_path];
+}
+
+function planItemSignature(item: ReconcilePlanItem): string {
+  return JSON.stringify({
+    physical_key: item.physical_key,
+    target_path: item.target_path,
+    skill_id: item.skill_id,
+    host_ids: item.host_ids,
+    format: item.format,
+    visibility: item.visibility,
+    root_roles: item.root_roles,
+    status: item.status,
+    reason: item.reason,
+    before: item.before,
+    action: item.action,
+    after: item.after,
+    writes: item.writes,
+    ledger_changes: item.ledger_changes,
+    warnings: item.warnings,
+  });
+}
+
+function staleFinding(item: ReconcilePlanItem): Finding {
+  return {
+    code: 'E-RECONCILE-002',
+    severity: 'error',
+    source: 'reconcile',
+    target: item.target_path,
+    message: t('inventory.actionDialog.staleItem'),
+    remedy: t('inventory.actionDialog.staleRemedy'),
+  };
+}
+
+function failedResult(
+  item: ReconcilePlanItem,
+  stage: string,
+  reason: string,
+  message: string,
+  itemFindings: Finding[] = [],
+): ReconcileResultItem {
+  return {
+    item_id: item.item_id,
+    status: 'failed',
+    target_path: item.target_path,
+    stage,
+    reason,
+    message,
+    findings: itemFindings,
+  };
+}
+
+async function executeBatch(plan: ReconcilePreviewData): Promise<ReconcileApplyData> {
+  const startedAt = Date.now();
+  const plannedItems = plan.items.filter((item) => item.status === 'planned');
+  const results = skippedResults(plan);
+  let attempted = 0;
+
+  for (const plannedItem of plannedItems) {
+    if (cancelRequested.value && attempted > 0) break;
+    attempted += 1;
+    currentItemIndex.value = attempted;
+    results.push(await executeBatchItem(plannedItem));
+  }
+
+  const succeeded = results.filter((item) => item.status === 'succeeded').length;
+  const failed = results.filter((item) => item.status === 'failed').length;
+  const skipped = results.filter((item) => item.status === 'skipped').length;
+  const cancelled = Math.max(0, plannedItems.length - attempted);
+  return {
+    ...plan,
+    applied: succeeded > 0,
+    results,
+    summary: {
+      ...plan.summary,
+      succeeded,
+      failed,
+      skipped,
+      cancelled,
+      duration_ms: Math.max(0, Date.now() - startedAt),
+    },
+  };
+}
+
+function skippedResults(plan: ReconcilePreviewData): ReconcileResultItem[] {
+  return plan.items
+    .filter((item) => item.status === 'skipped')
+    .map((item) => ({
+      item_id: item.item_id,
+      status: 'skipped',
+      target_path: item.target_path,
+      stage: 'plan',
+      ...(item.reason === undefined ? {} : { reason: item.reason, message: item.reason }),
+    }));
+}
+
+async function executeBatchItem(item: ReconcilePlanItem): Promise<ReconcileResultItem> {
+  const fresh = await freshBatchPlanItem(item);
+  if ('result' in fresh) return fresh.result;
+  return applyBatchItem(item);
+}
+
+type FreshBatchItem = { item: ReconcilePlanItem } | { result: ReconcileResultItem };
+
+async function freshBatchPlanItem(item: ReconcilePlanItem): Promise<FreshBatchItem> {
+  const response = await props.run([
+    'reconcile',
+    '--action',
+    props.action,
+    ...itemSelectionArgv(item),
+  ]);
+  findings.value.push(...response.findings);
+  if (!response.ok) return { result: previewFailure(item, response) };
+
+  const plan = response.data as unknown as ReconcilePreviewData;
+  const current = plan.items?.find(
+    (candidate) => candidate.physical_key === item.physical_key && candidate.status === 'planned',
+  );
+  if (
+    plan.mode !== 'reconcile' ||
+    current === undefined ||
+    planItemSignature(current) !== planItemSignature(item)
+  ) {
+    const finding = staleFinding(item);
+    return {
+      result: failedResult(item, 'preview', 'plan_stale', finding.message, [finding]),
+    };
+  }
+  return { item: current };
+}
+
+function previewFailure(
+  item: ReconcilePlanItem,
+  response: Result<Record<string, unknown>>,
+): ReconcileResultItem {
+  return failedResult(
+    item,
+    'preview',
+    response.findings[0]?.code ?? 'preview_failed',
+    findingsText(response.findings) ||
+      t('inventory.actionDialog.previewFailed', { code: response.exit_code }),
+    response.findings,
+  );
+}
+
+async function applyBatchItem(item: ReconcilePlanItem): Promise<ReconcileResultItem> {
+  const response = await props.run([
+    'reconcile',
+    '--action',
+    props.action,
+    ...itemSelectionArgv(item),
+    '--apply',
+    '--yes',
+  ]);
+  findings.value.push(...response.findings);
+  const applied = response.data as unknown as ReconcileApplyData;
+  return (
+    applied.results?.find((result) => result.target_path === item.target_path) ??
+    failedResult(
+      item,
+      'execute',
+      'missing_result',
+      findingsText(response.findings) ||
+        t('inventory.actionDialog.executeFailed', { code: response.exit_code }),
+      response.findings,
+    )
+  );
 }
 
 async function loadPreview(): Promise<void> {
@@ -85,20 +387,13 @@ async function loadPreview(): Promise<void> {
   preview.value = null;
   result.value = null;
   confirmed.value = false;
+  cancelRequested.value = false;
+  currentItemIndex.value = 0;
   try {
-    const response = await props.run(['reconcile', '--action', props.action, '--path', props.path]);
-    findings.value = response.findings;
-    const payload = response.data as unknown as ReconcilePreviewData;
-    if (payload?.mode === 'reconcile') {
-      preview.value = payload;
-    } else if (response.ok) {
-      error.value = t('inventory.actionDialog.invalidPlan');
-    }
-    if (!response.ok) {
-      error.value =
-        findingsText(response.findings) ||
-        t('inventory.actionDialog.previewFailed', { code: response.exit_code });
-    }
+    preview.value =
+      props.batch && props.targets && props.targets.length > 0
+        ? await loadBatchPreview(props.targets)
+        : await loadSinglePreview();
   } catch (cause) {
     error.value = messageOf(cause);
   } finally {
@@ -106,34 +401,62 @@ async function loadPreview(): Promise<void> {
   }
 }
 
+async function loadSinglePreview(): Promise<ReconcilePreviewData | null> {
+  const response = await props.run(buildPreviewArgv());
+  findings.value = response.findings;
+  const payload = response.data as unknown as ReconcilePreviewData;
+  if (!response.ok) {
+    error.value =
+      findingsText(response.findings) ||
+      t('inventory.actionDialog.previewFailed', { code: response.exit_code });
+    return null;
+  }
+  if (payload?.mode !== 'reconcile') {
+    error.value = t('inventory.actionDialog.invalidPlan');
+    return null;
+  }
+  return payload;
+}
+
 async function execute(): Promise<void> {
   if (!canExecute.value || preview.value === null) return;
   executing.value = true;
   error.value = '';
+  cancelRequested.value = false;
+  currentItemIndex.value = 0;
+
   try {
-    const response = await props.run([
-      'reconcile',
-      '--action',
-      props.action,
-      '--path',
-      props.path,
-      '--apply',
-      '--yes',
-    ]);
-    findings.value = response.findings;
-    const payload = response.data as unknown as ReconcileApplyData;
-    if (payload?.mode === 'reconcile') result.value = payload;
-    if (!response.ok) {
-      error.value =
-        findingsText(response.findings) ||
-        t('inventory.actionDialog.executeFailed', { code: response.exit_code });
+    if (props.batch && props.targets && props.targets.length > 1) {
+      result.value = await executeBatch(preview.value);
+    } else {
+      await executeSingle();
     }
     emit('done');
   } catch (cause) {
     error.value = messageOf(cause);
   } finally {
     executing.value = false;
+    cancelRequested.value = false;
   }
+}
+
+async function executeSingle(): Promise<void> {
+  const response = await props.run([...buildPreviewArgv(), '--apply', '--yes']);
+  findings.value = response.findings;
+  const payload = response.data as unknown as ReconcileApplyData;
+  if (payload?.mode === 'reconcile') {
+    result.value = payload;
+    currentItemIndex.value = payload.results.length;
+  }
+  if (!response.ok) {
+    error.value =
+      findingsText(response.findings) ||
+      t('inventory.actionDialog.executeFailed', { code: response.exit_code });
+  }
+}
+
+function requestCancel(): void {
+  cancelRequested.value = true;
 }
 
 function actionLabel(action: ReconcileAction): string {
@@ -151,45 +474,135 @@ onMounted(loadPreview);
     data-testid="inventory-action-dialog"
     @close="emit('close')"
   >
-    <p class="muted action-target">
+    <p v-if="path" class="muted action-target">
       {{ $t('inventory.actionDialog.target') }} <code>{{ path }}</code>
     </p>
+    <p
+      v-if="batch && targets && targets.length > 0"
+      class="muted action-target"
+      data-testid="batch-selection-count"
+    >
+      {{
+        $t('inventory.actionDialog.batchTarget', {
+          count: targets.length,
+          action: actionLabel(action),
+        })
+      }}
+    </p>
+
     <p v-if="loading" class="muted" data-testid="inventory-action-loading">
       {{ $t('inventory.actionDialog.loading') }}
     </p>
-    <p v-if="error !== ''" class="bad" data-testid="inventory-action-error">{{ error }}</p>
+    <p v-if="error !== ''" class="bad">{{ error }}</p>
 
-    <template v-if="preview !== null">
-      <div v-if="destructive" class="danger-box" data-testid="inventory-action-destructive">
-        <strong>
+    <template v-if="preview !== null && !loading">
+      <div
+        v-if="shared.length > 0 && preview.transaction_groups.some((g) => g.shared)"
+        class="shared-box"
+        data-testid="inventory-action-shared"
+      >
+        <p>
+          <strong>{{ $t('inventory.actionDialog.sharedTitle') }}</strong>
+        </p>
+        <p v-for="group in shared" :key="group.group_id">
           {{
-            action === 'clean'
-              ? $t('inventory.actionDialog.destructive')
-              : $t('inventory.actionDialog.overwrite')
+            $t('inventory.actionDialog.sharedImpact', {
+              consumers: group.consumers.join(', '),
+            })
           }}
-        </strong>
-        {{
-          action === 'clean'
-            ? $t('inventory.actionDialog.destructiveHint')
-            : $t('inventory.actionDialog.overwriteHint')
-        }}
+        </p>
+      </div>
+
+      <div v-if="destructive" class="danger-box" data-testid="inventory-action-destructive">
+        <p>
+          <strong>
+            {{
+              action === 'accept'
+                ? $t('inventory.actionDialog.overwrite')
+                : $t('inventory.actionDialog.destructive')
+            }}
+          </strong>
+        </p>
+        <p>
+          {{
+            action === 'accept'
+              ? $t('inventory.actionDialog.overwriteHint')
+              : $t('inventory.actionDialog.destructiveHint')
+          }}
+        </p>
         <label class="confirm-box">
           <input v-model="confirmed" type="checkbox" data-testid="confirm-destructive" />
           {{ $t('inventory.actionDialog.acknowledged') }}
         </label>
       </div>
 
-      <div v-if="shared.length > 0" class="shared-box" data-testid="inventory-action-shared">
-        <strong>{{ $t('inventory.actionDialog.sharedTitle') }}</strong>
-        <p v-for="group in shared" :key="group.group_id">
-          <code>{{ group.physical_path }}</code>
-          {{
-            $t('inventory.actionDialog.sharedImpact', { consumers: group.consumers.join(' / ') })
-          }}
-        </p>
-      </div>
+      <!-- 写入项 -->
+      <section data-testid="action-section-writes">
+        <h3>
+          {{ $t('inventory.actionDialog.writesSection', { count: writeItems.length }) }}
+        </h3>
+        <ul class="writes">
+          <li v-for="write in writeItems" :key="`${write.action}:${write.kind}:${write.path}`">
+            <span class="action">{{ write.action }}</span>
+            <code>{{ write.path }}</code>
+            <span class="muted">（{{ write.kind }}）</span>
+          </li>
+          <li v-if="writeItems.length === 0" class="muted">
+            {{ $t('inventory.actionDialog.noWrites') }}
+          </li>
+        </ul>
+      </section>
 
-      <section>
+      <!-- 账本变更 -->
+      <section data-testid="action-section-ledger">
+        <h3>{{ $t('inventory.actionDialog.ledgerSection') }}</h3>
+        <ul class="ledger">
+          <li v-for="group in ledgerChanges" :key="`ledger-${group.item_id}`">
+            <code>{{ group.target_path }}</code>
+            <span
+              v-for="change in group.changes"
+              :key="`${group.item_id}-${change.record_key}`"
+              class="muted"
+            >
+              {{ change.source }}：{{ change.from_state }} → {{ change.to_state }}
+            </span>
+          </li>
+          <li v-if="ledgerChanges.length === 0" class="muted">
+            {{ $t('inventory.actionDialog.noLedgerChanges') }}
+          </li>
+          <li v-if="backups.length > 0">
+            {{ $t('inventory.actionDialog.backupRoot') }}
+            <code>{{ backups.join(', ') }}</code>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 警告 -->
+      <section data-testid="action-section-warnings">
+        <h3 class="warn">
+          {{ $t('inventory.actionDialog.warningsSection', { count: warnings.length }) }}
+        </h3>
+        <ul class="warnings">
+          <li v-if="warnings.length === 0" class="muted">
+            {{ $t('inventory.actionDialog.noWarnings') }}
+          </li>
+          <li v-for="(warning, index) in warnings" :key="index">
+            <span v-if="'code' in warning && warning.code !== 'SKIPPED'" class="tag warning">
+              {{ warning.code }}
+            </span>
+            <span v-else class="tag skipped">skipped</span>
+            <span v-if="'target' in warning && warning.target" class="muted">
+              {{ warning.target }}
+            </span>
+            <span v-if="'message' in warning && warning.message">
+              {{ warning.message }}
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 计划列表 / 进度 -->
+      <section data-testid="action-plan">
         <h3>
           {{
             $t('inventory.actionDialog.planTitle', {
@@ -198,60 +611,46 @@ onMounted(loadPreview);
             })
           }}
         </h3>
-        <ul class="items">
-          <li v-for="item in preview.items" :key="item.item_id">
-            <strong>{{ item.skill_id ?? item.target_path }}</strong>
-            <code>{{ item.target_path }}</code>
-            <span class="tag">{{ item.status }}</span>
-            <span v-if="item.reason" class="muted">{{ item.reason }}</span>
-            <span class="muted">
-              {{
-                $t('inventory.actionDialog.after', {
-                  classification: classificationLabel(item.after.classification),
-                  hosts: item.host_ids.join(', ') || '—',
-                  format: formatLabel(item.format),
-                })
-              }}
-            </span>
-          </li>
-        </ul>
+        <div
+          v-if="batch && (executing || result !== null)"
+          class="progress-bar"
+          data-testid="batch-progress"
+        >
+          <div class="progress-fill" :style="{ width: `${progressPercent}%` }"></div>
+          <span class="progress-text">
+            {{
+              $t('inventory.actionDialog.progressText', {
+                current: currentItemIndex,
+                total: preview.summary.planned,
+              })
+            }}
+          </span>
+        </div>
       </section>
 
-      <section>
-        <h3>{{ $t('inventory.actionDialog.writes', { count: writes.length }) }}</h3>
-        <ul class="writes">
-          <li v-for="write in writes" :key="`${write.action}:${write.kind}:${write.path}`">
-            <span class="action">{{ write.action }}</span>
-            <code>{{ write.path }}</code>
-            <span class="muted">（{{ write.kind }}）</span>
-          </li>
-          <li v-if="writes.length === 0" class="muted">
-            {{ $t('inventory.actionDialog.noWrites') }}
-          </li>
-        </ul>
-      </section>
-
-      <section>
-        <h3>{{ $t('inventory.actionDialog.ledger') }}</h3>
-        <ul class="ledger">
-          <li v-for="item in preview.items" :key="`ledger-${item.item_id}`">
-            <span v-for="change in item.ledger_changes" :key="change.record_key">
-              {{ change.source }}：{{ change.from_state }} → {{ change.to_state }}
-            </span>
-          </li>
-          <li v-if="backups.length > 0">
-            {{ $t('inventory.actionDialog.backupRoot') }} <code>{{ backups.join(', ') }}</code>
-          </li>
-        </ul>
-      </section>
-
+      <!-- 执行结果 -->
       <section v-if="result !== null" data-testid="inventory-action-results">
-        <h3>{{ $t('inventory.actionDialog.results') }}</h3>
+        <h3>{{ $t('inventory.actionDialog.resultsSection') }}</h3>
+        <p class="result-summary" data-testid="batch-summary">
+          {{
+            $t('inventory.actionDialog.resultSummary', {
+              planned: result.summary.planned,
+              succeeded: result.results.filter((r) => r.status === 'succeeded').length,
+              failed: result.results.filter((r) => r.status === 'failed').length,
+              skipped: result.results.filter((r) => r.status === 'skipped').length,
+              cancelled: result.summary.cancelled ?? 0,
+            })
+          }}
+        </p>
         <ul class="results">
           <li v-for="item in result.results" :key="item.item_id">
             <span class="tag" :class="item.status">{{ item.status }}</span>
             <code>{{ item.target_path }}</code>
             <span v-if="item.message" class="muted">{{ item.message }}</span>
+            <code v-if="item.reason">{{ item.reason }}</code>
+            <span v-if="item.stage" class="muted">
+              （{{ $t('inventory.actionDialog.stage', { stage: item.stage }) }}）
+            </span>
             <span
               v-for="finding in item.findings ?? []"
               :key="finding.code + finding.target"
@@ -277,8 +676,11 @@ onMounted(loadPreview);
     </template>
 
     <template #footer>
-      <button data-testid="inventory-action-cancel" @click="emit('close')">
-        {{ $t('common.cancel') }}
+      <button
+        data-testid="inventory-action-cancel"
+        @click="executing && batch ? requestCancel() : emit('close')"
+      >
+        {{ executing && batch ? $t('inventory.actionDialog.cancelBatch') : $t('common.cancel') }}
       </button>
       <button
         class="primary"
@@ -289,7 +691,9 @@ onMounted(loadPreview);
       >
         {{
           executing
-            ? $t('inventory.actionDialog.executing')
+            ? batch
+              ? $t('inventory.actionDialog.executingBatch')
+              : $t('inventory.actionDialog.executing')
             : preview !== null && preview.summary.planned === 0
               ? $t('inventory.actionDialog.noExecutable')
               : $t('inventory.actionDialog.confirmExecute')
@@ -337,9 +741,9 @@ onMounted(loadPreview);
   margin-top: calc(var(--space) * 2);
 }
 
-.items,
 .writes,
 .ledger,
+.warnings,
 .results,
 .findings {
   list-style: none;
@@ -351,13 +755,10 @@ onMounted(loadPreview);
   word-break: break-all;
 }
 
-.items li {
-  display: grid;
-  gap: calc(var(--space) / 2);
-}
-
 .writes li,
-.results li {
+.ledger li,
+.results li,
+.warnings li {
   display: flex;
   gap: calc(var(--space) * 2);
   flex-wrap: wrap;
@@ -377,11 +778,51 @@ onMounted(loadPreview);
   color: var(--danger);
 }
 
+.tag.skipped,
+.tag.warning {
+  color: var(--warning);
+}
+
+.warn {
+  color: var(--warning);
+}
+
 .bad {
   color: var(--danger);
 }
 
 button.primary.danger {
   background: var(--danger);
+}
+
+.progress-bar {
+  position: relative;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s ease;
+}
+
+.progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.result-summary {
+  margin: 0 0 calc(var(--space) * 2);
+  font-size: 13px;
+  font-weight: 600;
 }
 </style>

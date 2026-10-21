@@ -357,6 +357,18 @@
       "layer": "gui"
     },
     {
+      "path": "gui/renderer/src/i18n/locales/inventory-batch-en.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/inventory-batch-zh-CN.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
       "path": "gui/renderer/src/i18n/locales/zh-CN.ts",
       "kind": "source",
       "region": "gui-renderer",
@@ -364,6 +376,12 @@
     },
     {
       "path": "gui/renderer/src/inventory-actions.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/inventory-batch.ts",
       "kind": "source",
       "region": "gui-renderer",
       "layer": "gui"
@@ -1425,6 +1443,12 @@
       "layer": "scripts"
     },
     {
+      "path": "scripts/gui-smoke-cdp.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
       "path": "scripts/gui-smoke-fixtures.mjs",
       "kind": "source",
       "region": "scripts",
@@ -1438,6 +1462,12 @@
     },
     {
       "path": "scripts/gui-smoke-inventory-actions.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
+      "path": "scripts/gui-smoke-inventory-batch.mjs",
       "kind": "source",
       "region": "scripts",
       "layer": "scripts"
@@ -2103,13 +2133,6 @@
     },
     {
       "from": "gui/renderer/src/components/host-inventory/InventoryActionDialog.vue",
-      "to": "gui/renderer/src/host-inventory-presentation.ts",
-      "specifier": "../../host-inventory-presentation.ts",
-      "from_layer": "gui",
-      "to_layer": "gui"
-    },
-    {
-      "from": "gui/renderer/src/components/host-inventory/InventoryActionDialog.vue",
       "to": "gui/renderer/src/i18n/error-text.ts",
       "specifier": "../../i18n/error-text.ts",
       "from_layer": "gui",
@@ -2126,6 +2149,13 @@
       "from": "gui/renderer/src/components/host-inventory/InventoryActionDialog.vue",
       "to": "gui/renderer/src/inventory-actions.ts",
       "specifier": "../../inventory-actions.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/host-inventory/InventoryActionDialog.vue",
+      "to": "gui/renderer/src/inventory-batch.ts",
+      "specifier": "../../inventory-batch.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2158,6 +2188,13 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/renderer/src/components/host-inventory/InventoryCopyDetails.vue",
+      "to": "gui/renderer/src/inventory-batch.ts",
+      "specifier": "../../inventory-batch.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/renderer/src/components/host-inventory/InventoryHostGroups.vue",
       "to": "gui/renderer/src/components/host-inventory/InventoryCopyDetails.vue",
       "specifier": "./InventoryCopyDetails.vue",
@@ -2168,6 +2205,13 @@
       "from": "gui/renderer/src/components/host-inventory/InventoryHostGroups.vue",
       "to": "gui/renderer/src/host-inventory-presentation.ts",
       "specifier": "../../host-inventory-presentation.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/host-inventory/InventoryHostGroups.vue",
+      "to": "gui/renderer/src/inventory-batch.ts",
+      "specifier": "../../inventory-batch.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2224,6 +2268,20 @@
       "from": "gui/renderer/src/components/HostInventoryView.vue",
       "to": "gui/renderer/src/i18n/index.ts",
       "specifier": "../i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/HostInventoryView.vue",
+      "to": "gui/renderer/src/inventory-actions.ts",
+      "specifier": "../inventory-actions.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/HostInventoryView.vue",
+      "to": "gui/renderer/src/inventory-batch.ts",
+      "specifier": "../inventory-batch.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2452,6 +2510,13 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/renderer/src/i18n/locales/en.ts",
+      "to": "gui/renderer/src/i18n/locales/inventory-batch-en.ts",
+      "specifier": "./inventory-batch-en.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/renderer/src/i18n/locales/zh-CN.ts",
       "to": "gui/renderer/src/i18n/locales/errors-zh-CN.ts",
       "specifier": "./errors-zh-CN.ts",
@@ -2459,9 +2524,23 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/renderer/src/i18n/locales/zh-CN.ts",
+      "to": "gui/renderer/src/i18n/locales/inventory-batch-zh-CN.ts",
+      "specifier": "./inventory-batch-zh-CN.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/renderer/src/inventory-actions.ts",
       "to": "gui/renderer/src/i18n/index.ts",
       "specifier": "./i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/inventory-batch.ts",
+      "to": "gui/renderer/src/inventory-actions.ts",
+      "specifier": "./inventory-actions.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -8389,6 +8468,13 @@
     },
     {
       "from": "scripts/gui-smoke-inventory-actions.mjs",
+      "to": "scripts/gui-smoke-inventory-batch.mjs",
+      "specifier": "./gui-smoke-inventory-batch.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
+    },
+    {
+      "from": "scripts/gui-smoke-inventory-actions.mjs",
       "to": "scripts/gui-smoke-inventory-export.mjs",
       "specifier": "./gui-smoke-inventory-export.mjs",
       "from_layer": "scripts",
@@ -8419,6 +8505,13 @@
       "from": "scripts/gui-smoke-plugin.mjs",
       "to": "scripts/gui-smoke-inventory.mjs",
       "specifier": "./gui-smoke-inventory.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
+    },
+    {
+      "from": "scripts/gui-smoke.mjs",
+      "to": "scripts/gui-smoke-cdp.mjs",
+      "specifier": "./gui-smoke-cdp.mjs",
       "from_layer": "scripts",
       "to_layer": "scripts"
     },
@@ -8494,10 +8587,10 @@
     }
   ],
   "stats": {
-    "source_files": 261,
+    "source_files": 266,
     "asset_nodes": 1,
-    "nodes": 262,
-    "edges": 988,
+    "nodes": 267,
+    "edges": 997,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
@@ -8505,9 +8598,9 @@
       "core": 69,
       "dispatch": 64,
       "entry": 2,
-      "gui": 56,
+      "gui": 59,
       "public": 1,
-      "scripts": 47,
+      "scripts": 49,
       "store": 12
     },
     "outgoing": {
@@ -8515,9 +8608,9 @@
       "core": 294,
       "dispatch": 488,
       "entry": 8,
-      "gui": 119,
+      "gui": 126,
       "public": 6,
-      "scripts": 34,
+      "scripts": 36,
       "store": 21
     },
     "incoming": {
@@ -8525,9 +8618,9 @@
       "core": 339,
       "dispatch": 199,
       "entry": 1,
-      "gui": 119,
+      "gui": 126,
       "public": 1,
-      "scripts": 33,
+      "scripts": 35,
       "store": 278
     },
     "cross_layer_edges": {

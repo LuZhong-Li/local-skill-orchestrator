@@ -1,22 +1,70 @@
 <script setup lang="ts">
 /** 宿主分组：内置与第三方 x- 宿主分区，根与共享根消费关系逐条展示。 */
 import { computed } from 'vue';
-import type { InventoryHostNode, ReconcileAction } from '@skill-manager/contract';
+import type {
+  InventoryHostNode,
+  InventoryHostRootNode,
+  MissingInventoryCopy,
+  ReconcileAction,
+  ReconciledInventoryCopy,
+  ReconciledInventoryCorruptCopy,
+} from '@skill-manager/contract';
 import {
   nonZeroClassificationEntries,
   roleLabel,
   rootStateLabel,
 } from '../../host-inventory-presentation.ts';
 import InventoryCopyDetails from './InventoryCopyDetails.vue';
+import { copyKey, isCopySelectable } from '../../inventory-batch.ts';
 
-const props = defineProps<{ hosts: InventoryHostNode[] }>();
-const emit = defineEmits<{ action: [action: ReconcileAction, path: string] }>();
+type RootLike = InventoryHostRootNode;
+
+const props = defineProps<{
+  hosts: InventoryHostNode[];
+  selectedKeys?: Set<string>;
+  showSelection?: boolean;
+}>();
+
+const emit = defineEmits<{
+  action: [action: ReconcileAction, path: string];
+  'toggle-selection': [key: string];
+  'toggle-root': [rootId: string, selected: boolean];
+}>();
+
 function forwardAction(action: ReconcileAction, path: string): void {
   emit('action', action, path);
 }
 
 const builtin = computed(() => props.hosts.filter((host) => host.host_group === 'builtin'));
 const thirdParty = computed(() => props.hosts.filter((host) => host.host_group === 'plugin'));
+
+function allCopiesOf(
+  node: RootLike,
+): Array<ReconciledInventoryCopy | ReconciledInventoryCorruptCopy | MissingInventoryCopy> {
+  return [...node.copies, ...node.corrupt, ...node.missing];
+}
+
+function rootAllSelected(node: RootLike): boolean {
+  const selectable = allCopiesOf(node).filter(isCopySelectable);
+  if (selectable.length === 0) return false;
+  const keys = props.selectedKeys ?? new Set<string>();
+  return selectable.every((c) => keys.has(copyKey(c)));
+}
+
+function rootSomeSelected(node: RootLike): boolean {
+  const keys = props.selectedKeys ?? new Set<string>();
+  return allCopiesOf(node)
+    .filter(isCopySelectable)
+    .some((c) => keys.has(copyKey(c)));
+}
+
+function toggleRoot(rootId: string, node: RootLike): void {
+  emit('toggle-root', rootId, !rootAllSelected(node));
+}
+
+function toggleCopy(key: string): void {
+  emit('toggle-selection', key);
+}
 </script>
 
 <template>
@@ -61,6 +109,24 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
         :data-root-id="node.root.root_id"
       >
         <div class="root-head">
+          <label
+            v-if="showSelection"
+            class="root-select"
+            :class="{ 'has-selection': rootSomeSelected(node) }"
+          >
+            <input
+              type="checkbox"
+              :data-testid="`select-root-${node.root.root_id}`"
+              :checked="rootAllSelected(node)"
+              :indeterminate.prop="rootSomeSelected(node) && !rootAllSelected(node)"
+              :disabled="
+                [...node.copies, ...node.corrupt, ...node.missing].filter((c) =>
+                  isCopySelectable(c),
+                ).length === 0
+              "
+              @change="toggleRoot(node.root.root_id, node)"
+            />
+          </label>
           <code class="root-path" :title="node.root.path">{{ node.root.path }}</code>
           <span class="tag role">{{ roleLabel(node.root.root_role) }}</span>
           <span class="tag" :class="node.root.state">{{ rootStateLabel(node.root.state) }}</span>
@@ -107,7 +173,10 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           <InventoryCopyDetails
             :copies="node.copies"
             test-id="inventory-copies"
+            :selected-keys="selectedKeys ?? new Set()"
+            :show-selection="showSelection"
             @action="forwardAction"
+            @toggle-selection="toggleCopy"
           />
         </details>
         <details v-if="node.corrupt.length > 0" class="copy-fold">
@@ -115,7 +184,10 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           <InventoryCopyDetails
             :corrupt="node.corrupt"
             test-id="inventory-root-corrupt"
+            :selected-keys="selectedKeys ?? new Set()"
+            :show-selection="showSelection"
             @action="forwardAction"
+            @toggle-selection="toggleCopy"
           />
         </details>
         <details v-if="node.missing.length > 0" class="copy-fold">
@@ -123,7 +195,10 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           <InventoryCopyDetails
             :missing="node.missing"
             test-id="inventory-root-missing"
+            :selected-keys="selectedKeys ?? new Set()"
+            :show-selection="showSelection"
             @action="forwardAction"
+            @toggle-selection="toggleCopy"
           />
         </details>
       </div>
@@ -162,6 +237,23 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
         :data-root-id="node.root.root_id"
       >
         <div class="root-head">
+          <label
+            v-if="showSelection"
+            class="root-select"
+            :class="{ 'has-selection': rootSomeSelected(node) }"
+          >
+            <input
+              type="checkbox"
+              :checked="rootAllSelected(node)"
+              :indeterminate.prop="rootSomeSelected(node) && !rootAllSelected(node)"
+              :disabled="
+                [...node.copies, ...node.corrupt, ...node.missing].filter((c) =>
+                  isCopySelectable(c),
+                ).length === 0
+              "
+              @change="toggleRoot(node.root.root_id, node)"
+            />
+          </label>
           <code class="root-path" :title="node.root.path">{{ node.root.path }}</code>
           <span class="tag role">{{ roleLabel(node.root.root_role) }}</span>
           <span class="tag" :class="node.root.state">{{ rootStateLabel(node.root.state) }}</span>
@@ -174,7 +266,10 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           <InventoryCopyDetails
             :copies="node.copies"
             test-id="inventory-copies"
+            :selected-keys="selectedKeys ?? new Set()"
+            :show-selection="showSelection"
             @action="forwardAction"
+            @toggle-selection="toggleCopy"
           />
         </details>
         <details v-if="node.corrupt.length > 0" class="copy-fold">
@@ -182,7 +277,10 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           <InventoryCopyDetails
             :corrupt="node.corrupt"
             test-id="inventory-root-corrupt"
+            :selected-keys="selectedKeys ?? new Set()"
+            :show-selection="showSelection"
             @action="forwardAction"
+            @toggle-selection="toggleCopy"
           />
         </details>
       </div>
@@ -311,5 +409,10 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
 .warn {
   color: var(--warning);
   font-size: 12px;
+}
+
+.root-select {
+  display: inline-flex;
+  align-items: center;
 }
 </style>

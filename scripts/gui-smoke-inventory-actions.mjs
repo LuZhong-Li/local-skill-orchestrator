@@ -3,6 +3,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { treeHash } from './gui-smoke-fixtures.mjs';
 import { runInventoryExportChecks } from './gui-smoke-inventory-export.mjs';
+import { runInventoryBatchChecks } from './gui-smoke-inventory-batch.mjs';
 
 function cut(value, length) {
   return String(value).replace(/\s+/g, ' ').slice(0, length);
@@ -196,6 +197,43 @@ async function checkRoleIsolation(context) {
       (await noActions(platform)) && (await managedLabel('platform-skill')),
     );
   }
+
+  const nonUserCheckboxDisabled = async (path) =>
+    (await context.evaluate(
+      `(() => {
+        const input = [...document.querySelectorAll('input[type="checkbox"][data-path]')]
+          .find((item) => item.dataset.path === ${JSON.stringify(path)});
+        return input instanceof HTMLInputElement && input.disabled === true;
+      })()`,
+    )) === true;
+  check('系统副本在批量选择中保持禁用', await nonUserCheckboxDisabled(system));
+  if (process.platform === 'win32') {
+    check('平台副本在批量选择中保持禁用', await nonUserCheckboxDisabled(platform));
+  }
+}
+
+async function checkRootSelectAll(context) {
+  const { check, evaluate, waitFor } = context;
+  const rootReady = await waitFor(
+    `[...document.querySelectorAll('input[data-testid^="select-root-"]:not(:disabled)')].length > 0`,
+    60,
+  );
+  check('角色/根分组提供整组选择', rootReady === true);
+  await evaluate(
+    '[...document.querySelectorAll(\'input[data-testid^="select-root-"]:not(:disabled)\')][0]?.click()',
+  );
+  await waitFor(
+    'document.querySelector(\'[data-testid="batch-selected-count"]\')?.textContent?.trim().length > 0',
+    40,
+  );
+  const selectedText = String(
+    await evaluate(
+      "document.querySelector('[data-testid=\"batch-selected-count\"]')?.textContent ?? ''",
+    ),
+  );
+  await evaluate('document.querySelector(\'[data-testid="batch-clear"]\')?.click()');
+  await waitFor('document.querySelector(\'[data-testid="batch-action-bar"]\') === null', 40);
+  check('整组选择后可在批量栏清空', /已选 \d+ 项/.test(selectedText), cut(selectedText, 120));
 }
 
 export async function runInventoryActionChecks(context) {
@@ -204,10 +242,14 @@ export async function runInventoryActionChecks(context) {
   const shared = join(hostHome, '.agents', 'skills', 'shared-skill');
   const broken = join(hostHome, '.claude', 'skills', 'broken-skill');
 
+  console.log('[smoke] inventory action checks start');
   await openInventory(context);
   await refresh(context);
   await checkRoleIsolation(context);
+  await checkRootSelectAll(context);
+  console.log('[smoke] inventory selection checks complete');
   await runInventoryExportChecks(context);
+  console.log('[smoke] inventory export checks complete');
   await preview(context, 'adopt', history);
   const adoptPreview = await dialogText(context);
   check(
@@ -292,6 +334,11 @@ export async function runInventoryActionChecks(context) {
   await execute(context, true);
   await closeDialog(context);
   check('损坏副本清理删除物理目录', !existsSync(broken));
+  await runInventoryBatchChecks({
+    ...context,
+    refreshInventory: () => refresh(context),
+  });
+  console.log('[smoke] inventory action checks complete');
 }
 
 async function expandThirdParty(context, hostId) {

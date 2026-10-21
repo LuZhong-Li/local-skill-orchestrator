@@ -1,4 +1,5 @@
 import errors from './errors-en.ts';
+import inventoryBatch from './inventory-batch-en.ts';
 
 export default {
   app: {
@@ -329,6 +330,8 @@ export default {
     ledgerOk: 'readable',
     ledgerMissing: 'no ledger (inferred for legacy workspace)',
     ledgerUnreadable: 'unreadable (not repaired or overwritten)',
+    batch: inventoryBatch,
+
     untrackedTitle: 'Unmanaged copies',
     untrackedHint:
       'These copies exist on disk without a usable ledger or workspace record. Shared roots list every affected host. System, platform, and project copies remain read-only under their role groups.',
@@ -470,14 +473,28 @@ export default {
       sharedImpact: 'Affects {consumers}',
       planTitle: 'Action plan ({planned} planned, {skipped} skipped)',
       after: 'After: {classification} / {hosts}; format {format}',
-      writes: 'Files to write ({count})',
+      writesSection: 'Files to write ({count})',
       noWrites: 'No files are planned for writing.',
       ledger: 'Ledger and backups',
       backupRoot: 'Backup root:',
-      results: 'Execution results',
+      resultsSection: 'Execution results',
       finding: '[{severity}] {code}',
       executing: 'Executing…',
       noExecutable: 'No executable items',
+
+      batchTarget: '{count} copies selected for {action}',
+      staleItem: 'This item changed after preview; it was not executed.',
+      staleRemedy: 'Refresh the inventory, review the new impact, and confirm again.',
+      ledgerSection: 'Ledger changes',
+      warningsSection: 'Warnings ({count})',
+      noWarnings: 'No warnings.',
+      noLedgerChanges: 'No ledger changes planned.',
+      resultSummary:
+        'Planned: {planned} Succeeded: {succeeded} Failed: {failed} Skipped: {skipped} Cancelled: {cancelled}',
+      progressText: '{current} / {total}',
+      stage: 'stage: {stage}',
+      executingBatch: 'Executing batch...',
+      cancelBatch: 'Stop after current',
       confirmExecute: 'Confirm execution',
     },
   },

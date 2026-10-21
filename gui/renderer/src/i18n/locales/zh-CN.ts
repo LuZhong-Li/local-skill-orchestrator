@@ -1,4 +1,5 @@
 import errors from './errors-zh-CN.ts';
+import inventoryBatch from './inventory-batch-zh-CN.ts';
 
 export default {
   app: {
@@ -316,6 +317,8 @@ export default {
     ledgerOk: '可读',
     ledgerMissing: '无账本（旧工作区按推断处理）',
     ledgerUnreadable: '不可读（不修复、不覆盖）',
+    batch: inventoryBatch,
+
     untrackedTitle: '未纳管清单',
     untrackedHint:
       '这些副本在磁盘上存在，但没有可用的账本或工作区记录。可在明细中逐条采纳；共享根会提示受影响的全部宿主。系统 / 平台 / 项目级副本由对应工具管理，不在此清单提供动作，可在下方角色分组只读查看。',
@@ -452,14 +455,28 @@ export default {
       sharedImpact: '影响 {consumers}',
       planTitle: '动作计划（{planned} 项，跳过 {skipped} 项）',
       after: '执行后：{classification} / 宿主 {hosts}；形态 {format}',
-      writes: '将写入（{count} 项）',
+      writesSection: '将写入（{count} 项）',
       noWrites: '没有计划写入。',
       ledger: '账本与备份',
       backupRoot: '备份根：',
-      results: '执行结果',
+      resultsSection: '执行结果',
       finding: '[{severity}] {code}',
       executing: '执行中…',
       noExecutable: '无可执行项',
+
+      batchTarget: '已选择 {count} 个副本执行「{action}」',
+      staleItem: '该副本在预览后发生变化，已拒绝执行。',
+      staleRemedy: '请刷新盘点，重新核对影响范围后再确认。',
+      ledgerSection: '账本变更',
+      warningsSection: '警告（{count} 项）',
+      noWarnings: '无警告。',
+      noLedgerChanges: '无账本变更。',
+      resultSummary:
+        '计划 {planned} · 成功 {succeeded} · 失败 {failed} · 跳过 {skipped} · 取消 {cancelled}',
+      progressText: '{current} / {total}',
+      stage: '阶段：{stage}',
+      executingBatch: '批量执行中…',
+      cancelBatch: '完成当前后停止',
       confirmExecute: '确认执行',
     },
   },

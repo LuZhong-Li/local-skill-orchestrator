@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { prepareHostFixture, prepareWorkspace, remoteMeta } from './gui-smoke-fixtures.mjs';
 import { runEmptyWorkspaceInventoryChecks } from './gui-smoke-inventory.mjs';
 import { runInventoryActionChecks } from './gui-smoke-inventory-actions.mjs';
+import { connectDebugger } from './gui-smoke-cdp.mjs';
 import { runPluginSmoke } from './gui-smoke-plugin.mjs';
 import { killTree, readTextOrFallback } from './gui-smoke-launch.mjs';
 import { runI18nSmoke } from './gui-smoke-i18n.mjs';
@@ -121,33 +122,6 @@ async function waitForTarget(port, timeoutMs) {
   throw new Error('等待渲染层目标超时');
 }
 
-function connect(webSocketDebuggerUrl) {
-  const socket = new WebSocket(webSocketDebuggerUrl);
-  const pending = new Map();
-  let nextId = 1;
-  socket.addEventListener('message', (event) => {
-    const message = JSON.parse(String(event.data));
-    const resolver = pending.get(message.id);
-    if (resolver !== undefined) {
-      pending.delete(message.id);
-      resolver(message);
-    }
-  });
-  const ready = new Promise((resolve, reject) => {
-    socket.addEventListener('open', () => resolve(undefined));
-    socket.addEventListener('error', () => reject(new Error('调试通道连接失败')));
-  });
-  return {
-    ready,
-    close: () => socket.close(),
-    send(method, params) {
-      const id = nextId++;
-      socket.send(JSON.stringify({ id, method, params }));
-      return new Promise((resolve) => pending.set(id, resolve));
-    },
-  };
-}
-
 async function main() {
   const PORT = await freePort();
   const gitPort = await freePort();
@@ -205,7 +179,7 @@ async function main() {
   try {
     const target = await waitForTarget(PORT, 30000);
     diagnostics.push(`目标页面：${String(target.url)}｜${String(target.title)}`);
-    const client = connect(target.webSocketDebuggerUrl);
+    const client = connectDebugger(target.webSocketDebuggerUrl);
     await client.ready;
 
     const evaluate = async (expression) => {

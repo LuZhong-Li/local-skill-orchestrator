@@ -55,11 +55,39 @@ test('契约：盘点视图走通用 scan --inventory，不直接访问 preload 
   assert.match(host, /@done="load"/);
 
   const dialog = read('gui/renderer/src/components/host-inventory/InventoryActionDialog.vue');
-  assert.match(dialog, /\['reconcile', '--action', props\.action, '--path', props\.path\]/);
+  assert.match(dialog, /function buildPreviewArgv\(\): string\[\]/);
+  assert.match(dialog, /function executeBatch\(/);
+  assert.match(dialog, /function planItemSignature\(/);
   assert.match(dialog, /'--apply'/);
   assert.match(dialog, /'--yes'/);
   assert.equal(dialog.includes('window.skillManager'), false);
   assert.match(dialog, /onMounted\(loadPreview\)/);
+});
+
+test('T7 契约：批量选择覆盖复选框、根级全选、三区块与 item 边界取消', () => {
+  const host = read('gui/renderer/src/components/HostInventoryView.vue');
+  assert.match(host, /data-testid="batch-action-bar"/);
+  assert.match(host, /data-testid="batch-clear"/);
+  assert.match(host, /:selected-keys="selection\.selected"/);
+  assert.match(host, /@toggle-root="toggleRoot"/);
+
+  const copyDetails = read('gui/renderer/src/components/host-inventory/InventoryCopyDetails.vue');
+  assert.match(copyDetails, /type="checkbox"/);
+  assert.match(copyDetails, /:data-path="copy\.path"/);
+  assert.match(copyDetails, /:disabled="!isCopySelectable\(copy\)"/);
+
+  const groups = read('gui/renderer/src/components/host-inventory/InventoryHostGroups.vue');
+  assert.match(groups, /select-root-\$\{node\.root\.root_id\}/);
+  assert.match(groups, /@change="toggleRoot\(node\.root\.root_id, node\)"/);
+
+  const dialog = read('gui/renderer/src/components/host-inventory/InventoryActionDialog.vue');
+  for (const section of ['writes', 'ledger', 'warnings']) {
+    assert.match(dialog, new RegExp(`data-testid="action-section-${section}"`));
+  }
+  assert.match(dialog, /data-testid="batch-progress"/);
+  assert.match(dialog, /data-testid="batch-summary"/);
+  assert.match(dialog, /function requestCancel\(\): void/);
+  assert.match(dialog, /if \(cancelRequested\.value && attempted > 0\) break;/);
 });
 
 test('契约：未初始化工作区有盘点入口，逐条动作与角色折叠可见', () => {
