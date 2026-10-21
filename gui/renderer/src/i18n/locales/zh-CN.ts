@@ -1,5 +1,7 @@
 import errors from './errors-zh-CN.ts';
 import inventoryBatch from './inventory-batch-zh-CN.ts';
+import inventoryRootEmpty from './inventory-root-empty-zh-CN.ts';
+import inventoryRootState from './inventory-root-state-zh-CN.ts';
 
 export default {
   app: {
@@ -340,14 +342,8 @@ export default {
       project: '当前工作区项目级副本，不参与用户主计数；不提供 reconcile 动作',
       user: '用户级安装副本',
     },
-    rootState: {
-      ok: '已发现',
-      empty: '空目录',
-      missing: '不存在',
-      unconfigured: '未配置',
-      unreadable: '不可读',
-      notApplicable: '不适用',
-    },
+    rootState: inventoryRootState,
+    rootEmptyHint: inventoryRootEmpty,
     classification: {
       managed: '账本一致',
       drift: '漂移',

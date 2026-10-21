@@ -131,12 +131,14 @@ function toggleAll(
               />
             </td>
             <td>
-              <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
-              <span class="muted host">{{ copy.host_id }}</span>
+              <code class="skill-id" :title="copy.skill_id ?? $t('inventory.unresolved')">
+                {{ copy.skill_id ?? $t('inventory.unresolved') }}
+              </code>
+              <span class="muted host" :title="copy.host_id">{{ copy.host_id }}</span>
             </td>
             <td>{{ copy.version ?? '—' }}</td>
             <td class="path" :title="copy.path">
-              <code>{{ copy.path }}</code>
+              <code class="path-text" :title="copy.path">{{ copy.path }}</code>
               <span class="muted">{{ formatLabel(copy.format) }}</span>
             </td>
             <td>{{ visibilityLabel(copy.visibility) }}</td>
@@ -158,7 +160,9 @@ function toggleAll(
               }}</span>
             </td>
             <td class="reason">
-              {{ reasonText(copy.reconciliation) }}
+              <span class="reason-text" :title="reasonText(copy.reconciliation)">
+                {{ reasonText(copy.reconciliation) }}
+              </span>
               <span class="muted evidence">{{ evidenceText(copy.reconciliation.evidence) }}</span>
             </td>
             <td>
@@ -216,13 +220,17 @@ function toggleAll(
               />
             </td>
             <td>
-              <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
-              <span class="muted host">{{ copy.host_id }}</span>
+              <code class="skill-id" :title="copy.skill_id ?? $t('inventory.unresolved')">
+                {{ copy.skill_id ?? $t('inventory.unresolved') }}
+              </code>
+              <span class="muted host" :title="copy.host_id">{{ copy.host_id }}</span>
             </td>
             <td class="path" :title="copy.path">
-              <code>{{ copy.path }}</code>
+              <code class="path-text" :title="copy.path">{{ copy.path }}</code>
             </td>
-            <td class="reason">{{ copy.reason }}</td>
+            <td class="reason">
+              <span class="reason-text" :title="copy.reason">{{ copy.reason }}</span>
+            </td>
             <td>
               <InventoryActionMenu :copy="copy" @action="forwardAction" />
             </td>
@@ -280,11 +288,13 @@ function toggleAll(
               />
             </td>
             <td>
-              <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
-              <span class="muted host">{{ copy.host_id }}</span>
+              <code class="skill-id" :title="copy.skill_id ?? $t('inventory.unresolved')">
+                {{ copy.skill_id ?? $t('inventory.unresolved') }}
+              </code>
+              <span class="muted host" :title="copy.host_id">{{ copy.host_id }}</span>
             </td>
             <td class="path" :title="copy.target_path">
-              <code>{{ copy.target_path }}</code>
+              <code class="path-text" :title="copy.target_path">{{ copy.target_path }}</code>
             </td>
             <td>{{ ledgerSourceLabel(copy.ledger_source) }}</td>
             <td>
@@ -292,7 +302,9 @@ function toggleAll(
                 {{ authorityLabel(copy.authority) }}
               </span>
             </td>
-            <td class="reason">{{ reasonText(copy) }}</td>
+            <td class="reason">
+              <span class="reason-text" :title="reasonText(copy)">{{ reasonText(copy) }}</span>
+            </td>
             <td>
               <InventoryActionMenu :copy="copy" @action="forwardAction" />
             </td>
@@ -324,6 +336,8 @@ function toggleAll(
 
 table {
   width: 100%;
+  min-width: 980px;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 12px;
 }
@@ -346,13 +360,23 @@ th {
 .path,
 .reason {
   max-width: 420px;
-  word-break: break-all;
+  overflow: hidden;
+}
+
+.skill-id,
+.path-text,
+.reason-text,
+.host {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .host,
 .source,
 .evidence {
-  display: block;
   font-size: 11px;
 }
 

@@ -9,6 +9,9 @@ import {
   reasonText,
   roleFoldNote,
   roleLabel,
+  roleVisualClass,
+  rootStateHint,
+  rootStateVisualClass,
 } from '../../gui/renderer/src/host-inventory-presentation.ts';
 
 test('盘点展示：角色与分类标签由统一映射给出', () => {
@@ -46,4 +49,14 @@ test('盘点展示：分类分组保留权威/推断拆分，不抹平证据等�
     reasonText({ reasons: ['ledger_active'], drift_reasons: ['content_digest'] }),
     'ledger_active; content_digest',
   );
+});
+
+test('盘点展示：角色与根状态视觉类、空根提示由统一映射给出', () => {
+  assert.equal(roleVisualClass('user'), 'role-user');
+  assert.equal(roleVisualClass('system'), 'role-system');
+  assert.equal(rootStateVisualClass('missing'), 'root-state-missing');
+  assert.equal(rootStateVisualClass('not_applicable'), 'root-state-not-applicable');
+  assert.match(rootStateHint('missing') ?? '', /不存在/);
+  assert.match(rootStateHint('unreadable') ?? '', /不可读/);
+  assert.equal(rootStateHint('ok'), null);
 });

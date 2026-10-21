@@ -190,6 +190,13 @@ async function main() {
       });
       return response.result?.result?.value;
     };
+    const captureScreenshot = async (name) => {
+      const response = await client.send('Page.captureScreenshot', { format: 'png' });
+      const path = join(tmpdir(), `skill-manager-${name}-${String(process.pid)}.png`);
+      writeFileSync(path, Buffer.from(String(response.result?.data), 'base64'));
+      diagnostics.push(`界面截图：${path}`);
+      return path;
+    };
 
     diagnostics.push(
       `渲染层地址：${String(await evaluate('location.href'))}｜标题：${String(await evaluate('document.title'))}`,
@@ -240,6 +247,7 @@ async function main() {
       check,
       workspace,
       userData,
+      captureScreenshot,
     });
 
     await evaluate(

@@ -369,6 +369,30 @@
       "layer": "gui"
     },
     {
+      "path": "gui/renderer/src/i18n/locales/inventory-root-empty-en.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/inventory-root-empty-zh-CN.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/inventory-root-state-en.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/inventory-root-state-zh-CN.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
       "path": "gui/renderer/src/i18n/locales/zh-CN.ts",
       "kind": "source",
       "region": "gui-renderer",
@@ -2517,6 +2541,20 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/renderer/src/i18n/locales/en.ts",
+      "to": "gui/renderer/src/i18n/locales/inventory-root-empty-en.ts",
+      "specifier": "./inventory-root-empty-en.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/locales/en.ts",
+      "to": "gui/renderer/src/i18n/locales/inventory-root-state-en.ts",
+      "specifier": "./inventory-root-state-en.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/renderer/src/i18n/locales/zh-CN.ts",
       "to": "gui/renderer/src/i18n/locales/errors-zh-CN.ts",
       "specifier": "./errors-zh-CN.ts",
@@ -2527,6 +2565,20 @@
       "from": "gui/renderer/src/i18n/locales/zh-CN.ts",
       "to": "gui/renderer/src/i18n/locales/inventory-batch-zh-CN.ts",
       "specifier": "./inventory-batch-zh-CN.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/locales/zh-CN.ts",
+      "to": "gui/renderer/src/i18n/locales/inventory-root-empty-zh-CN.ts",
+      "specifier": "./inventory-root-empty-zh-CN.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/locales/zh-CN.ts",
+      "to": "gui/renderer/src/i18n/locales/inventory-root-state-zh-CN.ts",
+      "specifier": "./inventory-root-state-zh-CN.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -8587,10 +8639,10 @@
     }
   ],
   "stats": {
-    "source_files": 266,
+    "source_files": 270,
     "asset_nodes": 1,
-    "nodes": 267,
-    "edges": 997,
+    "nodes": 271,
+    "edges": 1001,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
@@ -8598,7 +8650,7 @@
       "core": 69,
       "dispatch": 64,
       "entry": 2,
-      "gui": 59,
+      "gui": 63,
       "public": 1,
       "scripts": 49,
       "store": 12
@@ -8608,7 +8660,7 @@
       "core": 294,
       "dispatch": 488,
       "entry": 8,
-      "gui": 126,
+      "gui": 130,
       "public": 6,
       "scripts": 36,
       "store": 21
@@ -8618,7 +8670,7 @@
       "core": 339,
       "dispatch": 199,
       "entry": 1,
-      "gui": 126,
+      "gui": 130,
       "public": 1,
       "scripts": 35,
       "store": 278

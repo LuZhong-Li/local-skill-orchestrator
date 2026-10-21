@@ -12,7 +12,10 @@ import type {
 import {
   nonZeroClassificationEntries,
   roleLabel,
+  roleVisualClass,
   rootStateLabel,
+  rootStateHint,
+  rootStateVisualClass,
 } from '../../host-inventory-presentation.ts';
 import InventoryCopyDetails from './InventoryCopyDetails.vue';
 import { copyKey, isCopySelectable } from '../../inventory-batch.ts';
@@ -106,6 +109,7 @@ function toggleCopy(key: string): void {
         v-for="node in host.roots"
         :key="node.root.root_id"
         class="root-block"
+        :class="roleVisualClass(node.root.root_role)"
         :data-root-id="node.root.root_id"
       >
         <div class="root-head">
@@ -128,8 +132,20 @@ function toggleCopy(key: string): void {
             />
           </label>
           <code class="root-path" :title="node.root.path">{{ node.root.path }}</code>
-          <span class="tag role">{{ roleLabel(node.root.root_role) }}</span>
-          <span class="tag" :class="node.root.state">{{ rootStateLabel(node.root.state) }}</span>
+          <span
+            class="tag role-tag"
+            :class="roleVisualClass(node.root.root_role)"
+            data-testid="root-role-tag"
+          >
+            {{ roleLabel(node.root.root_role) }}
+          </span>
+          <span
+            class="tag root-state-tag"
+            :class="rootStateVisualClass(node.root.state)"
+            data-testid="root-state-tag"
+          >
+            {{ rootStateLabel(node.root.state) }}
+          </span>
           <span class="muted">
             {{ node.root.recursive ? $t('inventory.recursive') : $t('inventory.topLevel') }}
           </span>
@@ -166,6 +182,13 @@ function toggleCopy(key: string): void {
         <p v-if="node.root.platform_notes" class="muted note">{{ node.root.platform_notes }}</p>
         <p v-if="node.root.reason" class="muted note">
           {{ $t('inventory.rootReason', { reason: node.root.reason }) }}
+        </p>
+        <p
+          v-if="allCopiesOf(node).length === 0 && node.root.state !== 'ok'"
+          class="root-empty-state"
+          data-testid="root-empty-state"
+        >
+          {{ rootStateHint(node.root.state) }}
         </p>
 
         <details v-if="node.copies.length > 0" class="copy-fold">
@@ -234,6 +257,7 @@ function toggleCopy(key: string): void {
         v-for="node in host.roots"
         :key="node.root.root_id"
         class="root-block"
+        :class="roleVisualClass(node.root.root_role)"
         :data-root-id="node.root.root_id"
       >
         <div class="root-head">
@@ -255,12 +279,31 @@ function toggleCopy(key: string): void {
             />
           </label>
           <code class="root-path" :title="node.root.path">{{ node.root.path }}</code>
-          <span class="tag role">{{ roleLabel(node.root.root_role) }}</span>
-          <span class="tag" :class="node.root.state">{{ rootStateLabel(node.root.state) }}</span>
+          <span
+            class="tag role-tag"
+            :class="roleVisualClass(node.root.root_role)"
+            data-testid="root-role-tag"
+          >
+            {{ roleLabel(node.root.root_role) }}
+          </span>
+          <span
+            class="tag root-state-tag"
+            :class="rootStateVisualClass(node.root.state)"
+            data-testid="root-state-tag"
+          >
+            {{ rootStateLabel(node.root.state) }}
+          </span>
           <span class="muted">
             {{ node.root.recursive ? $t('inventory.recursive') : $t('inventory.topLevel') }}
           </span>
         </div>
+        <p
+          v-if="allCopiesOf(node).length === 0 && node.root.state !== 'ok'"
+          class="root-empty-state"
+          data-testid="root-empty-state"
+        >
+          {{ rootStateHint(node.root.state) }}
+        </p>
         <details v-if="node.copies.length > 0" class="copy-fold">
           <summary>{{ $t('inventory.copyDetails', { count: node.copies.length }) }}</summary>
           <InventoryCopyDetails
@@ -328,9 +371,34 @@ function toggleCopy(key: string): void {
 
 .root-block {
   border-top: 1px solid var(--border);
-  padding-top: calc(var(--space) * 3);
+  border-left: 3px solid var(--root-role-color, var(--border));
+  padding: calc(var(--space) * 3) 0 calc(var(--space) * 2) calc(var(--space) * 3);
   display: grid;
   gap: calc(var(--space) * 1.5);
+}
+
+.root-block.role-user,
+.role-tag.role-user {
+  --root-role-color: var(--accent);
+  --root-role-bg: var(--accent-soft);
+}
+
+.root-block.role-system,
+.role-tag.role-system {
+  --root-role-color: var(--text-muted);
+  --root-role-bg: var(--surface-muted);
+}
+
+.root-block.role-platform,
+.role-tag.role-platform {
+  --root-role-color: var(--warning);
+  --root-role-bg: #fbf6ea;
+}
+
+.root-block.role-project,
+.role-tag.role-project {
+  --root-role-color: var(--success);
+  --root-role-bg: #f2f7f2;
 }
 
 .root-head {
@@ -341,7 +409,13 @@ function toggleCopy(key: string): void {
 }
 
 .root-path {
-  word-break: break-all;
+  display: block;
+  flex: 1 1 360px;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 12px;
 }
 
@@ -372,31 +446,41 @@ function toggleCopy(key: string): void {
   font-size: 12px;
 }
 
-.tag.role {
-  color: var(--text-muted);
-  border-color: var(--border);
-  background: var(--surface);
+.role-tag {
+  color: var(--text);
+  border-color: var(--root-role-color);
+  background: var(--root-role-bg);
 }
 
-.tag.ok,
-.tag.empty {
+.root-state-tag.root-state-ok,
+.root-state-tag.root-state-empty {
   color: var(--success);
   border-color: #cfe0cf;
   background: #f2f7f2;
 }
 
-.tag.missing,
-.tag.unreadable {
+.root-state-tag.root-state-missing,
+.root-state-tag.root-state-unreadable {
   color: var(--danger);
   border-color: #eccbc8;
   background: #fbeceb;
 }
 
-.tag.unconfigured,
-.tag.not_applicable {
+.root-state-tag.root-state-unconfigured,
+.root-state-tag.root-state-not-applicable {
   color: var(--text-muted);
   border-color: var(--border);
   background: var(--surface-muted);
+}
+
+.root-empty-state {
+  margin: 0;
+  padding: calc(var(--space) * 2) calc(var(--space) * 3);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .tag.pending,

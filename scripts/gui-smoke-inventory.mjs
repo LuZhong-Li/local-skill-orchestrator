@@ -79,6 +79,104 @@ async function checkEvidenceAndPlaceholders(context) {
   check('未纳管清单可见并提供逐条动作入口', untrackedOk, cut(untracked, 180));
 }
 
+async function checkPresentationHierarchy(context) {
+  const { evaluate, check } = context;
+  const roles = await evaluate(
+    `[...document.querySelectorAll('[data-testid="root-role-tag"]')].map((item) => ({
+      text: item.textContent.trim(),
+      className: item.className,
+      background: getComputedStyle(item).backgroundColor,
+    }))`,
+  );
+  const roleRows = Array.isArray(roles) ? roles : [];
+  const roleClasses = new Set(
+    roleRows.flatMap((item) =>
+      String(item.className)
+        .split(/\s+/)
+        .filter((name) => /^role-(user|system|platform|project)$/.test(name)),
+    ),
+  );
+  const roleBackgrounds = new Set(roleRows.map((item) => String(item.background)));
+  check(
+    '盘点根节点按角色提供一致视觉区分',
+    roleClasses.size >= 3 && roleBackgrounds.size >= 3,
+    JSON.stringify(roleRows),
+  );
+
+  const states = await evaluate(
+    `[...document.querySelectorAll('[data-testid="root-state-tag"]')].map((item) => ({
+      text: item.textContent.trim(),
+      className: item.className,
+    }))`,
+  );
+  const stateRows = Array.isArray(states) ? states : [];
+  const stateClasses = new Set(
+    stateRows.flatMap((item) =>
+      String(item.className)
+        .split(/\s+/)
+        .filter((name) => name.startsWith('root-state-')),
+    ),
+  );
+  check(
+    '根状态使用统一状态标签样式',
+    stateRows.length > 0 &&
+      stateRows.every((item) => item.text && item.className.includes('root-state-')),
+    JSON.stringify(stateRows.slice(0, 8)),
+  );
+  check('根状态标签覆盖多种真实状态', stateClasses.size >= 3, JSON.stringify([...stateClasses]));
+
+  const emptyStates = await evaluate(
+    `[...document.querySelectorAll('[data-testid="root-empty-state"]')].map((item) =>
+      item.textContent.trim()
+    )`,
+  );
+  const emptyTexts = Array.isArray(emptyStates) ? emptyStates : [];
+  check(
+    '空根缺失根与不可读根有明确空状态文案',
+    emptyTexts.length > 0 && emptyTexts.every((text) => text.length > 0),
+    JSON.stringify(emptyTexts.slice(0, 4)),
+  );
+
+  const truncation = await evaluate(
+    `(() => {
+      const rootPath = document.querySelector('.root-path');
+      const tablePath = [...document.querySelectorAll('.path-text')]
+        .sort((left, right) => right.textContent.length - left.textContent.length)[0];
+      const skill = document.querySelector('.skill-id');
+      const host = document.querySelector('.host');
+      const inspect = (item) => item ? {
+        overflow: getComputedStyle(item).overflow,
+        textOverflow: getComputedStyle(item).textOverflow,
+        whiteSpace: getComputedStyle(item).whiteSpace,
+        title: item.getAttribute('title') ?? '',
+      } : null;
+      return {
+        rootPath: inspect(rootPath),
+        tablePath: inspect(tablePath),
+        skill: inspect(skill),
+        host: inspect(host),
+        horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+      };
+    })()`,
+  );
+  const values = truncation && typeof truncation === 'object' ? truncation : {};
+  const truncated = ['rootPath', 'tablePath', 'skill', 'host'].every((key) => {
+    const value = values[key];
+    return (
+      value &&
+      value.overflow === 'hidden' &&
+      value.textOverflow === 'ellipsis' &&
+      value.whiteSpace === 'nowrap' &&
+      value.title.length > 0
+    );
+  });
+  check(
+    '长路径宿主与 Skill 标识省略显示且保留 tooltip',
+    truncated && values.horizontalOverflow === false,
+    JSON.stringify(values),
+  );
+}
+
 async function checkNoWriteActions(context) {
   const { evaluate, check } = context;
   const buttons = await evaluate(
@@ -152,6 +250,8 @@ export async function runEmptyWorkspaceInventoryChecks(context) {
   await checkPrimaryCount(context);
   await checkRoleFolding(context);
   await checkEvidenceAndPlaceholders(context);
+  await checkPresentationHierarchy(context);
+  await context.captureScreenshot?.('t8-inventory');
   await checkNoWriteActions(context);
   await checkReadonlyAndScroll(context);
   const workspaceBeforeAction = treeHash(context.workspace);

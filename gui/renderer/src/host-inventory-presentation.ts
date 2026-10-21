@@ -30,6 +30,10 @@ export function roleLabel(role: HostRootRole): string {
   return t(`inventory.role.${role}`);
 }
 
+export function roleVisualClass(role: HostRootRole): string {
+  return `role-${role}`;
+}
+
 export function roleFoldNote(role: HostRootRole): string {
   return t(`inventory.roleHint.${role}`);
 }
@@ -66,6 +70,16 @@ export function rootStateLabel(state: InventoryRootState): string {
   return state === 'not_applicable'
     ? t('inventory.rootState.notApplicable')
     : t(`inventory.rootState.${state}`);
+}
+
+export function rootStateVisualClass(state: InventoryRootState): string {
+  return `root-state-${state.replaceAll('_', '-')}`;
+}
+
+export function rootStateHint(state: InventoryRootState): string | null {
+  if (state === 'ok') return null;
+  const key = state === 'not_applicable' ? 'notApplicable' : state;
+  return t(`inventory.rootEmptyHint.${key}`);
 }
 
 export function visibilityLabel(visibility: 'visible' | 'disabled' | 'unknown'): string {

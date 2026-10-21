@@ -90,6 +90,26 @@ test('T7 契约：批量选择覆盖复选框、根级全选、三区块与 item
   assert.match(dialog, /if \(cancelRequested\.value && attempted > 0\) break;/);
 });
 
+test('T8 契约：角色、根状态、空状态与长文本呈现由统一映射和样式承接', () => {
+  const presentation = read('gui/renderer/src/host-inventory-presentation.ts');
+  assert.match(presentation, /export function roleVisualClass/);
+  assert.match(presentation, /export function rootStateVisualClass/);
+  assert.match(presentation, /export function rootStateHint/);
+
+  const groups = read('gui/renderer/src/components/host-inventory/InventoryHostGroups.vue');
+  assert.match(groups, /data-testid="root-role-tag"/);
+  assert.match(groups, /data-testid="root-state-tag"/);
+  assert.match(groups, /data-testid="root-empty-state"/);
+  assert.match(groups, /:class="roleVisualClass\(node\.root\.root_role\)"/);
+  assert.match(groups, /:class="rootStateVisualClass\(node\.root\.state\)"/);
+
+  const copies = read('gui/renderer/src/components/host-inventory/InventoryCopyDetails.vue');
+  assert.match(copies, /class="skill-id"/);
+  assert.match(copies, /class="path-text"/);
+  assert.match(copies, /text-overflow: ellipsis/);
+  assert.match(copies, /white-space: nowrap/);
+});
+
 test('契约：未初始化工作区有盘点入口，逐条动作与角色折叠可见', () => {
   const dashboard = read('gui/renderer/src/components/DashboardView.vue');
   assert.match(dashboard, /data-testid="open-inventory"/);

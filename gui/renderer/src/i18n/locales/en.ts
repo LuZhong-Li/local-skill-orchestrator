@@ -1,5 +1,7 @@
 import errors from './errors-en.ts';
 import inventoryBatch from './inventory-batch-en.ts';
+import inventoryRootEmpty from './inventory-root-empty-en.ts';
+import inventoryRootState from './inventory-root-state-en.ts';
 
 export default {
   app: {
@@ -356,14 +358,8 @@ export default {
         'Workspace project copies do not participate in user counts and have no reconcile actions.',
       user: 'User-level installation copies',
     },
-    rootState: {
-      ok: 'Discovered',
-      empty: 'Empty directory',
-      missing: 'Missing',
-      unconfigured: 'Not configured',
-      unreadable: 'Unreadable',
-      notApplicable: 'Not applicable',
-    },
+    rootState: inventoryRootState,
+    rootEmptyHint: inventoryRootEmpty,
     classification: {
       managed: 'Ledger consistent',
       drift: 'Drift',
