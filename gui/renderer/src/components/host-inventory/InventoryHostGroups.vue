@@ -21,8 +21,8 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
 
 <template>
   <section class="host-section" data-testid="inventory-builtin-hosts">
-    <h2>内置宿主</h2>
-    <p v-if="builtin.length === 0" class="muted">没有可枚举的内置宿主根。</p>
+    <h2>{{ $t('plugins.builtinHosts') }}</h2>
+    <p v-if="builtin.length === 0" class="muted">{{ $t('inventory.noBuiltinRoots') }}</p>
     <article
       v-for="host in builtin"
       :key="host.host_id"
@@ -35,10 +35,13 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           <code class="muted">{{ host.host_id }}</code>
         </div>
         <div class="host-counts">
-          <strong>{{ host.counts.total_copies }}</strong> 副本
-          <span class="muted">{{ host.counts.unique_skills }} 个不同技能</span>
+          <strong>{{ host.counts.total_copies }}</strong>
+          <span class="muted">
+            {{ $t('inventory.copies', { count: '' }).trim() }} /
+            {{ $t('inventory.uniqueSkills', { count: host.counts.unique_skills }) }}
+          </span>
           <span v-if="host.counts.corrupt_count > 0" class="warn">
-            损坏 {{ host.counts.corrupt_count }}
+            {{ $t('inventory.corruptCount', { count: host.counts.corrupt_count }) }}
           </span>
         </div>
       </header>
@@ -61,29 +64,46 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           <code class="root-path" :title="node.root.path">{{ node.root.path }}</code>
           <span class="tag role">{{ roleLabel(node.root.root_role) }}</span>
           <span class="tag" :class="node.root.state">{{ rootStateLabel(node.root.state) }}</span>
-          <span class="muted">{{ node.root.recursive ? '递归' : '顶层' }}</span>
           <span class="muted">
-            {{ node.copies.length }} 副本 · {{ node.corrupt.length }} 损坏 ·
-            {{ node.missing.length }} 缺失
+            {{ node.root.recursive ? $t('inventory.recursive') : $t('inventory.topLevel') }}
+          </span>
+          <span class="muted">
+            {{
+              $t('inventory.copyCorruptMissing', {
+                copies: node.copies.length,
+                corrupt: node.corrupt.length,
+                missing: node.missing.length,
+              })
+            }}
           </span>
         </div>
         <p class="root-meta muted">
-          来源 {{ node.root.origin }}｜形态 {{ node.root.kind }}｜根 {{ node.root.root_id }}
-          <span v-if="node.root.pending_verification" class="tag pending">待真机验证</span>
+          {{
+            $t('inventory.sourceFormRoot', {
+              origin: node.root.origin,
+              kind: node.root.kind,
+              root: node.root.root_id,
+            })
+          }}
+          <span v-if="node.root.pending_verification" class="tag pending">
+            {{ $t('inventory.pendingVerification') }}
+          </span>
         </p>
         <p
           v-if="node.root.consumed_by.length > 0"
           class="consumers"
           data-testid="inventory-consumed-by"
         >
-          消费宿主：
+          {{ $t('inventory.consumers') }}
           <code v-for="consumer in node.root.consumed_by" :key="consumer">{{ consumer }}</code>
         </p>
         <p v-if="node.root.platform_notes" class="muted note">{{ node.root.platform_notes }}</p>
-        <p v-if="node.root.reason" class="muted note">根状态说明：{{ node.root.reason }}</p>
+        <p v-if="node.root.reason" class="muted note">
+          {{ $t('inventory.rootReason', { reason: node.root.reason }) }}
+        </p>
 
         <details v-if="node.copies.length > 0" class="copy-fold">
-          <summary>副本明细（{{ node.copies.length }}）</summary>
+          <summary>{{ $t('inventory.copyDetails', { count: node.copies.length }) }}</summary>
           <InventoryCopyDetails
             :copies="node.copies"
             test-id="inventory-copies"
@@ -91,7 +111,7 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           />
         </details>
         <details v-if="node.corrupt.length > 0" class="copy-fold">
-          <summary>损坏 / 不可读（{{ node.corrupt.length }}）</summary>
+          <summary>{{ $t('inventory.corruptDetails', { count: node.corrupt.length }) }}</summary>
           <InventoryCopyDetails
             :corrupt="node.corrupt"
             test-id="inventory-root-corrupt"
@@ -99,7 +119,7 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           />
         </details>
         <details v-if="node.missing.length > 0" class="copy-fold">
-          <summary>账本记录但副本缺失（{{ node.missing.length }}）</summary>
+          <summary>{{ $t('inventory.missingDetails', { count: node.missing.length }) }}</summary>
           <InventoryCopyDetails
             :missing="node.missing"
             test-id="inventory-root-missing"
@@ -111,9 +131,9 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
   </section>
 
   <section class="host-section" data-testid="inventory-third-party-hosts">
-    <h2>第三方宿主（x- 命名空间）</h2>
+    <h2>{{ $t('plugins.thirdPartyHosts') }}</h2>
     <p v-if="thirdParty.length === 0" class="muted">
-      没有已启用的第三方 x- 宿主；插件管理仍在插件视图中进行。
+      {{ $t('inventory.noThirdPartyHosts') }}
     </p>
     <article
       v-for="host in thirdParty"
@@ -125,11 +145,14 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
         <div>
           <h3>{{ host.display_name }}</h3>
           <code class="muted">{{ host.host_id }}</code>
-          <span class="tag x-host">x- 宿主</span>
+          <span class="tag x-host">{{ $t('inventory.xHost') }}</span>
         </div>
         <div class="host-counts">
-          <strong>{{ host.counts.total_copies }}</strong> 副本
-          <span class="muted">{{ host.counts.unique_skills }} 个不同技能</span>
+          <strong>{{ host.counts.total_copies }}</strong>
+          <span class="muted">
+            {{ $t('inventory.copies', { count: '' }).trim() }} /
+            {{ $t('inventory.uniqueSkills', { count: host.counts.unique_skills }) }}
+          </span>
         </div>
       </header>
       <div
@@ -142,10 +165,12 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           <code class="root-path" :title="node.root.path">{{ node.root.path }}</code>
           <span class="tag role">{{ roleLabel(node.root.root_role) }}</span>
           <span class="tag" :class="node.root.state">{{ rootStateLabel(node.root.state) }}</span>
-          <span class="muted">{{ node.root.recursive ? '递归' : '顶层' }}</span>
+          <span class="muted">
+            {{ node.root.recursive ? $t('inventory.recursive') : $t('inventory.topLevel') }}
+          </span>
         </div>
         <details v-if="node.copies.length > 0" class="copy-fold">
-          <summary>副本明细（{{ node.copies.length }}）</summary>
+          <summary>{{ $t('inventory.copyDetails', { count: node.copies.length }) }}</summary>
           <InventoryCopyDetails
             :copies="node.copies"
             test-id="inventory-copies"
@@ -153,7 +178,7 @@ const thirdParty = computed(() => props.hosts.filter((host) => host.host_group =
           />
         </details>
         <details v-if="node.corrupt.length > 0" class="copy-fold">
-          <summary>损坏 / 不可读（{{ node.corrupt.length }}）</summary>
+          <summary>{{ $t('inventory.corruptDetails', { count: node.corrupt.length }) }}</summary>
           <InventoryCopyDetails
             :corrupt="node.corrupt"
             test-id="inventory-root-corrupt"

@@ -12,6 +12,7 @@ import { KernelBridge } from '../bridge/commands.ts';
 import type { KernelOptions } from '../bridge/kernel.ts';
 import { UpdateCoordinator, UpdateSettingsStore } from './updates/index.ts';
 import { registerUpdateIpc, sendUpdateReport } from './updates/ipc.ts';
+import { registerAppSettingsIpc } from './settings/ipc.ts';
 import { registerPluginIpc } from './plugins/ipc.ts';
 import { registerInventoryExportIpc } from './inventory-export.ts';
 
@@ -103,9 +104,10 @@ function registerKernelHandlers(bridge: KernelBridge): void {
 app.whenReady().then(() => {
   const bridge = new KernelBridge(resolveKernelOptions());
   registerKernelHandlers(bridge);
+  const settingsStore = new UpdateSettingsStore(join(app.getPath('userData'), 'settings.json'));
   const updates = new UpdateCoordinator({
     bridge,
-    settings: new UpdateSettingsStore(join(app.getPath('userData'), 'settings.json')),
+    settings: settingsStore,
     now: () => Date.now(),
     notify: (report) =>
       sendUpdateReport(
@@ -114,6 +116,7 @@ app.whenReady().then(() => {
       ),
   });
   registerUpdateIpc(updates);
+  registerAppSettingsIpc(settingsStore);
   registerPluginIpc(bridge);
   registerInventoryExportIpc();
   app.on('before-quit', () => updates.stop());

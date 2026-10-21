@@ -1,4 +1,5 @@
 import type { KernelResult } from './types.ts';
+import { t } from './i18n/index.ts';
 
 export type UpdateRunStatus = 'ok' | 'failed' | 'cancelled';
 
@@ -35,19 +36,19 @@ export async function runSequentialUpdates(
       continue;
     }
     if (attempt.cancelled) {
-      results.push({ id, status: 'cancelled', message: '用户取消，未执行该条更新' });
+      results.push({ id, status: 'cancelled', message: t('updates.cancelledItem') });
       break;
     }
     if (attempt.result === null) {
-      results.push({ id, status: 'failed', message: '执行通道未返回结果' });
+      results.push({ id, status: 'failed', message: t('updates.channelNoResult') });
       continue;
     }
     results.push({
       id,
       status: attempt.result.ok ? 'ok' : 'failed',
       message: attempt.result.ok
-        ? '更新完成'
-        : attempt.result.findings.map((item) => item.code).join('、') || '更新失败',
+        ? t('updates.completed')
+        : attempt.result.findings.map((item) => item.code).join(', ') || t('updates.failed'),
     });
   }
   return results;

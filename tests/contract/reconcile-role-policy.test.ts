@@ -30,7 +30,7 @@ test('契约：reconcile 写动作只对 user 角色生效，非 user 统一 ski
   const view = read('gui/renderer/src/components/HostInventoryView.vue');
   assert.match(view, /copy\.root_role === 'user'/);
   const menu = read('gui/renderer/src/components/host-inventory/InventoryActionMenu.vue');
-  assert.match(menu, /由对应工具管理/);
+  assert.match(menu, /inventory\.action\.managedByTool/);
 
   const cliContract = read('docs/specification/cli-contract.md');
   assert.match(cliContract, /non_user_role_read_only/);

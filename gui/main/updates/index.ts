@@ -7,8 +7,12 @@ export {
   type UpdateTimers,
 } from './coordinator.ts';
 export {
+  DEFAULT_APP_SETTINGS,
   DEFAULT_UPDATE_SETTINGS,
   UpdateSettingsStore,
+  type AppSettings,
+  type LanguageMode,
+  type SupportedLanguage,
   type UpdateSettings,
   type UpdateSettingsIo,
 } from './settings.ts';

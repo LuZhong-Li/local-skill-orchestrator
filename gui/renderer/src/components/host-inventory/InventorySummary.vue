@@ -8,28 +8,34 @@ import {
   roleLabel,
   SECONDARY_ROLES,
 } from '../../host-inventory-presentation.ts';
+import { formatNumber } from '../../i18n/index.ts';
 
 defineProps<{ summary: InventorySummary }>();
 </script>
 
 <template>
   <div class="panel wide hero" data-testid="inventory-main-count">
-    <span class="muted">用户安装（主计数）</span>
+    <span class="muted">{{ $t('inventory.userMain') }}</span>
     <p class="count-line">
-      <strong>{{ summary.main.total_copies }}</strong> 个安装副本
+      <strong>{{ formatNumber(summary.main.total_copies) }}</strong>
+      {{ $t('inventory.installedCopies', { count: '' }).trim() }}
       <span class="divider">/</span>
-      <strong>{{ summary.main.unique_skills }}</strong> 个不同技能
+      <strong>{{ formatNumber(summary.main.unique_skills) }}</strong>
+      {{ $t('inventory.differentSkills', { count: '' }).trim() }}
     </p>
     <p class="muted hint">
-      已按物理路径去重；系统 / 平台 / 项目级副本不计入主计数。本次根
-      {{ summary.roots_total }} 个，物理去重移除 {{ summary.duplicates_removed }} 份重复副本。
-      写动作只对用户安装副本开放。
+      {{
+        $t('inventory.mainHint', {
+          roots: formatNumber(summary.roots_total),
+          duplicates: formatNumber(summary.duplicates_removed),
+        })
+      }}
     </p>
   </div>
 
   <div class="summary-columns">
     <section class="panel">
-      <h2>分类分布</h2>
+      <h2>{{ $t('inventory.classificationTitle') }}</h2>
       <ul class="chips" data-testid="inventory-classification-groups">
         <li
           v-for="row in classificationGroupRows(summary.classification_groups)"
@@ -37,18 +43,26 @@ defineProps<{ summary: InventorySummary }>();
           :data-classification="row.key"
         >
           <span class="tag" :class="row.key">{{ row.label }}</span>
-          <strong>{{ row.count }}</strong>
+          <strong>{{ formatNumber(row.count) }}</strong>
           <span v-if="row.detail" class="muted">{{ row.detail }}</span>
         </li>
       </ul>
     </section>
 
     <section class="panel" data-testid="inventory-role-groups">
-      <h2>按角色分组</h2>
+      <h2>{{ $t('inventory.rolesTitle') }}</h2>
       <div class="role-row" data-role="user">
         <span>{{ roleLabel('user') }}</span>
-        <strong>{{ summary.roles.user.total_copies }} 副本</strong>
-        <span class="muted">{{ summary.roles.user.unique_skills }} 个不同技能</span>
+        <strong>
+          {{ $t('inventory.copies', { count: formatNumber(summary.roles.user.total_copies) }) }}
+        </strong>
+        <span class="muted">
+          {{
+            $t('inventory.uniqueSkills', {
+              count: formatNumber(summary.roles.user.unique_skills),
+            })
+          }}
+        </span>
       </div>
       <details
         v-for="role in SECONDARY_ROLES"
@@ -59,19 +73,31 @@ defineProps<{ summary: InventorySummary }>();
       >
         <summary>
           <span>{{ roleLabel(role) }}</span>
-          <strong>{{ summary.roles[role].total_copies }} 副本</strong>
-          <span class="muted">{{ summary.roles[role].unique_skills }} 个不同技能</span>
+          <strong>
+            {{
+              $t('inventory.copies', {
+                count: formatNumber(summary.roles[role].total_copies),
+              })
+            }}
+          </strong>
+          <span class="muted">
+            {{
+              $t('inventory.uniqueSkills', {
+                count: formatNumber(summary.roles[role].unique_skills),
+              })
+            }}
+          </span>
         </summary>
         <p class="muted note">{{ roleFoldNote(role) }}</p>
         <p v-if="summary.roles[role].corrupt_count > 0" class="warn">
-          损坏 / 不可读 {{ summary.roles[role].corrupt_count }} 份
+          {{ $t('inventory.corruptCount', { count: summary.roles[role].corrupt_count }) }}
         </p>
         <ul class="minor-chips">
           <li
             v-for="entry in nonZeroClassificationEntries(summary.roles[role].by_classification)"
             :key="entry.key"
           >
-            {{ entry.label }} <strong>{{ entry.count }}</strong>
+            {{ entry.label }} <strong>{{ formatNumber(entry.count) }}</strong>
           </li>
         </ul>
       </details>

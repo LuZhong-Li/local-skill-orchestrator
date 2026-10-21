@@ -2,7 +2,8 @@
 /** 更新检查结果：四态分组展示；执行按钮只发出请求，确认由 App 的既有确认链路完成。 */
 import { computed } from 'vue';
 import DialogShell from './DialogShell.vue';
-import { UPDATE_STATE_LABELS, updateItemView } from '../update-presentation.ts';
+import { updateItemView, updateStateLabel } from '../update-presentation.ts';
+import { formatDateTime } from '../i18n/index.ts';
 import type { UpdateRunResult } from '../update-runner.ts';
 import type { UpdateCheckItem, UpdateCheckReport, UpdateCheckState } from '../types.ts';
 
@@ -23,7 +24,7 @@ const order: UpdateCheckState[] = ['update-available', 'up-to-date', 'not-checka
 const groups = computed(() =>
   order.map((state) => ({
     state,
-    label: UPDATE_STATE_LABELS[state],
+    label: updateStateLabel(state),
     items: props.report.data.items.filter((item) => item.state === state),
   })),
 );
@@ -38,8 +39,8 @@ function resultOf(item: UpdateCheckItem): UpdateRunResult | undefined {
 
 <template>
   <DialogShell
-    title="Skill 更新检查"
-    subtitle="检查只读；更新只会在你逐项确认后调用既有 update 指令"
+    :title="$t('updates.title')"
+    :subtitle="$t('updates.subtitle')"
     wide
     @close="$emit('close')"
   >
@@ -47,15 +48,15 @@ function resultOf(item: UpdateCheckItem): UpdateRunResult | undefined {
       <span v-for="group in groups" :key="group.state" class="tag state" :class="group.state">
         {{ group.label }} {{ group.items.length }}
       </span>
-      <span class="muted">检查时间 {{ report.data.checked_at }}</span>
+      <span class="muted">
+        {{ $t('updates.checkedAt', { time: formatDateTime(report.data.checked_at) }) }}
+      </span>
     </div>
 
     <div v-if="available.length > 0" class="bulk">
-      <p class="muted">
-        共 {{ available.length }} 项可更新。「全部更新」会逐项预览并确认；单条失败不会阻断其余条目。
-      </p>
+      <p class="muted">{{ $t('updates.availableCount', { count: available.length }) }}</p>
       <button class="primary" :disabled="busy" @click="$emit('updateAll')">
-        全部更新（逐项确认）
+        {{ $t('updates.updateAll') }}
       </button>
     </div>
 
@@ -66,7 +67,7 @@ function resultOf(item: UpdateCheckItem): UpdateRunResult | undefined {
       :class="`state-${group.state}`"
     >
       <h3>{{ group.label }}（{{ group.items.length }}）</h3>
-      <p v-if="group.items.length === 0" class="muted">无</p>
+      <p v-if="group.items.length === 0" class="muted">{{ $t('updates.emptyGroup') }}</p>
       <article v-for="item in group.items" :key="item.id" class="item">
         <div class="item-head">
           <code>{{ item.id }}</code>
@@ -74,14 +75,15 @@ function resultOf(item: UpdateCheckItem): UpdateRunResult | undefined {
         </div>
         <p>{{ updateItemView(item).detail }}</p>
         <p class="muted source">
-          来源 {{ item.provenance.url ?? '未记录' }}｜引用 {{ item.provenance.ref ?? '未记录' }}
-          <span v-if="item.checksum">｜校验 {{ item.checksum }}</span>
+          {{ $t('updates.source', { value: item.provenance.url ?? $t('common.unknown') }) }} |
+          {{ $t('updates.reference', { value: item.provenance.ref ?? $t('common.unknown') }) }}
+          <span v-if="item.checksum">| {{ $t('updates.checksum', { value: item.checksum }) }}</span>
         </p>
-        <p v-if="item.reason" class="muted">原因码：{{ item.reason }}</p>
-        <p v-if="item.remedy" class="muted">建议：{{ item.remedy }}</p>
+        <p v-if="item.reason" class="muted">{{ $t('updates.reason', { reason: item.reason }) }}</p>
+        <p v-if="item.remedy" class="muted">{{ $t('updates.remedy', { remedy: item.remedy }) }}</p>
         <p v-if="item.backup_notice">{{ item.backup_notice }}</p>
         <p v-if="resultOf(item)" :class="{ bad: resultOf(item)?.status === 'failed' }">
-          本次结果：{{ resultOf(item)?.message }}
+          {{ $t('updates.result', { message: resultOf(item)?.message }) }}
         </p>
         <button
           v-if="updateItemView(item).canUpdate"
@@ -89,14 +91,14 @@ function resultOf(item: UpdateCheckItem): UpdateRunResult | undefined {
           :disabled="busy"
           @click="$emit('update', item.id)"
         >
-          {{ updatingId === item.id ? '正在更新…' : '预览并更新' }}
+          {{ updatingId === item.id ? $t('updates.updating') : $t('updates.previewUpdate') }}
         </button>
       </article>
     </section>
 
     <template #footer>
-      <button :disabled="busy" @click="$emit('retry')">重新检查</button>
-      <button @click="$emit('close')">关闭</button>
+      <button :disabled="busy" @click="$emit('retry')">{{ $t('common.retry') }}</button>
+      <button @click="$emit('close')">{{ $t('common.close') }}</button>
     </template>
   </DialogShell>
 </template>

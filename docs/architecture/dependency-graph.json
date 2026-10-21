@@ -117,6 +117,12 @@
       "layer": "gui"
     },
     {
+      "path": "gui/main/settings/ipc.ts",
+      "kind": "source",
+      "region": "gui-main",
+      "layer": "gui"
+    },
+    {
       "path": "gui/main/update-check/check.ts",
       "kind": "source",
       "region": "gui-main",
@@ -310,6 +316,48 @@
     },
     {
       "path": "gui/renderer/src/host-inventory-presentation.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/error-text.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/index.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/language.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/en.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/errors-en.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/errors-zh-CN.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/zh-CN.ts",
       "kind": "source",
       "region": "gui-renderer",
       "layer": "gui"
@@ -1383,6 +1431,12 @@
       "layer": "scripts"
     },
     {
+      "path": "scripts/gui-smoke-i18n.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
       "path": "scripts/gui-smoke-inventory-actions.mjs",
       "kind": "source",
       "region": "scripts",
@@ -1408,6 +1462,12 @@
     },
     {
       "path": "scripts/gui-smoke-plugin.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
+      "path": "scripts/gui-smoke-report.mjs",
       "kind": "source",
       "region": "scripts",
       "layer": "scripts"
@@ -1679,6 +1739,13 @@
     },
     {
       "from": "gui/main/index.ts",
+      "to": "gui/main/settings/ipc.ts",
+      "specifier": "./settings/ipc.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/main/index.ts",
       "to": "gui/main/updates/index.ts",
       "specifier": "./updates/index.ts",
       "from_layer": "gui",
@@ -1709,6 +1776,13 @@
       "from": "gui/main/plugins/ipc.ts",
       "to": "gui/main/plugins/hosts.ts",
       "specifier": "./hosts.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/main/settings/ipc.ts",
+      "to": "gui/main/updates/settings.ts",
+      "specifier": "../updates/settings.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -1924,6 +1998,27 @@
     },
     {
       "from": "gui/renderer/src/App.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "./i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/App.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/App.vue",
+      "to": "gui/renderer/src/i18n/language.ts",
+      "specifier": "./i18n/language.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/App.vue",
       "to": "gui/renderer/src/plugin-presentation.ts",
       "specifier": "./plugin-presentation.ts",
       "from_layer": "gui",
@@ -1958,6 +2053,13 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/renderer/src/components/ConfirmDialog.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/renderer/src/components/DashboardView.vue",
       "to": "gui/renderer/src/components/SkillCard.vue",
       "specifier": "./SkillCard.vue",
@@ -1980,6 +2082,13 @@
     },
     {
       "from": "gui/renderer/src/components/DetailDialog.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/DetailDialog.vue",
       "to": "gui/renderer/src/types.ts",
       "specifier": "../types.ts",
       "from_layer": "gui",
@@ -1996,6 +2105,20 @@
       "from": "gui/renderer/src/components/host-inventory/InventoryActionDialog.vue",
       "to": "gui/renderer/src/host-inventory-presentation.ts",
       "specifier": "../../host-inventory-presentation.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/host-inventory/InventoryActionDialog.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../../i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/host-inventory/InventoryActionDialog.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../../i18n/index.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2028,6 +2151,13 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/renderer/src/components/host-inventory/InventoryCopyDetails.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../../i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/renderer/src/components/host-inventory/InventoryHostGroups.vue",
       "to": "gui/renderer/src/components/host-inventory/InventoryCopyDetails.vue",
       "specifier": "./InventoryCopyDetails.vue",
@@ -2045,6 +2175,13 @@
       "from": "gui/renderer/src/components/host-inventory/InventorySummary.vue",
       "to": "gui/renderer/src/host-inventory-presentation.ts",
       "specifier": "../../host-inventory-presentation.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/host-inventory/InventorySummary.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../../i18n/index.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2077,6 +2214,20 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/renderer/src/components/HostInventoryView.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/HostInventoryView.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/renderer/src/components/InstallDialog.vue",
       "to": "gui/renderer/src/components/DialogShell.vue",
       "specifier": "./DialogShell.vue",
@@ -2087,6 +2238,13 @@
       "from": "gui/renderer/src/components/PluginDetailDialog.vue",
       "to": "gui/renderer/src/components/DialogShell.vue",
       "specifier": "./DialogShell.vue",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/PluginDetailDialog.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../i18n/error-text.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2127,8 +2285,36 @@
     },
     {
       "from": "gui/renderer/src/components/SettingsPanel.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/SettingsPanel.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/SettingsPanel.vue",
+      "to": "gui/renderer/src/i18n/language.ts",
+      "specifier": "../i18n/language.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/SettingsPanel.vue",
       "to": "gui/renderer/src/types.ts",
       "specifier": "../types.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/SkillCard.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../i18n/index.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2143,6 +2329,13 @@
       "from": "gui/renderer/src/components/UpdateCheckDialog.vue",
       "to": "gui/renderer/src/components/DialogShell.vue",
       "specifier": "./DialogShell.vue",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/UpdateCheckDialog.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../i18n/index.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2176,6 +2369,13 @@
     },
     {
       "from": "gui/renderer/src/components/ValidationDialog.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/ValidationDialog.vue",
       "to": "gui/renderer/src/types.ts",
       "specifier": "../types.ts",
       "from_layer": "gui",
@@ -2183,8 +2383,85 @@
     },
     {
       "from": "gui/renderer/src/composables/useKernel.ts",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/composables/useKernel.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/composables/useKernel.ts",
       "to": "gui/renderer/src/types.ts",
       "specifier": "../types.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/host-inventory-presentation.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/error-text.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/error-text.ts",
+      "to": "gui/renderer/src/types.ts",
+      "specifier": "../types.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/index.ts",
+      "to": "gui/renderer/src/i18n/locales/en.ts",
+      "specifier": "./locales/en.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/index.ts",
+      "to": "gui/renderer/src/i18n/locales/zh-CN.ts",
+      "specifier": "./locales/zh-CN.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/language.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/locales/en.ts",
+      "to": "gui/renderer/src/i18n/locales/errors-en.ts",
+      "specifier": "./errors-en.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/locales/zh-CN.ts",
+      "to": "gui/renderer/src/i18n/locales/errors-zh-CN.ts",
+      "specifier": "./errors-zh-CN.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/inventory-actions.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./i18n/index.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2197,8 +2474,29 @@
     },
     {
       "from": "gui/renderer/src/main.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/main.ts",
+      "to": "gui/renderer/src/i18n/language.ts",
+      "specifier": "./i18n/language.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/main.ts",
       "to": "gui/renderer/src/styles.css",
       "specifier": "./styles.css",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/plugin-presentation.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./i18n/index.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2211,8 +2509,22 @@
     },
     {
       "from": "gui/renderer/src/update-presentation.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/update-presentation.ts",
       "to": "gui/renderer/src/types.ts",
       "specifier": "./types.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/update-runner.ts",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "./i18n/index.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -8119,6 +8431,13 @@
     },
     {
       "from": "scripts/gui-smoke.mjs",
+      "to": "scripts/gui-smoke-i18n.mjs",
+      "specifier": "./gui-smoke-i18n.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
+    },
+    {
+      "from": "scripts/gui-smoke.mjs",
       "to": "scripts/gui-smoke-inventory-actions.mjs",
       "specifier": "./gui-smoke-inventory-actions.mjs",
       "from_layer": "scripts",
@@ -8146,6 +8465,13 @@
       "to_layer": "scripts"
     },
     {
+      "from": "scripts/gui-smoke.mjs",
+      "to": "scripts/gui-smoke-report.mjs",
+      "specifier": "./gui-smoke-report.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
+    },
+    {
       "from": "scripts/pack.mjs",
       "to": "scripts/pack-plan.mjs",
       "specifier": "./pack-plan.mjs",
@@ -8168,10 +8494,10 @@
     }
   ],
   "stats": {
-    "source_files": 251,
+    "source_files": 261,
     "asset_nodes": 1,
-    "nodes": 252,
-    "edges": 950,
+    "nodes": 262,
+    "edges": 988,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
@@ -8179,9 +8505,9 @@
       "core": 69,
       "dispatch": 64,
       "entry": 2,
-      "gui": 48,
+      "gui": 56,
       "public": 1,
-      "scripts": 45,
+      "scripts": 47,
       "store": 12
     },
     "outgoing": {
@@ -8189,9 +8515,9 @@
       "core": 294,
       "dispatch": 488,
       "entry": 8,
-      "gui": 83,
+      "gui": 119,
       "public": 6,
-      "scripts": 32,
+      "scripts": 34,
       "store": 21
     },
     "incoming": {
@@ -8199,9 +8525,9 @@
       "core": 339,
       "dispatch": 199,
       "entry": 1,
-      "gui": 83,
+      "gui": 119,
       "public": 1,
-      "scripts": 31,
+      "scripts": 33,
       "store": 278
     },
     "cross_layer_edges": {

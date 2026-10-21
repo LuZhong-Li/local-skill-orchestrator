@@ -13,6 +13,10 @@ interface SkillManagerApi {
   preview(argv: string[]): Promise<unknown>;
   execute(argv: string[]): Promise<unknown>;
   describe(): Promise<unknown>;
+  appSettings: {
+    get(): Promise<unknown>;
+    setLanguage(patch: unknown): Promise<unknown>;
+  };
   plugins: {
     hosts(): Promise<unknown>;
     list(): Promise<unknown>;

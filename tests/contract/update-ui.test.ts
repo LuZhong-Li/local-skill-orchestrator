@@ -70,8 +70,17 @@ test('契约：四态对话框组件存在，且四态标签由纯映射统一�
     assert.ok(dialog.includes(marker) || dialog.includes('groups'), `组件应支持 ${marker}`);
   }
   const presentation = read('gui/renderer/src/update-presentation.ts');
+  const chinese = read('gui/renderer/src/i18n/locales/zh-CN.ts');
+  for (const key of [
+    'updates.status.available',
+    'updates.status.upToDate',
+    'updates.status.notCheckable',
+    'updates.status.failed',
+  ]) {
+    assert.ok(presentation.includes(`t('${key}')`), `视图映射应使用 ${key}`);
+  }
   for (const label of ['可更新', '已是最新', '不可检查', '检查失败']) {
-    assert.ok(presentation.includes(label), `视图映射应提供「${label}」`);
+    assert.ok(chinese.includes(label), `中文资源应提供「${label}」`);
   }
 });
 

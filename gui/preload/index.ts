@@ -16,6 +16,11 @@ const api = {
   execute: (argv: string[]): Promise<unknown> => ipcRenderer.invoke('kernel:execute', argv),
   /** 读取当前工作区与运行模式，供界面展示 */
   describe: (): Promise<unknown> => ipcRenderer.invoke('kernel:describe'),
+  appSettings: {
+    get: (): Promise<unknown> => ipcRenderer.invoke('app-settings:get'),
+    setLanguage: (patch: unknown): Promise<unknown> =>
+      ipcRenderer.invoke('app-settings:set-language', patch),
+  },
   plugins: {
     /** 插件/内置宿主分区，由主进程消费同一份 list --kind plugin 结果 */
     hosts: (): Promise<unknown> => ipcRenderer.invoke('plugins:hosts'),

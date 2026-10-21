@@ -44,6 +44,6 @@ test('盘点展示：分类分组保留权威/推断拆分，不抹平证据等�
   assert.equal(rows.find((row) => row.key === 'orphaned')?.count, 2);
   assert.equal(
     reasonText({ reasons: ['ledger_active'], drift_reasons: ['content_digest'] }),
-    'ledger_active；content_digest',
+    'ledger_active; content_digest',
   );
 });

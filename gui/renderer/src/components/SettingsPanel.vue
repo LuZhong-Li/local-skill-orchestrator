@@ -1,14 +1,22 @@
 <script setup lang="ts">
 /** 设置页：配置读取/写入与更新检查开关；所有写操作经 App 的统一确认流程。 */
 import type { KernelResult, UpdateSettings } from '../types.ts';
+import type { SupportedLocale } from '../i18n/index.ts';
+import type { LanguageMode } from '../i18n/language.ts';
+import { localizedFindingsText } from '../i18n/error-text.ts';
 
-defineProps<{
+const props = defineProps<{
   busy: boolean;
   configResult: KernelResult | null;
+  configError: KernelResult | null;
   configKey: string;
   configValue: string;
   updateSettings: UpdateSettings;
   updateError: string;
+  languageMode: LanguageMode;
+  manualLanguage: SupportedLocale;
+  systemLocale: string;
+  resolvedLocale: SupportedLocale;
 }>();
 
 const emit = defineEmits<{
@@ -18,6 +26,7 @@ const emit = defineEmits<{
   'update:configValue': [value: string];
   togglePeriodic: [enabled: boolean];
   toggleInstant: [enabled: boolean];
+  changeLanguage: [mode: LanguageMode, value: SupportedLocale];
 }>();
 
 function onKey(event: globalThis.Event): void {
@@ -35,19 +44,30 @@ function onPeriodic(event: globalThis.Event): void {
 function onInstant(event: globalThis.Event): void {
   emit('toggleInstant', (event.target as globalThis.HTMLInputElement | null)?.checked === true);
 }
+
+function onLanguage(event: globalThis.Event): void {
+  const value = (event.target as globalThis.HTMLSelectElement | null)?.value ?? 'system';
+  if (value === 'system') emit('changeLanguage', 'system', props.manualLanguage);
+  else emit('changeLanguage', 'manual', value === 'en' ? 'en' : 'zh-CN');
+}
 </script>
 
 <template>
   <div class="settings-view">
     <div class="panel">
-      <h2>当前配置</h2>
-      <button :disabled="busy" @click="emit('loadConfig')">读取配置</button>
+      <h2>{{ $t('settings.currentConfig') }}</h2>
+      <button :disabled="busy" @click="emit('loadConfig')">
+        {{ $t('settings.readConfig') }}
+      </button>
       <pre v-if="configResult">{{ JSON.stringify(configResult.data, null, 2) }}</pre>
+      <p v-if="configError" class="bad settings-error" data-testid="settings-error">
+        {{ localizedFindingsText(configError.findings) }}
+      </p>
     </div>
     <div class="panel">
-      <h2>修改配置</h2>
+      <h2>{{ $t('settings.editConfig') }}</h2>
       <label>
-        <span class="muted">配置键</span>
+        <span class="muted">{{ $t('settings.configKey') }}</span>
         <select :value="configKey" @change="onKey">
           <option value="default_target">default_target</option>
           <option value="default_mode">default_mode</option>
@@ -61,17 +81,34 @@ function onInstant(event: globalThis.Event): void {
         </select>
       </label>
       <label>
-        <span class="muted">新的取值</span>
+        <span class="muted">{{ $t('settings.newValue') }}</span>
         <input :value="configValue" @input="onValue" />
       </label>
-      <button class="primary" :disabled="busy" @click="emit('saveConfig')">写入</button>
+      <button class="primary" :disabled="busy" @click="emit('saveConfig')">
+        {{ $t('settings.write') }}
+      </button>
     </div>
     <div class="panel">
-      <h2>更新检查</h2>
+      <h2>{{ $t('settings.language') }}</h2>
+      <label>
+        <span class="muted">{{ $t('settings.languageMode') }}</span>
+        <select
+          data-setting="language"
+          :value="languageMode === 'system' ? 'system' : manualLanguage"
+          @change="onLanguage"
+        >
+          <option value="system">{{ $t('settings.followSystem') }}</option>
+          <option value="zh-CN">{{ $t('settings.chinese') }}</option>
+          <option value="en">{{ $t('settings.english') }}</option>
+        </select>
+      </label>
       <p class="muted">
-        手动检查始终可用。定期与即时检查默认关闭；定期检查固定至少 6
-        小时，只在应用运行期间生效，且只提示、不执行更新。
+        {{ $t('settings.systemLocale', { locale: systemLocale || resolvedLocale }) }}
       </p>
+    </div>
+    <div class="panel">
+      <h2>{{ $t('settings.updateChecks') }}</h2>
+      <p class="muted">{{ $t('settings.updateIntro') }}</p>
       <label class="toggle">
         <input
           type="checkbox"
@@ -79,7 +116,7 @@ function onInstant(event: globalThis.Event): void {
           :checked="updateSettings.periodic_check_enabled"
           @change="onPeriodic"
         />
-        <span>定期检查（6 小时，仅应用运行期间，只提示）</span>
+        <span>{{ $t('settings.periodic') }}</span>
       </label>
       <label class="toggle">
         <input
@@ -88,9 +125,11 @@ function onInstant(event: globalThis.Event): void {
           :checked="updateSettings.instant_check_enabled"
           @change="onInstant"
         />
-        <span>立即检查（启动后执行一次只读检查）</span>
+        <span>{{ $t('settings.instant') }}</span>
       </label>
-      <p v-if="updateError" class="bad">更新设置或检查失败：{{ updateError }}</p>
+      <p v-if="updateError" class="bad">
+        {{ $t('settings.updateError', { message: updateError }) }}
+      </p>
     </div>
   </div>
 </template>

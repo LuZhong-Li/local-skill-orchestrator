@@ -2,16 +2,22 @@
 /** Skill 卡片：状态标签按 失效 > 禁用 > 启用 的优先级呈现 */
 import { computed } from 'vue';
 import { cardStateOf, type SkillSummary } from '../types.ts';
+import { formatDateTime, t } from '../i18n/index.ts';
 
 const props = defineProps<{ record: SkillSummary }>();
 defineEmits<{ open: [] }>();
 
 const state = computed(() => cardStateOf(props.record));
 const stateLabel = computed(
-  () => ({ enabled: '已启用', disabled: '已禁用', invalid: '失效' })[state.value],
+  () =>
+    ({
+      enabled: t('common.enabled'),
+      disabled: t('common.disabled'),
+      invalid: t('common.invalid'),
+    })[state.value],
 );
 const targets = computed(
-  () => props.record.targets.map((item) => item.target).join('、') || '未声明',
+  () => props.record.targets.map((item) => item.target).join(', ') || t('common.notDeclared'),
 );
 </script>
 
@@ -19,27 +25,28 @@ const targets = computed(
   <article class="card" :class="{ dimmed: state !== 'enabled' }" @click="$emit('open')">
     <header>
       <span class="tag" :class="state">{{ stateLabel }}</span>
-      <span class="version muted">{{ record.version ?? '未声明版本' }}</span>
+      <span class="version muted">{{ record.version ?? $t('skill.unknownVersion') }}</span>
     </header>
     <h3>{{ record.name }}</h3>
     <p class="id muted">{{ record.id }}</p>
     <dl>
       <div>
-        <dt>来源</dt>
+        <dt>{{ $t('skill.source') }}</dt>
         <dd>{{ record.source_type }}</dd>
       </div>
       <div>
-        <dt>落位目标</dt>
+        <dt>{{ $t('skill.targets') }}</dt>
         <dd>{{ targets }}</dd>
       </div>
     </dl>
     <p v-if="state === 'invalid'" class="codes">
-      问题码：{{ record.validation.errors.join('、') || '（无明细）' }}
+      {{ $t('skill.validationErrors') }}:
+      {{ record.validation.errors.join(', ') || $t('common.noDetail') }}
     </p>
     <footer class="muted">
-      最近变更 {{ record.updated_at }}
+      {{ $t('skill.updated') }} {{ formatDateTime(record.updated_at) }}
       <span v-if="record.validation.last_scan_at"
-        >｜最近扫描 {{ record.validation.last_scan_at }}</span
+        >| {{ $t('skill.scanned') }} {{ formatDateTime(record.validation.last_scan_at) }}</span
       >
     </footer>
   </article>

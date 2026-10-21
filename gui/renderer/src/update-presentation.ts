@@ -1,11 +1,12 @@
 import type { UpdateCheckItem, UpdateCheckState } from './types.ts';
+import { t } from './i18n/index.ts';
 
-export const UPDATE_STATE_LABELS: Record<UpdateCheckState, string> = {
-  'update-available': '可更新',
-  'up-to-date': '已是最新',
-  'not-checkable': '不可检查',
-  failed: '检查失败',
-};
+export function updateStateLabel(state: UpdateCheckState): string {
+  if (state === 'update-available') return t('updates.status.available');
+  if (state === 'up-to-date') return t('updates.status.upToDate');
+  if (state === 'not-checkable') return t('updates.status.notCheckable');
+  return t('updates.status.failed');
+}
 
 export interface UpdateItemView {
   label: string;
@@ -17,34 +18,34 @@ export interface UpdateItemView {
 /** 四态到可读文案的唯一映射，组件不得自行推导状态。 */
 export function updateItemView(item: UpdateCheckItem): UpdateItemView {
   if (item.state === 'update-available') {
-    const baseline = item.baseline_version ?? item.provenance.ref ?? '未知基线';
+    const baseline = item.baseline_version ?? item.provenance.ref ?? t('updates.defaultBaseline');
     return {
-      label: UPDATE_STATE_LABELS[item.state],
-      primary: `${baseline} → ${item.available?.ref ?? '未知目标'}`,
+      label: updateStateLabel(item.state),
+      primary: `${baseline} → ${item.available?.ref ?? t('updates.defaultTarget')}`,
       detail: item.summary,
       canUpdate: true,
     };
   }
   if (item.state === 'up-to-date') {
     return {
-      label: UPDATE_STATE_LABELS[item.state],
-      primary: '远端没有更高的正式版',
+      label: updateStateLabel(item.state),
+      primary: t('updates.upToDateReason'),
       detail: item.summary,
       canUpdate: false,
     };
   }
   if (item.state === 'not-checkable') {
     return {
-      label: UPDATE_STATE_LABELS[item.state],
-      primary: item.reason ?? '不可检查',
+      label: updateStateLabel(item.state),
+      primary: item.reason ?? t('updates.status.notCheckable'),
       detail: item.summary,
       canUpdate: false,
     };
   }
   return {
-    label: UPDATE_STATE_LABELS[item.state],
-    primary: '检查失败',
-    detail: [item.code, item.summary, item.remedy].filter((text) => text !== undefined).join('；'),
+    label: updateStateLabel(item.state),
+    primary: t('updates.checkFailed'),
+    detail: [item.code, item.summary, item.remedy].filter((text) => text !== undefined).join(' | '),
     canUpdate: false,
   };
 }

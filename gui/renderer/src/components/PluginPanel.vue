@@ -44,27 +44,28 @@ const emit = defineEmits<{
     <div class="panel wide">
       <div class="row">
         <div>
-          <h2>插件（扩展）</h2>
+          <h2>{{ $t('plugins.title') }}</h2>
           <p class="muted">
-            插件是能力扩展载体，不是 Skill；插件默认停用，启用后才会提供
-            <code>x-</code> 宿主。插件视图不包含更新检查。
+            {{ $t('plugins.intro') }}
           </p>
         </div>
         <div class="actions">
-          <button class="primary" :disabled="loading" @click="emit('install')">安装插件</button>
-          <button :disabled="loading" @click="emit('refresh')">刷新插件</button>
+          <button class="primary" :disabled="loading" @click="emit('install')">
+            {{ $t('plugins.install') }}
+          </button>
+          <button :disabled="loading" @click="emit('refresh')">{{ $t('plugins.refresh') }}</button>
         </div>
       </div>
       <p v-if="message" class="notice" data-testid="plugin-message">{{ message }}</p>
-      <p v-if="loading" class="muted">正在读取插件索引…</p>
-      <p v-else-if="plugins.length === 0" class="muted">还没有已登记的插件。</p>
+      <p v-if="loading" class="muted">{{ $t('plugins.loading') }}</p>
+      <p v-else-if="plugins.length === 0" class="muted">{{ $t('plugins.empty') }}</p>
       <table v-else class="plugins">
         <thead>
           <tr>
-            <th>插件</th>
-            <th>版本</th>
-            <th>状态</th>
-            <th>宿主数</th>
+            <th>{{ $t('plugins.plugin') }}</th>
+            <th>{{ $t('plugins.version') }}</th>
+            <th>{{ $t('plugins.status') }}</th>
+            <th>{{ $t('plugins.hostCount') }}</th>
             <th />
           </tr>
         </thead>
@@ -79,17 +80,19 @@ const emit = defineEmits<{
             </td>
             <td>{{ plugin.hosts }}</td>
             <td class="actions">
-              <button @click="emit('open', plugin.id)">详情</button>
+              <button @click="emit('open', plugin.id)">{{ $t('common.details') }}</button>
               <button
                 v-if="plugin.state !== 'enabled'"
                 :disabled="loading"
                 @click="emit('enable', plugin.id)"
               >
-                启用
+                {{ $t('plugins.enable') }}
               </button>
-              <button v-else :disabled="loading" @click="emit('disable', plugin.id)">停用</button>
+              <button v-else :disabled="loading" @click="emit('disable', plugin.id)">
+                {{ $t('plugins.disable') }}
+              </button>
               <button class="danger" :disabled="loading" @click="emit('uninstall', plugin.id)">
-                卸载
+                {{ $t('plugins.uninstall') }}
               </button>
             </td>
           </tr>
@@ -98,27 +101,27 @@ const emit = defineEmits<{
     </div>
 
     <div class="panel wide" data-testid="plugin-candidates">
-      <h2>未登记候选</h2>
-      <p class="muted">扫描只报告候选，不自动登记；安装后默认 disabled。</p>
-      <p v-if="candidates.length === 0" class="muted">没有未登记的插件目录。</p>
+      <h2>{{ $t('plugins.candidates') }}</h2>
+      <p class="muted">{{ $t('plugins.candidatesHint') }}</p>
+      <p v-if="candidates.length === 0" class="muted">{{ $t('plugins.noCandidates') }}</p>
       <ul v-else>
         <li v-for="candidate in candidates" :key="candidate.path">
           <code>{{ candidate.plugin_id }}</code>
           <span class="muted">{{ candidate.path }}</span>
           <button :disabled="loading" @click="emit('installCandidate', candidate.path)">
-            安装候选
+            {{ $t('plugins.installCandidate') }}
           </button>
         </li>
       </ul>
     </div>
 
     <div class="panel wide" data-testid="plugin-hosts">
-      <h2>宿主分发</h2>
+      <h2>{{ $t('plugins.hosts') }}</h2>
       <p class="muted">
-        内置宿主与第三方宿主分区显示；停用、失效或未配置 global 根的第三方宿主不可选。
+        {{ $t('plugins.hostsHint') }}
       </p>
       <label class="skill-picker">
-        <span>选择要分发的 Skill</span>
+        <span>{{ $t('plugins.selectSkill') }}</span>
         <select v-model="selectedSkill">
           <option v-for="skill in skills" :key="skill.id" :value="skill.id">
             {{ skill.id }}
@@ -131,13 +134,15 @@ const emit = defineEmits<{
           <li v-for="host in hosts.builtin" :key="host.host_id" :data-host-id="host.host_id">
             <code>{{ host.host_id }}</code>
             <span>{{ host.display_name }}</span>
-            <span class="muted">{{ host.selectable ? '可选' : host.reason }}</span>
+            <span class="muted">
+              {{ host.selectable ? $t('plugins.optional') : host.reason }}
+            </span>
             <button
               v-if="host.selectable"
               :disabled="loading || selectedSkill === ''"
               @click="emit('distribute', host.host_id, selectedSkill)"
             >
-              分发
+              {{ $t('plugins.distribute') }}
             </button>
           </li>
         </ul>
@@ -153,13 +158,15 @@ const emit = defineEmits<{
           >
             <code>{{ host.host_id }}</code>
             <span>{{ host.plugin_name }} / {{ host.display_name }}</span>
-            <span class="muted">{{ host.selectable ? '可选' : host.reason }}</span>
+            <span class="muted">
+              {{ host.selectable ? $t('plugins.optional') : host.reason }}
+            </span>
             <button
               v-if="host.selectable"
               :disabled="loading || selectedSkill === ''"
               @click="emit('distribute', host.host_id, selectedSkill)"
             >
-              分发
+              {{ $t('plugins.distribute') }}
             </button>
             <button
               v-for="hint in host.config_hint"
@@ -171,7 +178,7 @@ const emit = defineEmits<{
             </button>
           </li>
         </ul>
-        <p v-else class="muted">没有第三方宿主。</p>
+        <p v-else class="muted">{{ $t('plugins.noThirdParty') }}</p>
       </section>
     </div>
   </section>

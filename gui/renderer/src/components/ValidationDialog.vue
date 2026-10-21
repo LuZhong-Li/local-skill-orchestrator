@@ -5,6 +5,7 @@
 import { computed } from 'vue';
 import DialogShell from './DialogShell.vue';
 import type { KernelResult } from '../types.ts';
+import { localizedFindingText } from '../i18n/error-text.ts';
 
 const props = defineProps<{ result: KernelResult }>();
 defineEmits<{ close: [] }>();
@@ -35,45 +36,45 @@ const warnings = computed(() =>
 
 <template>
   <DialogShell
-    title="校验报告"
-    :subtitle="`退出码 ${result.exit_code}`"
+    :title="$t('validation.title')"
+    :subtitle="$t('validation.exitCode', { code: result.exit_code })"
     wide
     @close="$emit('close')"
   >
     <div class="counters">
-      <span class="ok">通过 {{ data.passed ?? 0 }}</span>
-      <span class="bad">不通过 {{ data.invalid ?? 0 }}</span>
-      <span class="warn">警告 {{ data.warnings ?? 0 }}</span>
-      <span class="bad">错误 {{ data.errors ?? 0 }}</span>
-      <span class="muted">结论过期 {{ data.stale ?? 0 }}</span>
+      <span class="ok">{{ $t('validation.passedCount', { count: data.passed ?? 0 }) }}</span>
+      <span class="bad">{{ $t('validation.invalidCount', { count: data.invalid ?? 0 }) }}</span>
+      <span class="warn">{{ $t('validation.warningCount', { count: data.warnings ?? 0 }) }}</span>
+      <span class="bad">{{ $t('validation.errorCount', { count: data.errors ?? 0 }) }}</span>
+      <span class="muted">{{ $t('validation.staleCount', { count: data.stale ?? 0 }) }}</span>
     </div>
 
     <section v-if="errors.length > 0">
-      <h3 class="bad">错误（{{ errors.length }}）</h3>
+      <h3 class="bad">{{ $t('validation.errorCount', { count: errors.length }) }}</h3>
       <ul>
         <li v-for="finding in errors" :key="finding.code + finding.target">
           <code>{{ finding.code }}</code>
           <strong>{{ finding.target }}</strong>
-          {{ finding.message }}
+          {{ localizedFindingText(finding) }}
           <span class="muted">{{ finding.remedy }}</span>
         </li>
       </ul>
     </section>
 
     <section v-if="warnings.length > 0">
-      <h3 class="warn">警告（{{ warnings.length }}）</h3>
+      <h3 class="warn">{{ $t('validation.warningCount', { count: warnings.length }) }}</h3>
       <ul>
         <li v-for="finding in warnings" :key="finding.code + finding.target">
           <code>{{ finding.code }}</code>
           <strong>{{ finding.target }}</strong>
-          {{ finding.message }}
+          {{ localizedFindingText(finding) }}
           <span class="muted">{{ finding.remedy }}</span>
         </li>
       </ul>
     </section>
 
     <section v-if="data.code_counts">
-      <h3>问题码清单</h3>
+      <h3>{{ $t('validation.codeList') }}</h3>
       <ul class="codes">
         <li v-for="(count, code) in data.code_counts" :key="code">
           <code>{{ code }}</code> × {{ count }}
@@ -81,10 +82,12 @@ const warnings = computed(() =>
       </ul>
     </section>
 
-    <p v-if="errors.length === 0 && warnings.length === 0" class="ok">没有发现任何问题</p>
+    <p v-if="errors.length === 0 && warnings.length === 0" class="ok">
+      {{ $t('validation.noIssues') }}
+    </p>
 
     <template #footer>
-      <button class="primary" @click="$emit('close')">关闭</button>
+      <button class="primary" @click="$emit('close')">{{ $t('common.close') }}</button>
     </template>
   </DialogShell>
 </template>

@@ -7,6 +7,7 @@ import type {
   ReconcileAction,
   ReconciliationOutput,
 } from '@skill-manager/contract';
+import { t } from './i18n/index.ts';
 
 export type InventoryCopyLike =
   ReconciledInventoryCopy | ReconciledInventoryCorruptCopy | MissingInventoryCopy;
@@ -19,14 +20,9 @@ export interface InventoryActionOption {
   reason?: string;
 }
 
-const LABELS: Record<ReconcileAction, string> = {
-  adopt: '采纳到工作区',
-  track: '补记账本',
-  repair: '修复宿主副本',
-  accept: '接受本地改动',
-  clean: '清理副本',
-  forget: '不再跟踪',
-};
+function actionLabel(action: ReconcileAction): string {
+  return t(`inventory.action.${action}`);
+}
 
 function classificationKey(copy: InventoryCopyLike): InventoryClassificationKey {
   const output: ReconciliationOutput = 'reconciliation' in copy ? copy.reconciliation : copy;
@@ -65,14 +61,14 @@ export function inventoryActionsFor(copy: InventoryCopyLike): InventoryActionOpt
     const disabled = plugin && (action === 'adopt' || action === 'accept');
     return {
       action,
-      label: LABELS[action],
+      label: actionLabel(action),
       destructive: action === 'clean' || action === 'accept',
       disabled,
-      ...(disabled ? { reason: '插件副本不进入工作区中心库' } : {}),
+      ...(disabled ? { reason: t('inventory.action.pluginLibrary') } : {}),
     };
   });
 }
 
 export function inventoryActionLabel(action: ReconcileAction): string {
-  return LABELS[action];
+  return actionLabel(action);
 }

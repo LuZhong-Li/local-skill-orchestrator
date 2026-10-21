@@ -19,27 +19,27 @@ defineEmits<{
 <template>
   <section class="content" data-testid="dashboard-view">
     <div v-if="!initialized" class="empty">
-      <h2>工作区尚未初始化</h2>
-      <p class="muted">先在当前工作区建立索引与标准目录，然后扫描已有的 Skill。</p>
+      <h2>{{ $t('dashboard.uninitializedTitle') }}</h2>
+      <p class="muted">{{ $t('dashboard.uninitializedBody') }}</p>
       <div class="empty-actions">
         <button class="primary" data-testid="dashboard-init" @click="$emit('init')">
-          初始化工作区
+          {{ $t('dashboard.initialize') }}
         </button>
         <button data-testid="open-inventory" @click="$emit('inventory')">
-          盘点这台电脑上已安装的 Skill
+          {{ $t('dashboard.inventoryInstalled') }}
         </button>
       </div>
-      <p class="muted hint">盘点不需要初始化工作区，也不会改动任何目录。</p>
+      <p class="muted hint">{{ $t('dashboard.inventoryHint') }}</p>
     </div>
     <div v-else-if="records.length === 0" class="empty">
-      <h2>还没有已管理的 Skill</h2>
-      <p class="muted">执行一次扫描，把工作区里已有的 Skill 登记进来。</p>
+      <h2>{{ $t('dashboard.emptyTitle') }}</h2>
+      <p class="muted">{{ $t('dashboard.emptyBody') }}</p>
       <div class="empty-actions">
         <button class="primary" data-testid="dashboard-scan" @click="$emit('scan')">
-          立即扫描
+          {{ $t('dashboard.scanNow') }}
         </button>
         <button data-testid="open-inventory" @click="$emit('inventory')">
-          盘点这台电脑上已安装的 Skill
+          {{ $t('dashboard.inventoryInstalled') }}
         </button>
       </div>
     </div>

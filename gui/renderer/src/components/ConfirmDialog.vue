@@ -6,6 +6,7 @@
 import { computed } from 'vue';
 import DialogShell from './DialogShell.vue';
 import type { ConfirmRequest } from '../composables/useKernel.ts';
+import { localizedFindingText } from '../i18n/error-text.ts';
 
 const props = defineProps<{ request: ConfirmRequest }>();
 defineEmits<{ answer: [approved: boolean] }>();
@@ -21,8 +22,8 @@ const files = computed<string[]>(() => {
 
 <template>
   <DialogShell
-    :title="`确认${request.title}`"
-    subtitle="以下影响范围由内核预演给出，尚未写入任何变更"
+    :title="$t('confirm.title', { action: request.title })"
+    :subtitle="$t('confirm.subtitle')"
     @close="$emit('answer', false)"
   >
     <ul class="changes">
@@ -31,12 +32,14 @@ const files = computed<string[]>(() => {
         <code>{{ change.path }}</code>
         <span class="muted">（{{ change.kind }}）</span>
       </li>
-      <li v-if="request.result.changes.length === 0" class="muted">没有文件或索引变更</li>
+      <li v-if="request.result.changes.length === 0" class="muted">
+        {{ $t('confirm.noChanges') }}
+      </li>
     </ul>
     <dl v-if="request.result.data" class="notes">
       <template v-for="(value, key) in request.result.data" :key="key">
         <div v-if="key === 'notes' && Array.isArray(value)">
-          <dt>说明</dt>
+          <dt>{{ $t('confirm.change') }}</dt>
           <dd>
             <ul>
               <li v-for="(note, index) in value" :key="index">{{ note }}</li>
@@ -46,7 +49,7 @@ const files = computed<string[]>(() => {
       </template>
     </dl>
     <template v-if="files.length > 0">
-      <p class="muted">将写回的文件（{{ files.length }} 项）</p>
+      <p class="muted">{{ $t('confirm.writeBackFiles', { count: files.length }) }}</p>
       <ul class="files">
         <li v-for="file in files" :key="file">
           <code>{{ file }}</code>
@@ -55,13 +58,15 @@ const files = computed<string[]>(() => {
     </template>
     <ul class="warnings">
       <li v-for="finding in request.result.findings" :key="finding.code + finding.target">
-        [{{ finding.severity === 'error' ? '错误' : '警告' }}] {{ finding.code }}
-        {{ finding.message }}
+        [{{ finding.severity === 'error' ? $t('common.error') : $t('common.warning') }}]
+        {{ localizedFindingText(finding) }}
       </li>
     </ul>
     <template #footer>
-      <button @click="$emit('answer', false)">取消</button>
-      <button class="primary" @click="$emit('answer', true)">确认执行</button>
+      <button @click="$emit('answer', false)">{{ $t('confirm.cancel') }}</button>
+      <button class="primary" @click="$emit('answer', true)">
+        {{ $t('confirm.execute') }}
+      </button>
     </template>
   </DialogShell>
 </template>

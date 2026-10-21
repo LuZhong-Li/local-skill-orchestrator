@@ -51,8 +51,7 @@ test('契约：盘点视图走通用 scan --inventory，不直接访问 preload 
   }
   assert.equal(host.includes('install'), false, '盘点视图不得包含安装类调用');
   assert.equal(host.includes('uninstall'), false);
-  assert.match(host, /盘点本身只读/);
-  assert.match(host, /不会一键全修或全删/);
+  assert.match(host, /inventory\.intro/);
   assert.match(host, /@done="load"/);
 
   const dialog = read('gui/renderer/src/components/host-inventory/InventoryActionDialog.vue');
@@ -66,17 +65,17 @@ test('契约：盘点视图走通用 scan --inventory，不直接访问 preload 
 test('契约：未初始化工作区有盘点入口，逐条动作与角色折叠可见', () => {
   const dashboard = read('gui/renderer/src/components/DashboardView.vue');
   assert.match(dashboard, /data-testid="open-inventory"/);
-  assert.match(dashboard, /盘点这台电脑上已安装的 Skill/);
-  assert.match(dashboard, /盘点不需要初始化工作区/);
+  assert.match(dashboard, /dashboard\.inventoryInstalled/);
+  assert.match(dashboard, /dashboard\.inventoryHint/);
 
   const summary = read('gui/renderer/src/components/host-inventory/InventorySummary.vue');
   assert.match(summary, /data-testid="inventory-main-count"/);
   assert.match(summary, /data-testid="inventory-role-fold"/);
-  assert.match(summary, /系统 \/ 平台 \/ 项目级副本不计入主计数/);
+  assert.match(summary, /inventory\.mainHint/);
 
   const host = read('gui/renderer/src/components/HostInventoryView.vue');
   assert.match(host, /data-testid="inventory-untracked"/);
-  assert.match(host, /动作按副本逐条提供/);
+  assert.match(host, /inventory\.actionHint/);
   assert.match(host, /data-testid="inventory-third-party-hosts"|InventoryHostGroups/);
 
   const groups = read('gui/renderer/src/components/host-inventory/InventoryHostGroups.vue');

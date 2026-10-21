@@ -21,6 +21,16 @@ import { useKernel } from './composables/useKernel.ts';
 import { exportInventory } from './composables/useInventoryExport.ts';
 import { runSequentialUpdates, type UpdateRunResult } from './update-runner.ts';
 import { pluginInstallNotice } from './plugin-presentation.ts';
+import { localizedFindingsText } from './i18n/error-text.ts';
+import { t, type SupportedLocale } from './i18n/index.ts';
+import {
+  languageMode,
+  manualLanguage,
+  resolvedLocale,
+  setLanguagePreference,
+  systemLocale,
+  type LanguageMode,
+} from './i18n/language.ts';
 import {
   cardStateOf,
   type BackupRow,
@@ -46,6 +56,7 @@ const report = ref<KernelResult | null>(null);
 const exportPath = ref('backups/export.yaml');
 const importPath = ref('backups/export.yaml');
 const configResult = ref<KernelResult | null>(null);
+const configError = ref<KernelResult | null>(null);
 const configKey = ref('default_target');
 const configValue = ref('');
 const backups = ref<BackupRow[]>([]);
@@ -107,9 +118,7 @@ async function loadPlugins(): Promise<void> {
     const scan = (await globalThis.window.skillManager.plugins.scan()) as KernelResult;
     pluginCandidates.value = (scan.data?.['unregistered'] ?? []) as PluginCandidate[];
     if (result !== undefined && !result.ok) {
-      pluginMessage.value = result.findings
-        .map((item) => `${item.code}：${item.message}`)
-        .join('；');
+      pluginMessage.value = localizedFindingsText(result.findings);
     }
   } catch (error) {
     pluginMessage.value = error instanceof Error ? error.message : String(error);
@@ -136,53 +145,54 @@ async function openPluginDetail(id: string): Promise<void> {
 
 async function installPlugin(source: string): Promise<void> {
   showPluginInstall.value = false;
-  const result = await kernel.runWithConfirm(['install', source, '--kind', 'plugin'], '安装插件');
+  const result = await kernel.runWithConfirm(
+    ['install', source, '--kind', 'plugin'],
+    t('plugins.installTitle'),
+  );
   if (result?.ok === true) {
     pluginMessage.value = pluginInstallNotice();
     await loadPlugins();
   } else if (result !== null) {
-    pluginMessage.value = result.findings.map((item) => `${item.code}：${item.message}`).join('；');
+    pluginMessage.value = localizedFindingsText(result.findings);
   }
 }
 
 async function togglePlugin(action: 'enable' | 'disable', id: string): Promise<void> {
   const result = await kernel.runWithConfirm(
     [action, id, '--kind', 'plugin'],
-    action === 'enable' ? `启用插件 ${id}` : `停用插件 ${id}`,
+    action === 'enable' ? t('plugins.enableTitle', { id }) : t('plugins.disableTitle', { id }),
   );
   if (result !== null) await loadPlugins();
   if (result !== null && !result.ok) {
-    pluginMessage.value = result.findings.map((item) => `${item.code}：${item.message}`).join('；');
+    pluginMessage.value = localizedFindingsText(result.findings);
   }
 }
 
 async function uninstallPlugin(id: string): Promise<void> {
   const result = await kernel.runWithConfirm(
     ['uninstall', id, '--kind', 'plugin'],
-    `卸载插件 ${id}`,
+    t('plugins.uninstallTitle', { id }),
   );
   if (result !== null) {
     pluginSelected.value = null;
     await loadPlugins();
     if (!result.ok) {
-      pluginMessage.value = result.findings
-        .map((item) => `${item.code}：${item.message}`)
-        .join('；');
+      pluginMessage.value = localizedFindingsText(result.findings);
     }
   }
 }
 
 async function distributePlugin(hostId: string, skillId: string): Promise<void> {
   if (skillId === '') {
-    pluginMessage.value = '请先选择要分发的 Skill';
+    pluginMessage.value = t('plugins.chooseSkillFirst');
     return;
   }
   const result = await kernel.runWithConfirm(
     ['update', skillId, '--host', hostId],
-    `分发 ${skillId} 到 ${hostId}`,
+    t('plugins.distributeTitle', { skill: skillId, host: hostId }),
   );
   if (result?.ok === true) {
-    pluginMessage.value = `已将 ${skillId} 分发到 ${hostId}`;
+    pluginMessage.value = t('plugins.distributed', { skill: skillId, host: hostId });
     await loadPlugins();
   }
 }
@@ -197,12 +207,13 @@ function usePluginConfigHint(hint: string): void {
 }
 
 /** 写操作的统一入口：预览 → 确认 → 执行，取消时不发写请求 */
-async function act(argv: string[], title: string): Promise<void> {
+async function act(argv: string[], title: string): Promise<KernelResult | null> {
   const result = await kernel.runWithConfirm(argv, title);
   if (result !== null) {
     selected.value = null;
     await kernel.refresh();
   }
+  return result;
 }
 
 async function runValidate(): Promise<void> {
@@ -215,7 +226,7 @@ async function runExport(): Promise<void> {
 }
 
 async function runImport(): Promise<void> {
-  await act(['import', importPath.value.trim()], '导入备份');
+  await act(['import', importPath.value.trim()], t('backup.importAction'));
 }
 
 /** 读取可用备份列表：数据来自内核的 restore --list，界面不直读备份目录 */
@@ -228,7 +239,10 @@ async function loadBackups(): Promise<void> {
 
 /** 恢复一份备份：预览 → 确认 → 带 --yes 执行，取消时不发写请求 */
 async function restoreBackup(row: BackupRow): Promise<void> {
-  await act(['restore', row.id, '--timestamp', row.timestamp], `恢复 ${row.id}`);
+  await act(
+    ['restore', row.id, '--timestamp', row.timestamp],
+    t('backup.restoreAction', { id: row.id }),
+  );
   await loadBackups();
 }
 
@@ -237,8 +251,12 @@ async function loadConfig(): Promise<void> {
 }
 
 async function saveConfig(): Promise<void> {
-  await act(['config', 'set', configKey.value, configValue.value], '写入配置');
+  const result = await act(
+    ['config', 'set', configKey.value, configValue.value],
+    t('settings.write'),
+  );
   await loadConfig();
+  configError.value = result !== null && !result.ok ? result : null;
 }
 
 function hasAvailable(report: UpdateCheckReport): boolean {
@@ -321,7 +339,7 @@ async function performUpdate(id: string, ref: string | undefined) {
   try {
     const result = await kernel.runWithConfirm(
       ['update', id, ...(ref === undefined ? [] : ['--ref', ref])],
-      `更新 ${id}`,
+      t('updates.updateAction', { id }),
     );
     return { cancelled: result === null, result };
   } finally {
@@ -384,6 +402,10 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => unsubscribeUpdates?.());
+
+function changeLanguage(mode: LanguageMode, value: SupportedLocale): void {
+  void setLanguagePreference(mode, value);
+}
 </script>
 
 <template>
@@ -393,35 +415,39 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
       <p class="muted workspace" :title="kernel.workspace.value">{{ kernel.workspace.value }}</p>
       <nav>
         <button :class="{ active: view === 'dashboard' }" @click="view = 'dashboard'">
-          仪表盘
+          {{ $t('nav.dashboard') }}
         </button>
         <button :class="{ active: view === 'validation' }" @click="view = 'validation'">
-          校验报告
+          {{ $t('nav.validation') }}
         </button>
-        <button :class="{ active: view === 'backup' }" @click="view = 'backup'">备份管理</button>
+        <button :class="{ active: view === 'backup' }" @click="view = 'backup'">
+          {{ $t('nav.backup') }}
+        </button>
         <button data-nav="plugins" :class="{ active: view === 'plugins' }" @click="openPlugins">
-          插件（扩展）
+          {{ $t('nav.plugins') }}
         </button>
         <button
           data-nav="inventory"
           :class="{ active: view === 'inventory' }"
           @click="view = 'inventory'"
         >
-          全机盘点
+          {{ $t('nav.inventory') }}
         </button>
-        <button :class="{ active: view === 'settings' }" @click="view = 'settings'">设置</button>
+        <button :class="{ active: view === 'settings' }" @click="view = 'settings'">
+          {{ $t('nav.settings') }}
+        </button>
       </nav>
       <dl class="counts">
         <div>
-          <dt>已启用</dt>
+          <dt>{{ $t('common.enabled') }}</dt>
           <dd>{{ states.enabled }}</dd>
         </div>
         <div>
-          <dt>已禁用</dt>
+          <dt>{{ $t('common.disabled') }}</dt>
           <dd>{{ states.disabled }}</dd>
         </div>
         <div>
-          <dt>失效</dt>
+          <dt>{{ $t('common.invalid') }}</dt>
           <dd>{{ states.invalid }}</dd>
         </div>
       </dl>
@@ -430,34 +456,44 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
     <main>
       <header v-if="view !== 'inventory'" class="toolbar">
         <button class="primary" :disabled="kernel.busy.value" @click="showInstall = true">
-          安装 Skill
+          {{ $t('toolbar.installSkill') }}
         </button>
         <button :disabled="kernel.busy.value" @click="kernel.run(['scan']).then(kernel.refresh)">
-          重新扫描
+          {{ $t('toolbar.rescan') }}
         </button>
-        <button :disabled="kernel.busy.value" @click="runValidate">批量校验</button>
-        <button :disabled="kernel.busy.value" @click="runExport">导出备份</button>
-        <button :disabled="kernel.busy.value" @click="runImport">导入备份</button>
+        <button :disabled="kernel.busy.value" @click="runValidate">
+          {{ $t('toolbar.validateAll') }}
+        </button>
+        <button :disabled="kernel.busy.value" @click="runExport">
+          {{ $t('toolbar.exportBackup') }}
+        </button>
+        <button :disabled="kernel.busy.value" @click="runImport">
+          {{ $t('toolbar.importBackup') }}
+        </button>
         <button
           v-if="view !== 'plugins'"
           class="update-check"
           :disabled="kernel.busy.value || updateBusy"
           @click="openUpdates"
         >
-          检查更新
-          <span v-if="updateBadge" class="update-dot" aria-label="有可更新项" />
+          {{ $t('toolbar.checkUpdates') }}
+          <span
+            v-if="updateBadge"
+            class="update-dot"
+            :aria-label="$t('toolbar.updatesAvailable')"
+          />
         </button>
         <span class="spacer" />
-        <select v-model="filterState" class="filter" aria-label="按状态过滤">
-          <option value="">全部状态</option>
-          <option value="enabled">仅已启用</option>
-          <option value="disabled">仅已禁用</option>
-          <option value="invalid">仅失效</option>
+        <select v-model="filterState" class="filter" :aria-label="$t('toolbar.filterAria')">
+          <option value="">{{ $t('common.allStates') }}</option>
+          <option value="enabled">{{ $t('toolbar.enabledOnly') }}</option>
+          <option value="disabled">{{ $t('toolbar.disabledOnly') }}</option>
+          <option value="invalid">{{ $t('toolbar.invalidOnly') }}</option>
         </select>
       </header>
       <header v-else class="toolbar">
-        <strong>全机盘点</strong>
-        <span class="muted">只读：不写工作区、不写设置、不安装或卸载</span>
+        <strong>{{ $t('inventory.title') }}</strong>
+        <span class="muted">{{ $t('app.readOnly') }}</span>
         <span class="spacer" />
       </header>
 
@@ -478,43 +514,45 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
       />
 
       <section v-else-if="view === 'validation'" class="content">
-        <p class="muted">
-          校验是只读动作：它只报告，不刷新索引中的运行期结论。结论过期时请重新扫描。
-        </p>
+        <p class="muted">{{ $t('validation.intro') }}</p>
         <button class="primary" :disabled="kernel.busy.value" @click="runValidate">
-          执行全量校验
+          {{ $t('validation.run') }}
         </button>
         <div v-if="report" class="panel">
           <p>
-            退出码 {{ report.exit_code }}｜通过
-            {{ (report.data?.['passed'] as number) ?? 0 }}｜不通过
-            {{ (report.data?.['invalid'] as number) ?? 0 }}｜问题
-            {{ report.findings.length }}
+            {{
+              $t('validation.summary', {
+                exitCode: report.exit_code,
+                passed: (report.data?.['passed'] as number) ?? 0,
+                invalid: (report.data?.['invalid'] as number) ?? 0,
+                findings: report.findings.length,
+              })
+            }}
           </p>
-          <p class="muted">报告详情已在弹窗中打开；关闭弹窗后仍可重复执行校验。</p>
+          <p class="muted">{{ $t('validation.dialogOpen') }}</p>
         </div>
       </section>
 
       <section v-else-if="view === 'backup'" class="content">
         <div class="panel wide">
-          <h2>可用备份（恢复）</h2>
+          <h2>{{ $t('backup.restoreTitle') }}</h2>
           <div class="row">
             <label>
-              <span class="muted">只看某个 Skill（留空表示全部）</span>
-              <input v-model="backupFilter" placeholder="例如 code-review" />
+              <span class="muted">{{ $t('backup.filter') }}</span>
+              <input v-model="backupFilter" :placeholder="$t('backup.filterPlaceholder')" />
             </label>
-            <button :disabled="kernel.busy.value" @click="loadBackups">读取备份列表</button>
+            <button :disabled="kernel.busy.value" @click="loadBackups">
+              {{ $t('backup.readList') }}
+            </button>
           </div>
-          <p class="muted">
-            列表由内核读取备份清单给出，只读不校验内容；恢复时会逐份校验载体，再把内容写回中心库并重分发副本。
-          </p>
+          <p class="muted">{{ $t('backup.listHint') }}</p>
           <table v-if="backups.length > 0" class="backups">
             <thead>
               <tr>
                 <th>Skill</th>
-                <th>时间戳</th>
-                <th>载体</th>
-                <th>文件数</th>
+                <th>{{ $t('backup.timestamp') }}</th>
+                <th>{{ $t('backup.type') }}</th>
+                <th>{{ $t('backup.files') }}</th>
                 <th />
               </tr>
             </thead>
@@ -529,37 +567,36 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
                 <td class="muted">{{ row.type }}</td>
                 <td class="muted">{{ row.file_count }}</td>
                 <td>
-                  <button :disabled="kernel.busy.value" @click="restoreBackup(row)">恢复</button>
+                  <button :disabled="kernel.busy.value" @click="restoreBackup(row)">
+                    {{ $t('backup.restore') }}
+                  </button>
                 </td>
               </tr>
             </tbody>
           </table>
-          <p v-else-if="backupLoaded" class="muted">
-            没有可用备份。卸载一个 Skill
-            时会自动生成备份；也可以先在下方导出记录，或从别处导入清单。
-          </p>
-          <p v-else class="muted">
-            还没有读取备份列表：点击「读取备份列表」查看当前工作区里的备份。
-          </p>
+          <p v-else-if="backupLoaded" class="muted">{{ $t('backup.empty') }}</p>
+          <p v-else class="muted">{{ $t('backup.notLoaded') }}</p>
         </div>
         <div class="panel">
-          <h2>导出备份</h2>
+          <h2>{{ $t('backup.exportTitle') }}</h2>
           <label>
-            <span class="muted">目标文件（相对工作区根目录）</span>
+            <span class="muted">{{ $t('backup.exportPath') }}</span>
             <input v-model="exportPath" />
           </label>
-          <button class="primary" :disabled="kernel.busy.value" @click="runExport">导出</button>
+          <button class="primary" :disabled="kernel.busy.value" @click="runExport">
+            {{ $t('common.export') }}
+          </button>
         </div>
         <div class="panel">
-          <h2>导入备份</h2>
+          <h2>{{ $t('backup.importTitle') }}</h2>
           <label>
-            <span class="muted">备份文件（相对工作区根目录）</span>
+            <span class="muted">{{ $t('backup.importPath') }}</span>
             <input v-model="importPath" />
           </label>
-          <p class="muted">
-            已存在的标识一律跳过、不覆盖；导入只恢复索引记录，运行期结论请在导入后扫描刷新。
-          </p>
-          <button :disabled="kernel.busy.value" @click="runImport">导入</button>
+          <p class="muted">{{ $t('backup.importHint') }}</p>
+          <button :disabled="kernel.busy.value" @click="runImport">
+            {{ $t('common.import') }}
+          </button>
         </div>
       </section>
 
@@ -585,22 +622,30 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
         <SettingsPanel
           :busy="kernel.busy.value"
           :config-result="configResult"
+          :config-error="configError"
           :config-key="configKey"
           :config-value="configValue"
           :update-settings="updateSettings"
           :update-error="updateError"
+          :language-mode="languageMode"
+          :manual-language="manualLanguage"
+          :system-locale="systemLocale"
+          :resolved-locale="resolvedLocale"
           @load-config="loadConfig"
           @save-config="saveConfig"
           @update:config-key="configKey = $event"
           @update:config-value="configValue = $event"
           @toggle-periodic="togglePeriodic"
           @toggle-instant="toggleInstant"
+          @change-language="changeLanguage"
         />
       </section>
     </main>
 
     <footer class="statusbar">
-      <span v-if="kernel.log.value.length === 0" class="muted">暂无操作记录</span>
+      <span v-if="kernel.log.value.length === 0" class="muted">
+        {{ $t('app.operationLog') }}
+      </span>
       <span
         v-for="entry in kernel.log.value.slice(0, 3)"
         :key="entry.at + entry.text"
@@ -616,7 +661,7 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
       :detail="detail"
       :loading="detailLoading"
       @close="selected = null"
-      @action="(argv) => act(argv, '执行该操作')"
+      @action="(argv) => act(argv, $t('app.executingAction'))"
       @deps="
         async () => {
           if (selected) detail = await kernel.run(['deps', selected.id, '--tree']);
@@ -630,7 +675,7 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
       @submit="
         (argv) => {
           showInstall = false;
-          void act(argv, '安装 Skill');
+          void act(argv, $t('install.title'));
         }
       "
     />
@@ -669,196 +714,4 @@ onBeforeUnmount(() => unsubscribeUpdates?.());
   </div>
 </template>
 
-<style scoped>
-.shell {
-  display: grid;
-  grid-template-columns: 208px 1fr;
-  grid-template-rows: 1fr auto;
-  grid-template-areas:
-    'side main'
-    'status status';
-  height: 100vh;
-}
-
-aside {
-  grid-area: side;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  padding: calc(var(--space) * 5) calc(var(--space) * 4);
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--space) * 4);
-}
-
-h1 {
-  font-size: 15px;
-  letter-spacing: 0.02em;
-}
-
-.workspace {
-  font-size: 11px;
-  word-break: break-all;
-}
-
-nav {
-  display: grid;
-  gap: calc(var(--space) * 1);
-}
-
-nav button {
-  text-align: left;
-  border-color: transparent;
-  background: transparent;
-}
-
-nav button.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  font-weight: 600;
-}
-
-.counts {
-  margin: auto 0 0;
-  font-size: 12px;
-  display: grid;
-  gap: calc(var(--space));
-}
-
-.counts div {
-  display: flex;
-  justify-content: space-between;
-}
-
-dt,
-.muted {
-  color: var(--text-muted);
-}
-
-dd {
-  margin: 0;
-}
-
-main {
-  grid-area: main;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.toolbar {
-  display: flex;
-  gap: calc(var(--space) * 2);
-  align-items: center;
-  padding: calc(var(--space) * 4) calc(var(--space) * 5);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-muted);
-}
-
-.spacer {
-  flex: 1;
-}
-
-.filter {
-  width: 148px;
-}
-
-.update-check {
-  position: relative;
-}
-
-.update-dot {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--danger);
-  box-shadow: 0 0 0 2px var(--surface);
-}
-
-.content {
-  flex: 1;
-  overflow: auto;
-  padding: calc(var(--space) * 5);
-  display: flex;
-  flex-direction: column;
-  gap: calc(var(--space) * 4);
-}
-
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  padding: calc(var(--space) * 5);
-  display: grid;
-  gap: calc(var(--space) * 3);
-  justify-items: start;
-}
-
-.panel h2 {
-  font-size: 14px;
-}
-
-.panel.wide {
-  justify-self: stretch;
-  width: 100%;
-}
-
-.row {
-  display: flex;
-  gap: calc(var(--space) * 3);
-  align-items: flex-end;
-  width: 100%;
-  flex-wrap: wrap;
-}
-
-.row label {
-  flex: 1;
-  min-width: 220px;
-}
-
-.backups {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.backups th,
-.backups td {
-  text-align: left;
-  padding: calc(var(--space) * 2) calc(var(--space) * 2);
-  border-bottom: 1px solid var(--border);
-  word-break: break-all;
-}
-
-.backups th {
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.panel label {
-  width: 100%;
-  font-size: 13px;
-}
-
-.statusbar {
-  grid-area: status;
-  display: flex;
-  gap: calc(var(--space) * 5);
-  padding: calc(var(--space) * 2) calc(var(--space) * 5);
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-  font-size: 12px;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.statusbar .bad {
-  color: var(--danger);
-}
-
-.bad {
-  color: var(--danger);
-}
-</style>
+<style scoped src="./app-shell.css"></style>

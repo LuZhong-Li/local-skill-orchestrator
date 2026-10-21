@@ -6,9 +6,24 @@ export interface UpdateSettings {
   instant_check_enabled: boolean;
 }
 
+export type LanguageMode = 'system' | 'manual';
+export type SupportedLanguage = 'en' | 'zh-CN';
+
+export interface AppSettings extends UpdateSettings {
+  language: {
+    mode: LanguageMode;
+    value: SupportedLanguage;
+  };
+}
+
 export const DEFAULT_UPDATE_SETTINGS: UpdateSettings = {
   periodic_check_enabled: false,
   instant_check_enabled: false,
+};
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  ...DEFAULT_UPDATE_SETTINGS,
+  language: { mode: 'system', value: 'zh-CN' },
 };
 
 export interface UpdateSettingsIo {
@@ -16,14 +31,24 @@ export interface UpdateSettingsIo {
   writeText: (text: string) => void;
 }
 
-function normalizeSettings(value: unknown): UpdateSettings {
+function normalizeSettings(value: unknown): AppSettings {
   const record =
     value !== null && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : {};
+  const language =
+    record['language'] !== null &&
+    typeof record['language'] === 'object' &&
+    !Array.isArray(record['language'])
+      ? (record['language'] as Record<string, unknown>)
+      : {};
   return {
     periodic_check_enabled: record['periodic_check_enabled'] === true,
     instant_check_enabled: record['instant_check_enabled'] === true,
+    language: {
+      mode: language['mode'] === 'manual' ? 'manual' : 'system',
+      value: language['value'] === 'en' ? 'en' : 'zh-CN',
+    },
   };
 }
 
@@ -48,18 +73,23 @@ export class UpdateSettingsStore {
     };
   }
 
-  read(): UpdateSettings {
+  read(): AppSettings {
     const text = this.io.readText();
-    if (text === null) return { ...DEFAULT_UPDATE_SETTINGS };
+    if (text === null)
+      return { ...DEFAULT_APP_SETTINGS, language: { ...DEFAULT_APP_SETTINGS.language } };
     try {
       return normalizeSettings(JSON.parse(text));
     } catch {
-      return { ...DEFAULT_UPDATE_SETTINGS };
+      return { ...DEFAULT_APP_SETTINGS, language: { ...DEFAULT_APP_SETTINGS.language } };
     }
   }
 
-  set(settings: UpdateSettings): UpdateSettings {
-    const normalized = normalizeSettings(settings);
+  set(settings: UpdateSettings | AppSettings): AppSettings {
+    const normalized = normalizeSettings({
+      ...this.read(),
+      ...settings,
+      language: 'language' in settings ? settings.language : this.read().language,
+    });
     this.io.writeText(`${JSON.stringify(normalized, null, 2)}\n`);
     return normalized;
   }

@@ -21,6 +21,8 @@ import { runEmptyWorkspaceInventoryChecks } from './gui-smoke-inventory.mjs';
 import { runInventoryActionChecks } from './gui-smoke-inventory-actions.mjs';
 import { runPluginSmoke } from './gui-smoke-plugin.mjs';
 import { killTree, readTextOrFallback } from './gui-smoke-launch.mjs';
+import { runI18nSmoke } from './gui-smoke-i18n.mjs';
+import { printSmokeReport } from './gui-smoke-report.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GUI = join(ROOT, 'gui');
@@ -300,8 +302,11 @@ async function main() {
     );
 
     const smokeContext = { evaluate, waitFor, check, workspace, hostHome, hostLocal, userData };
+    console.log('[smoke] base UI ready');
     await runPluginSmoke(smokeContext);
+    console.log('[smoke] plugin checks complete');
     await runInventoryActionChecks(smokeContext);
+    console.log('[smoke] inventory checks complete');
     // T2/T3：设置默认关闭；即时检查触发角标，点击角标进入已有结果视图。
     await evaluate(
       "[...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '设置')?.click()",
@@ -497,6 +502,15 @@ async function main() {
       restored && statusText.includes('restore'),
       `原件内容 ${JSON.stringify(restoredContent)}`,
     );
+    console.log('[smoke] update/backup checks complete');
+
+    await runI18nSmoke({
+      evaluate,
+      waitFor,
+      check,
+      userData,
+      reload: () => client.send('Page.reload', { ignoreCache: true }),
+    });
 
     client.close();
   } finally {
@@ -510,22 +524,7 @@ async function main() {
     rmSync(gitRoot, { recursive: true, force: true });
   }
 
-  for (const item of checks) {
-    console.log(
-      `${item.ok ? '✔' : '✖'} ${item.name}${item.detail === '' ? '' : `（${item.detail}）`}`,
-    );
-  }
-  if (diagnostics.length > 0) {
-    console.log('--- 诊断 ---');
-    for (const line of diagnostics) console.log(line);
-  }
-  if (stderr.trim() !== '') {
-    console.log('--- 主进程诊断输出 ---');
-    console.log(stderr.trim().split('\n').slice(0, 10).join('\n'));
-  }
-  const failed = checks.filter((item) => !item.ok);
-  console.log(`\n界面冒烟：${checks.length - failed.length}/${checks.length} 通过`);
-  process.exit(failed.length === 0 ? 0 : 1);
+  printSmokeReport(checks, diagnostics, stderr);
 }
 
 await main();

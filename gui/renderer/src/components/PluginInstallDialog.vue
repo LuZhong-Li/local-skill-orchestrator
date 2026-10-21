@@ -14,25 +14,27 @@ function submit(): void {
 
 <template>
   <DialogShell
-    title="安装插件"
-    subtitle="本地目录、归档或远端 URL；安装后默认 disabled"
+    :title="$t('plugins.installTitle')"
+    :subtitle="$t('plugins.installSubtitle')"
     @close="$emit('close')"
   >
     <label>
-      <span>插件来源</span>
+      <span>{{ $t('plugins.source') }}</span>
       <input
         v-model="source"
         data-testid="plugin-source"
-        placeholder="例如 /path/to/plugin 或 https://…/plugin.git"
+        :placeholder="$t('plugins.placeholder')"
         @keyup.enter="submit"
       />
     </label>
     <p class="muted">
-      插件只允许声明式 manifest，不含代码；安装不会自动启用，也不会写入用户主目录。
+      {{ $t('plugins.manifestOnly') }}
     </p>
     <template #footer>
-      <button @click="$emit('close')">取消</button>
-      <button class="primary" :disabled="source.trim() === ''" @click="submit">安装插件</button>
+      <button @click="$emit('close')">{{ $t('common.cancel') }}</button>
+      <button class="primary" :disabled="source.trim() === ''" @click="submit">
+        {{ $t('plugins.submit') }}
+      </button>
     </template>
   </DialogShell>
 </template>

@@ -121,6 +121,10 @@ async function checkReadonlyAndScroll(context) {
     (await evaluate(
       '(() => { const item = document.querySelector(\'[data-root-id="codex/system"] .table-scroll\'); return item ? item.scrollHeight > item.clientHeight : false; })()',
     )) === true;
+  await waitFor(
+    'document.querySelector(\'[data-testid="inventory-refresh"]\')?.disabled === false',
+    60,
+  );
   const interactive =
     (await evaluate(
       'document.querySelector(\'[data-testid="inventory-refresh"]\')?.disabled === false',

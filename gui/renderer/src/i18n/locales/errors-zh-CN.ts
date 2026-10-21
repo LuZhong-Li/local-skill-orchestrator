@@ -1,0 +1,20 @@
+export default {
+  withCode: '{code}：操作失败，请检查诊断详情与建议后重试。',
+  diagnostic: '诊断详情：{message}',
+  codes: {
+    'E-INPUT-001': '缺少必要输入。',
+    'E-INPUT-002': '选项或取值不合法。',
+    'E-IO-001': '文件系统操作失败。',
+    'E-IO-002': '写入操作失败。',
+    'E-CONFLICT-001': '命名冲突，操作无法继续。',
+    'E-CONFLICT-002': '两个写入目标指向同一路径。',
+    'E-CONFLICT-003': '目标路径已被占用。',
+    'E-LANDING-001': '宿主账本不可用或前后不一致。',
+    'E-LANDING-002': 'active 宿主账本记录阻止了该操作。',
+    'E-RECONCILE-001': '当前 reconcile 动作不受支持。',
+    'E-RECONCILE-002': '预览已过期，请重新预览。',
+    'E-RECONCILE-003': '共享宿主根选择不完整。',
+    'W-DRIFT-001': '当前内容与记录基线不一致。',
+    'W-FIELD-004': '来源中存在不属于标准契约的字段。',
+  },
+} as const;

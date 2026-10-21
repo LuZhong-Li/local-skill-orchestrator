@@ -12,7 +12,7 @@ defineEmits<{ close: [] }>();
           <h2>{{ title }}</h2>
           <p v-if="subtitle" class="muted">{{ subtitle }}</p>
         </div>
-        <button aria-label="关闭" @click="$emit('close')">✕</button>
+        <button :aria-label="$t('common.close')" @click="$emit('close')">✕</button>
       </header>
       <div class="body">
         <slot />

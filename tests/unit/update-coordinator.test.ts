@@ -158,6 +158,7 @@ test('T2 设置：默认关闭；读取不写盘，切换开关才写 settings.j
   assert.deepEqual(store.read(), {
     periodic_check_enabled: false,
     instant_check_enabled: false,
+    language: { mode: 'system', value: 'zh-CN' },
   });
   assert.equal(writes.length, 0, '读取设置不得写盘');
 
@@ -166,6 +167,7 @@ test('T2 设置：默认关闭；读取不写盘，切换开关才写 settings.j
   assert.deepEqual(JSON.parse(writes[0]!), {
     periodic_check_enabled: true,
     instant_check_enabled: false,
+    language: { mode: 'system', value: 'zh-CN' },
   });
 });
 

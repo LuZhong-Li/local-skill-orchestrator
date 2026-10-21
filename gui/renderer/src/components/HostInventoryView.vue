@@ -14,6 +14,8 @@ import InventorySummary from './host-inventory/InventorySummary.vue';
 import InventoryHostGroups from './host-inventory/InventoryHostGroups.vue';
 import InventoryCopyDetails from './host-inventory/InventoryCopyDetails.vue';
 import InventoryActionDialog from './host-inventory/InventoryActionDialog.vue';
+import { localizedFindingsText } from '../i18n/error-text.ts';
+import { t } from '../i18n/index.ts';
 
 const props = defineProps<{
   run: (argv: string[]) => Promise<Result<Record<string, unknown>>>;
@@ -44,13 +46,13 @@ async function load(): Promise<void> {
     const result = await props.run(['scan', '--inventory']);
     if (!result.ok) {
       error.value =
-        result.findings.map((item) => `${item.code}：${item.message}`).join('；') ||
-        `盘点失败（退出码 ${result.exit_code}）`;
+        localizedFindingsText(result.findings) ||
+        t('inventory.loadFailed', { code: result.exit_code });
       return;
     }
     const payload = result.data as unknown as InventoryScanData;
     if (payload?.mode !== 'inventory') {
-      error.value = '盘点结果缺少 mode=inventory，界面拒绝按其他结果结构渲染。';
+      error.value = t('inventory.invalidPayload');
       return;
     }
     data.value = payload;
@@ -79,14 +81,16 @@ async function exportResult(): Promise<void> {
   try {
     const result = await props.exportInventory(data.value);
     if (result.canceled) {
-      exportMessage.value = '已取消导出，未写入任何文件。';
+      exportMessage.value = t('inventory.exportCanceled');
     } else if (result.error !== undefined && result.error !== '') {
-      exportError.value = `导出失败：${result.error}`;
+      exportError.value = t('inventory.exportFailed', { message: result.error });
     } else {
-      exportMessage.value = `已导出：${result.path ?? ''}`;
+      exportMessage.value = t('inventory.exported', { path: result.path ?? '' });
     }
   } catch (cause) {
-    exportError.value = `导出失败：${cause instanceof Error ? cause.message : String(cause)}`;
+    exportError.value = t('inventory.exportFailed', {
+      message: cause instanceof Error ? cause.message : String(cause),
+    });
   } finally {
     exporting.value = false;
   }
@@ -100,10 +104,8 @@ onMounted(load);
     <div class="panel wide">
       <div class="view-head">
         <div>
-          <h2>这台电脑上已安装的 Skill</h2>
-          <p class="muted">
-            盘点本身只读；每个副本的动作入口先生成预览，确认后才会写入。不会一键全修或全删。
-          </p>
+          <h2>{{ $t('inventory.viewTitle') }}</h2>
+          <p class="muted">{{ $t('inventory.intro') }}</p>
         </div>
         <div class="view-actions">
           <button
@@ -111,10 +113,10 @@ onMounted(load);
             :disabled="loading || exporting || data === null"
             @click="exportResult"
           >
-            {{ exporting ? '正在导出…' : '导出' }}
+            {{ exporting ? $t('inventory.exporting') : $t('common.export') }}
           </button>
           <button class="primary" data-testid="inventory-refresh" :disabled="loading" @click="load">
-            {{ loading ? '正在盘点…' : '重新盘点' }}
+            {{ loading ? $t('inventory.refreshing') : $t('toolbar.rescan') }}
           </button>
         </div>
       </div>
@@ -126,23 +128,23 @@ onMounted(load);
         {{ exportError }}
       </p>
       <p v-if="loading && data === null" class="muted" data-testid="inventory-loading">
-        正在读取宿主根与副本，请稍候…
+        {{ $t('inventory.loadingBody') }}
       </p>
     </div>
 
     <template v-if="data !== null">
       <div class="panel wide workspace-banner" data-testid="inventory-workspace">
         <p v-if="data.workspace.state === 'uninitialized'">
-          <strong>工作区尚未初始化。</strong>
-          本次只做宿主清点；没有工作区基线，对账结论标为无法判定 / 未纳管，不判断缺失或漂移。
+          <strong>{{ $t('inventory.workspaceUninitializedTitle') }}</strong>
+          {{ $t('inventory.workspaceUninitializedBody') }}
         </p>
         <p v-else-if="data.workspace.state === 'unreadable'">
-          <strong>工作区索引不可读。</strong>
-          宿主副本仍会列出，但对账降级为证据不足，界面不会伪造权威结论。
+          <strong>{{ $t('inventory.workspaceUnreadableTitle') }}</strong>
+          {{ $t('inventory.workspaceUnreadableBody') }}
         </p>
         <p v-else>
-          <strong>工作区已初始化。</strong>
-          对账使用只读索引基线；本视图不会刷新扫描时间或修改索引。
+          <strong>{{ $t('inventory.workspaceInitializedTitle') }}</strong>
+          {{ $t('inventory.workspaceInitializedBody') }}
         </p>
         <p class="muted path">{{ data.workspace.root }}</p>
       </div>
@@ -150,49 +152,52 @@ onMounted(load);
       <InventorySummary :summary="data.summary" />
 
       <section class="panel wide" data-testid="inventory-degradation">
-        <h2>账本与降级状态</h2>
+        <h2>{{ $t('inventory.ledgerTitle') }}</h2>
         <p class="muted">
-          内置宿主账本：{{
-            data.degradation.host_landings === 'ok'
-              ? '可读'
-              : data.degradation.host_landings === 'missing'
-                ? '无账本（旧工作区按推断处理）'
-                : '不可读（不修复、不覆盖）'
+          {{
+            $t('inventory.hostLedger', {
+              state:
+                data.degradation.host_landings === 'ok'
+                  ? $t('inventory.ledgerOk')
+                  : data.degradation.host_landings === 'missing'
+                    ? $t('inventory.ledgerMissing')
+                    : $t('inventory.ledgerUnreadable'),
+            })
           }}
-          ｜插件账本：{{
-            data.degradation.plugin_landings === 'ok'
-              ? '可读'
-              : data.degradation.plugin_landings === 'missing'
-                ? '无账本（按推断处理）'
-                : '不可读（不伪造权威结论）'
+          |
+          {{
+            $t('inventory.pluginLedger', {
+              state:
+                data.degradation.plugin_landings === 'ok'
+                  ? $t('inventory.ledgerOk')
+                  : data.degradation.plugin_landings === 'missing'
+                    ? $t('inventory.ledgerMissing')
+                    : $t('inventory.ledgerUnreadable'),
+            })
           }}
         </p>
       </section>
 
       <details class="panel wide untracked" data-testid="inventory-untracked" open>
         <summary>
-          <strong>未纳管清单</strong>
+          <strong>{{ $t('inventory.untrackedTitle') }}</strong>
           <span class="count">{{ untracked.length }}</span>
         </summary>
-        <p class="muted">
-          这些副本在磁盘上存在，但没有可用的账本或工作区记录。可在明细中逐条采纳；
-          共享根会提示受影响的全部宿主。系统 / 平台 / 项目级副本由对应工具管理，
-          不在此清单提供动作，可在下方角色分组只读查看。
-        </p>
+        <p class="muted">{{ $t('inventory.untrackedHint') }}</p>
         <InventoryCopyDetails
           :copies="untracked"
           test-id="inventory-untracked-copies"
-          empty-text="没有未纳管的副本。"
+          :empty-text="$t('inventory.untrackedEmpty')"
           @action="previewAction"
         />
-        <p class="muted action-hint">动作按副本逐条提供；默认预览，确认后才执行。</p>
+        <p class="muted action-hint">{{ $t('inventory.actionHint') }}</p>
       </details>
 
       <InventoryHostGroups :hosts="data.hosts" @action="previewAction" />
 
       <section v-if="data.corrupt.length > 0" class="panel wide" data-testid="inventory-corrupt">
-        <h2>损坏 / 不可读副本（{{ data.corrupt.length }}）</h2>
-        <p class="muted">损坏副本单独列出，不进入任何有效副本计数。</p>
+        <h2>{{ $t('inventory.corruptTitle', { count: data.corrupt.length }) }}</h2>
+        <p class="muted">{{ $t('inventory.corruptHint') }}</p>
         <InventoryCopyDetails
           :corrupt="data.corrupt"
           test-id="inventory-corrupt-copies"
@@ -201,8 +206,8 @@ onMounted(load);
       </section>
 
       <section v-if="data.missing.length > 0" class="panel wide" data-testid="inventory-missing">
-        <h2>缺失副本（{{ data.missing.length }}）</h2>
-        <p class="muted">账本仍有 active 记录，但物理副本已不存在。</p>
+        <h2>{{ $t('inventory.missingTitle', { count: data.missing.length }) }}</h2>
+        <p class="muted">{{ $t('inventory.missingHint') }}</p>
         <InventoryCopyDetails
           :missing="data.missing"
           test-id="inventory-missing-copies"

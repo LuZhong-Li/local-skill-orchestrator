@@ -1,0 +1,20 @@
+export default {
+  withCode: '{code}: operation failed. Review the details and suggested action before retrying.',
+  diagnostic: 'Diagnostic detail: {message}',
+  codes: {
+    'E-INPUT-001': 'Required input is missing.',
+    'E-INPUT-002': 'An option or value is invalid.',
+    'E-IO-001': 'A filesystem operation failed.',
+    'E-IO-002': 'A write operation failed.',
+    'E-CONFLICT-001': 'A naming conflict prevents the operation.',
+    'E-CONFLICT-002': 'Two writes target the same path.',
+    'E-CONFLICT-003': 'The target path is occupied.',
+    'E-LANDING-001': 'The host landing ledger is unavailable or inconsistent.',
+    'E-LANDING-002': 'An active host ledger record blocks this operation.',
+    'E-RECONCILE-001': 'The reconcile action is unsupported.',
+    'E-RECONCILE-002': 'The preview is stale; run preview again.',
+    'E-RECONCILE-003': 'The shared host root selection is incomplete.',
+    'W-DRIFT-001': 'The current content differs from the recorded baseline.',
+    'W-FIELD-004': 'The source contains a field that is not part of the standard contract.',
+  },
+} as const;

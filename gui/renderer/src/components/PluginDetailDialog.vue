@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import DialogShell from './DialogShell.vue';
 import type { Finding, KernelResult, PluginSummary } from '../types.ts';
 import { pluginStateLabel } from '../plugin-presentation.ts';
+import { localizedFindingText } from '../i18n/error-text.ts';
 
 const props = defineProps<{
   plugin: PluginSummary;
@@ -29,35 +30,46 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
 </script>
 
 <template>
-  <DialogShell :title="plugin.id" subtitle="插件详情（第三方扩展）" wide @close="$emit('close')">
-    <p v-if="loading" class="muted">正在读取内核输出…</p>
+  <DialogShell
+    :title="plugin.id"
+    :subtitle="$t('plugins.detailSubtitle')"
+    wide
+    @close="$emit('close')"
+  >
+    <p v-if="loading" class="muted">{{ $t('plugins.loadingDetail') }}</p>
     <template v-else>
       <section>
-        <h3>状态与 manifest 摘要</h3>
+        <h3>{{ $t('plugins.statusManifest') }}</h3>
         <dl class="grid">
           <div>
-            <dt>状态</dt>
+            <dt>{{ $t('plugins.status') }}</dt>
             <dd>{{ pluginStateLabel(plugin.state) }}</dd>
           </div>
           <div>
-            <dt>版本</dt>
+            <dt>{{ $t('plugins.version') }}</dt>
             <dd>{{ plugin.version }}</dd>
           </div>
           <div>
-            <dt>manifest 哈希</dt>
+            <dt>{{ $t('plugins.manifestHash') }}</dt>
             <dd>
-              <code>{{ String(data['manifest_hash'] ?? '不可读') }}</code>
+              <code>{{ String(data['manifest_hash'] ?? $t('plugins.unreadable')) }}</code>
             </dd>
           </div>
           <div>
-            <dt>capabilities</dt>
-            <dd>{{ String((manifest?.['capabilities'] as unknown[])?.join(', ') ?? '未读取') }}</dd>
+            <dt>{{ $t('plugins.capabilities') }}</dt>
+            <dd>
+              {{
+                String(
+                  (manifest?.['capabilities'] as unknown[])?.join(', ') ?? $t('plugins.notRead'),
+                )
+              }}
+            </dd>
           </div>
         </dl>
       </section>
 
       <section>
-        <h3>canonical 宿主</h3>
+        <h3>{{ $t('plugins.canonicalHosts') }}</h3>
         <ul>
           <li v-for="host in hosts" :key="String(host['host_id'])">
             <code>{{ String(host['host_id']) }}</code>
@@ -66,22 +78,24 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
             >
           </li>
         </ul>
-        <p v-if="hosts.length === 0" class="muted">没有可用的宿主 profile。</p>
+        <p v-if="hosts.length === 0" class="muted">{{ $t('plugins.noHosts') }}</p>
       </section>
 
       <section>
-        <h3>校验结论</h3>
-        <p v-if="plugin.validation.status === 'ok'" class="ok">通过</p>
-        <p v-else class="bad">未通过：{{ plugin.validation.errors.join('、') }}</p>
+        <h3>{{ $t('plugins.validation') }}</h3>
+        <p v-if="plugin.validation.status === 'ok'" class="ok">{{ $t('plugins.passed') }}</p>
+        <p v-else class="bad">
+          {{ $t('plugins.validationFailed', { errors: plugin.validation.errors.join(', ') }) }}
+        </p>
         <ul>
           <li v-for="finding in findings" :key="finding.code + finding.target">
-            <code>{{ finding.code }}</code> {{ finding.message }}
+            {{ localizedFindingText(finding) }}
           </li>
         </ul>
       </section>
 
       <section>
-        <h3>landings 副本账本</h3>
+        <h3>{{ $t('plugins.landings') }}</h3>
         <ul>
           <li
             v-for="landing in landings"
@@ -94,11 +108,11 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
             >
           </li>
         </ul>
-        <p v-if="landings.length === 0" class="muted">尚无插件宿主落位记录。</p>
+        <p v-if="landings.length === 0" class="muted">{{ $t('plugins.noLandings') }}</p>
       </section>
 
       <section>
-        <h3>根配置来源</h3>
+        <h3>{{ $t('plugins.rootConfig') }}</h3>
         <ul>
           <li v-for="host in rootConfig" :key="String(host['host_id'])">
             <code>{{ String(host['host_id']) }}</code>
@@ -106,7 +120,7 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
               v-for="key in host['keys'] as Array<Record<string, unknown>>"
               :key="String(key['key'])"
             >
-              {{ String(key['key']) }}={{ String(key['value'] ?? '未配置') }}
+              {{ String(key['key']) }}={{ String(key['value'] ?? $t('plugins.notConfigured')) }}
             </span>
           </li>
         </ul>
@@ -114,9 +128,13 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
     </template>
 
     <template #footer>
-      <button v-if="plugin.state !== 'enabled'" @click="emit('enable', plugin.id)">启用</button>
-      <button v-else @click="emit('disable', plugin.id)">停用</button>
-      <button class="danger" @click="emit('uninstall', plugin.id)">卸载插件</button>
+      <button v-if="plugin.state !== 'enabled'" @click="emit('enable', plugin.id)">
+        {{ $t('plugins.enable') }}
+      </button>
+      <button v-else @click="emit('disable', plugin.id)">{{ $t('plugins.disable') }}</button>
+      <button class="danger" @click="emit('uninstall', plugin.id)">
+        {{ $t('plugins.uninstallPlugin') }}
+      </button>
     </template>
   </DialogShell>
 </template>

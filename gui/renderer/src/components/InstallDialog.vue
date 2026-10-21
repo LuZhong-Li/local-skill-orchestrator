@@ -20,21 +20,27 @@ function submit(): void {
 
 <template>
   <DialogShell
-    title="安装 Skill"
-    subtitle="来源路径相对工作区根目录；执行前会先给出预演结果"
+    :title="$t('install.title')"
+    :subtitle="$t('install.subtitle')"
     @close="$emit('close')"
   >
     <label>
-      <span>来源路径</span>
-      <input v-model="source" placeholder="例如 skills/alpha 或 待安装目录" @keyup.enter="submit" />
+      <span>{{ $t('install.sourcePath') }}</span>
+      <input
+        v-model="source"
+        :placeholder="$t('install.sourcePathPlaceholder')"
+        @keyup.enter="submit"
+      />
     </label>
     <label class="checkbox">
       <input v-model="libraryOnly" type="checkbox" />
-      <span>仅落库（只写入中心库并登记，不分发到目标位置）</span>
+      <span>{{ $t('install.libraryOnly') }}</span>
     </label>
     <template #footer>
-      <button @click="$emit('close')">取消</button>
-      <button class="primary" :disabled="source.trim() === ''" @click="submit">安装</button>
+      <button @click="$emit('close')">{{ $t('common.cancel') }}</button>
+      <button class="primary" :disabled="source.trim() === ''" @click="submit">
+        {{ $t('install.install') }}
+      </button>
     </template>
   </DialogShell>
 </template>

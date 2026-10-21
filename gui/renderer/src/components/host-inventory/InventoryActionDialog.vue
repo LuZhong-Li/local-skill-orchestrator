@@ -12,12 +12,10 @@ import type {
   Result,
 } from '@skill-manager/contract';
 import DialogShell from '../DialogShell.vue';
-import {
-  classificationLabel,
-  authorityLabel,
-  formatLabel,
-} from '../../host-inventory-presentation.ts';
+import { classificationLabel, formatLabel } from '../../host-inventory-presentation.ts';
 import { inventoryActionLabel } from '../../inventory-actions.ts';
+import { localizedFindingsText } from '../../i18n/error-text.ts';
+import { t } from '../../i18n/index.ts';
 
 const props = defineProps<{
   action: ReconcileAction;
@@ -77,7 +75,7 @@ function messageOf(cause: unknown): string {
 }
 
 function findingsText(items: Finding[]): string {
-  return items.map((item) => `${item.code}：${item.message}`).join('；');
+  return localizedFindingsText(items);
 }
 
 async function loadPreview(): Promise<void> {
@@ -94,10 +92,12 @@ async function loadPreview(): Promise<void> {
     if (payload?.mode === 'reconcile') {
       preview.value = payload;
     } else if (response.ok) {
-      error.value = '内核没有返回 reconcile 计划结构，界面拒绝猜测影响范围。';
+      error.value = t('inventory.actionDialog.invalidPlan');
     }
     if (!response.ok) {
-      error.value = findingsText(response.findings) || `预览失败（退出码 ${response.exit_code}）`;
+      error.value =
+        findingsText(response.findings) ||
+        t('inventory.actionDialog.previewFailed', { code: response.exit_code });
     }
   } catch (cause) {
     error.value = messageOf(cause);
@@ -124,7 +124,9 @@ async function execute(): Promise<void> {
     const payload = response.data as unknown as ReconcileApplyData;
     if (payload?.mode === 'reconcile') result.value = payload;
     if (!response.ok) {
-      error.value = findingsText(response.findings) || `执行失败（退出码 ${response.exit_code}）`;
+      error.value =
+        findingsText(response.findings) ||
+        t('inventory.actionDialog.executeFailed', { code: response.exit_code });
     }
     emit('done');
   } catch (cause) {
@@ -143,42 +145,59 @@ onMounted(loadPreview);
 
 <template>
   <DialogShell
-    :title="`预览：${actionLabel(action)}`"
-    subtitle="以下计划由内核只读生成；尚未写入任何文件"
+    :title="$t('inventory.actionDialog.title', { action: actionLabel(action) })"
+    :subtitle="$t('inventory.actionDialog.subtitle')"
     wide
     data-testid="inventory-action-dialog"
     @close="emit('close')"
   >
     <p class="muted action-target">
-      目标副本：<code>{{ path }}</code>
+      {{ $t('inventory.actionDialog.target') }} <code>{{ path }}</code>
     </p>
-    <p v-if="loading" class="muted" data-testid="inventory-action-loading">正在生成动作计划…</p>
+    <p v-if="loading" class="muted" data-testid="inventory-action-loading">
+      {{ $t('inventory.actionDialog.loading') }}
+    </p>
     <p v-if="error !== ''" class="bad" data-testid="inventory-action-error">{{ error }}</p>
 
     <template v-if="preview !== null">
       <div v-if="destructive" class="danger-box" data-testid="inventory-action-destructive">
-        <strong>{{ action === 'clean' ? '破坏性操作：' : '覆盖性操作：' }}</strong>
+        <strong>
+          {{
+            action === 'clean'
+              ? $t('inventory.actionDialog.destructive')
+              : $t('inventory.actionDialog.overwrite')
+          }}
+        </strong>
         {{
           action === 'clean'
-            ? '这会删除无消费者需要的宿主副本。'
-            : '这会用宿主的本地内容覆盖工作区中心库。'
+            ? $t('inventory.actionDialog.destructiveHint')
+            : $t('inventory.actionDialog.overwriteHint')
         }}
         <label class="confirm-box">
           <input v-model="confirmed" type="checkbox" data-testid="confirm-destructive" />
-          我了解影响范围，确认执行
+          {{ $t('inventory.actionDialog.acknowledged') }}
         </label>
       </div>
 
       <div v-if="shared.length > 0" class="shared-box" data-testid="inventory-action-shared">
-        <strong>共享根影响多个宿主</strong>
+        <strong>{{ $t('inventory.actionDialog.sharedTitle') }}</strong>
         <p v-for="group in shared" :key="group.group_id">
           <code>{{ group.physical_path }}</code>
-          影响 {{ group.consumers.join(' / ') }}
+          {{
+            $t('inventory.actionDialog.sharedImpact', { consumers: group.consumers.join(' / ') })
+          }}
         </p>
       </div>
 
       <section>
-        <h3>动作计划（{{ preview.summary.planned }} 项，跳过 {{ preview.summary.skipped }} 项）</h3>
+        <h3>
+          {{
+            $t('inventory.actionDialog.planTitle', {
+              planned: preview.summary.planned,
+              skipped: preview.summary.skipped,
+            })
+          }}
+        </h3>
         <ul class="items">
           <li v-for="item in preview.items" :key="item.item_id">
             <strong>{{ item.skill_id ?? item.target_path }}</strong>
@@ -186,30 +205,34 @@ onMounted(loadPreview);
             <span class="tag">{{ item.status }}</span>
             <span v-if="item.reason" class="muted">{{ item.reason }}</span>
             <span class="muted">
-              执行后：{{ classificationLabel(item.after.classification) }} /
-              {{ authorityLabel(item.after.authority) }}
-            </span>
-            <span class="muted">
-              宿主 {{ item.host_ids.join(', ') || '—' }}；形态 {{ formatLabel(item.format) }}
+              {{
+                $t('inventory.actionDialog.after', {
+                  classification: classificationLabel(item.after.classification),
+                  hosts: item.host_ids.join(', ') || '—',
+                  format: formatLabel(item.format),
+                })
+              }}
             </span>
           </li>
         </ul>
       </section>
 
       <section>
-        <h3>将写入（{{ writes.length }} 项）</h3>
+        <h3>{{ $t('inventory.actionDialog.writes', { count: writes.length }) }}</h3>
         <ul class="writes">
           <li v-for="write in writes" :key="`${write.action}:${write.kind}:${write.path}`">
             <span class="action">{{ write.action }}</span>
             <code>{{ write.path }}</code>
             <span class="muted">（{{ write.kind }}）</span>
           </li>
-          <li v-if="writes.length === 0" class="muted">没有计划写入。</li>
+          <li v-if="writes.length === 0" class="muted">
+            {{ $t('inventory.actionDialog.noWrites') }}
+          </li>
         </ul>
       </section>
 
       <section>
-        <h3>账本与备份</h3>
+        <h3>{{ $t('inventory.actionDialog.ledger') }}</h3>
         <ul class="ledger">
           <li v-for="item in preview.items" :key="`ledger-${item.item_id}`">
             <span v-for="change in item.ledger_changes" :key="change.record_key">
@@ -217,13 +240,13 @@ onMounted(loadPreview);
             </span>
           </li>
           <li v-if="backups.length > 0">
-            备份根：<code>{{ backups.join(', ') }}</code>
+            {{ $t('inventory.actionDialog.backupRoot') }} <code>{{ backups.join(', ') }}</code>
           </li>
         </ul>
       </section>
 
       <section v-if="result !== null" data-testid="inventory-action-results">
-        <h3>执行结果</h3>
+        <h3>{{ $t('inventory.actionDialog.results') }}</h3>
         <ul class="results">
           <li v-for="item in result.results" :key="item.item_id">
             <span class="tag" :class="item.status">{{ item.status }}</span>
@@ -234,7 +257,7 @@ onMounted(loadPreview);
               :key="finding.code + finding.target"
               class="bad"
             >
-              {{ finding.code }} {{ finding.message }}
+              {{ localizedFindingsText([finding]) }}
             </span>
           </li>
         </ul>
@@ -242,14 +265,21 @@ onMounted(loadPreview);
 
       <ul class="findings">
         <li v-for="finding in findings" :key="finding.code + finding.target">
-          [{{ finding.severity === 'error' ? '错误' : '警告' }}] {{ finding.code }}
-          {{ finding.message }}
+          {{
+            $t('inventory.actionDialog.finding', {
+              severity: finding.severity === 'error' ? $t('common.error') : $t('common.warning'),
+              code: finding.code,
+            })
+          }}
+          {{ localizedFindingsText([finding]) }}
         </li>
       </ul>
     </template>
 
     <template #footer>
-      <button data-testid="inventory-action-cancel" @click="emit('close')">取消</button>
+      <button data-testid="inventory-action-cancel" @click="emit('close')">
+        {{ $t('common.cancel') }}
+      </button>
       <button
         class="primary"
         :class="{ danger: destructive }"
@@ -259,10 +289,10 @@ onMounted(loadPreview);
       >
         {{
           executing
-            ? '执行中…'
+            ? $t('inventory.actionDialog.executing')
             : preview !== null && preview.summary.planned === 0
-              ? '无可执行项'
-              : '确认执行'
+              ? $t('inventory.actionDialog.noExecutable')
+              : $t('inventory.actionDialog.confirmExecute')
         }}
       </button>
     </template>

@@ -18,6 +18,7 @@ import {
   visibilityLabel,
 } from '../../host-inventory-presentation.ts';
 import InventoryActionMenu from './InventoryActionMenu.vue';
+import { t } from '../../i18n/index.ts';
 
 const emit = defineEmits<{ action: [action: ReconcileAction, path: string] }>();
 function forwardAction(action: ReconcileAction, path: string): void {
@@ -37,7 +38,7 @@ withDefaults(
     corrupt: () => [],
     missing: () => [],
     testId: 'inventory-copies',
-    emptyText: '没有可展示的副本。',
+    emptyText: t('inventory.noCopies'),
   },
 );
 </script>
@@ -49,19 +50,19 @@ withDefaults(
         <thead>
           <tr>
             <th>Skill</th>
-            <th>版本</th>
-            <th>路径</th>
-            <th>可见性</th>
-            <th>分类</th>
-            <th>权威</th>
-            <th>判定依据</th>
-            <th>操作</th>
+            <th>{{ $t('inventory.columns.version') }}</th>
+            <th>{{ $t('inventory.columns.path') }}</th>
+            <th>{{ $t('inventory.columns.visibility') }}</th>
+            <th>{{ $t('inventory.columns.classification') }}</th>
+            <th>{{ $t('inventory.columns.authority') }}</th>
+            <th>{{ $t('inventory.columns.evidence') }}</th>
+            <th>{{ $t('inventory.columns.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="copy in copies" :key="copy.physical_key">
             <td>
-              <code>{{ copy.skill_id ?? '（未解析）' }}</code>
+              <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
               <span class="muted host">{{ copy.host_id }}</span>
             </td>
             <td>{{ copy.version ?? '—' }}</td>
@@ -103,16 +104,16 @@ withDefaults(
       <table class="copy-table corrupt-table">
         <thead>
           <tr>
-            <th>损坏副本</th>
-            <th>路径</th>
-            <th>原因</th>
-            <th>操作</th>
+            <th>{{ $t('inventory.columns.corruptCopy') }}</th>
+            <th>{{ $t('inventory.columns.path') }}</th>
+            <th>{{ $t('inventory.columns.reason') }}</th>
+            <th>{{ $t('inventory.columns.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="copy in corrupt" :key="`corrupt-${copy.physical_key}`">
             <td>
-              <code>{{ copy.skill_id ?? '（未解析）' }}</code>
+              <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
               <span class="muted host">{{ copy.host_id }}</span>
             </td>
             <td class="path" :title="copy.path">
@@ -131,18 +132,18 @@ withDefaults(
       <table class="copy-table missing-table">
         <thead>
           <tr>
-            <th>缺失副本</th>
-            <th>路径</th>
-            <th>账本</th>
-            <th>权威</th>
-            <th>判定依据</th>
-            <th>操作</th>
+            <th>{{ $t('inventory.columns.missingCopy') }}</th>
+            <th>{{ $t('inventory.columns.path') }}</th>
+            <th>{{ $t('inventory.columns.ledger') }}</th>
+            <th>{{ $t('inventory.columns.authority') }}</th>
+            <th>{{ $t('inventory.columns.evidence') }}</th>
+            <th>{{ $t('inventory.columns.actions') }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="copy in missing" :key="`missing-${copy.host_id}-${copy.target_path}`">
             <td>
-              <code>{{ copy.skill_id ?? '（未解析）' }}</code>
+              <code>{{ copy.skill_id ?? $t('inventory.unresolved') }}</code>
               <span class="muted host">{{ copy.host_id }}</span>
             </td>
             <td class="path" :title="copy.target_path">

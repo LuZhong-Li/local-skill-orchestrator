@@ -7,6 +7,8 @@
  */
 import { ref } from 'vue';
 import { cardStateOf, type KernelResult, type LogEntry, type SkillSummary } from '../types.ts';
+import { formatTime, t } from '../i18n/index.ts';
+import { localizedFindingExplanation } from '../i18n/error-text.ts';
 
 export interface ConfirmRequest {
   title: string;
@@ -25,15 +27,19 @@ export function useKernel() {
   let resolveConfirm: ((answer: boolean) => void) | null = null;
 
   function record(text: string, ok: boolean): void {
-    const at = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    const at = formatTime(new Date());
     log.value = [{ at, text, ok }, ...log.value].slice(0, 40);
   }
 
   function summarize(result: KernelResult): string {
     const errors = result.findings.filter((item) => item.severity === 'error');
-    const head = `${result.command}：${result.ok ? '完成' : `失败（退出码 ${result.exit_code}）`}`;
-    const detail = errors.map((item) => item.code).join('、');
-    return detail === '' ? head : `${head}｜问题码 ${detail}`;
+    const head = result.ok
+      ? t('app.completed', { command: result.command })
+      : t('app.failed', { command: result.command, code: result.exit_code });
+    const detail = errors
+      .map((item) => `${item.code} ${localizedFindingExplanation(item)}`)
+      .join(', ');
+    return detail === '' ? head : t('app.problemCodes', { head, codes: detail });
   }
 
   /** 直发一次调用；结果原样记录到状态栏，问题码不隐藏 */
@@ -87,7 +93,7 @@ export function useKernel() {
     }
     const approved = await askConfirm({ title, result: previewResult, argv });
     if (!approved) {
-      record(`${title}：已取消，未做任何变更`, true);
+      record(t('app.cancelled', { action: title }), true);
       return null;
     }
     return execute(argv);

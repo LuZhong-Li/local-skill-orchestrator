@@ -6,6 +6,7 @@
 import { computed } from 'vue';
 import DialogShell from './DialogShell.vue';
 import type { Finding, KernelResult, SkillSummary } from '../types.ts';
+import { localizedFindingText } from '../i18n/error-text.ts';
 
 const props = defineProps<{
   record: SkillSummary;
@@ -33,48 +34,56 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
 
 <template>
   <DialogShell :title="record.name" :subtitle="record.id" wide @close="$emit('close')">
-    <p v-if="loading" class="muted">正在读取内核输出…</p>
+    <p v-if="loading" class="muted">{{ $t('detail.loading') }}</p>
     <template v-else>
       <section>
-        <h3>基础元信息</h3>
+        <h3>{{ $t('detail.basic') }}</h3>
         <dl class="grid">
           <div>
-            <dt>版本</dt>
-            <dd>{{ record.version ?? '未声明' }}</dd>
+            <dt>{{ $t('detail.version') }}</dt>
+            <dd>{{ record.version ?? $t('common.notDeclared') }}</dd>
           </div>
           <div>
-            <dt>状态</dt>
-            <dd>{{ record.status === 'enabled' ? '已启用' : '已禁用' }}</dd>
-          </div>
-          <div>
-            <dt>来源类型</dt>
-            <dd>{{ record.source_type }}</dd>
-          </div>
-          <div>
-            <dt>落位路径</dt>
-            <dd>{{ String(meta?.['path'] ?? '未声明') }}</dd>
-          </div>
-          <div>
-            <dt>内容指纹</dt>
+            <dt>{{ $t('detail.status') }}</dt>
             <dd>
-              <code>{{ checksum.recorded ?? '无' }}</code>
-              <span v-if="checksum.match === true" class="ok">与磁盘一致</span>
-              <span v-else-if="checksum.match === false" class="bad">与磁盘不一致</span>
-              <span v-else class="muted">无法比对</span>
+              {{ record.status === 'enabled' ? $t('common.enabled') : $t('common.disabled') }}
             </dd>
           </div>
           <div>
-            <dt>最近扫描</dt>
-            <dd>{{ record.validation.last_scan_at ?? '尚未扫描' }}</dd>
+            <dt>{{ $t('detail.sourceType') }}</dt>
+            <dd>{{ record.source_type }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('detail.targetPath') }}</dt>
+            <dd>{{ String(meta?.['path'] ?? $t('common.notDeclared')) }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('detail.checksum') }}</dt>
+            <dd>
+              <code>{{ checksum.recorded ?? $t('detail.noChecksum') }}</code>
+              <span v-if="checksum.match === true" class="ok">
+                {{ $t('detail.matchesDisk') }}
+              </span>
+              <span v-else-if="checksum.match === false" class="bad">
+                {{ $t('detail.mismatchesDisk') }}
+              </span>
+              <span v-else class="muted">{{ $t('detail.cannotCompare') }}</span>
+            </dd>
+          </div>
+          <div>
+            <dt>{{ $t('skill.scanned') }}</dt>
+            <dd>{{ record.validation.last_scan_at ?? $t('detail.notScanned') }}</dd>
           </div>
         </dl>
       </section>
 
       <section>
-        <h3>校验状态</h3>
-        <p v-if="record.validation.status === 'ok'" class="ok">运行期结论：校验通过</p>
+        <h3>{{ $t('detail.validationStatus') }}</h3>
+        <p v-if="record.validation.status === 'ok'" class="ok">
+          {{ $t('detail.validationPassed') }}
+        </p>
         <template v-else>
-          <p class="bad">运行期结论：校验不通过（与「已禁用」不是一回事）</p>
+          <p class="bad">{{ $t('detail.validationFailed') }}</p>
           <ul>
             <li v-for="code in record.validation.errors" :key="code">
               <code>{{ code }}</code>
@@ -84,16 +93,16 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
       </section>
 
       <section>
-        <h3>依赖声明</h3>
+        <h3>{{ $t('detail.declaredDependencies') }}</h3>
         <ul v-if="Array.isArray(dependencies?.['skills'])">
           <li v-for="item in dependencies?.['skills'] as string[]" :key="item">{{ item }}</li>
         </ul>
-        <p v-else class="muted">未声明依赖</p>
-        <button @click="$emit('deps')">检查依赖</button>
+        <p v-else class="muted">{{ $t('detail.noDependencies') }}</p>
+        <button @click="$emit('deps')">{{ $t('detail.checkDependencies') }}</button>
       </section>
 
       <section>
-        <h3>落位目标与逐文件映射</h3>
+        <h3>{{ $t('detail.mappingTitle') }}</h3>
         <ul>
           <li v-for="(target, index) in targets" :key="index">
             <strong>{{ String(target['target']) }}</strong>
@@ -110,15 +119,16 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
             </ul>
           </li>
         </ul>
-        <p v-if="targets.length === 0" class="muted">元文件中没有落位目标</p>
+        <p v-if="targets.length === 0" class="muted">{{ $t('detail.noTargets') }}</p>
       </section>
 
       <section v-if="findings.length > 0">
-        <h3>内核报告的问题</h3>
+        <h3>{{ $t('detail.kernelProblems') }}</h3>
         <ul>
           <li v-for="finding in findings" :key="finding.code + finding.target">
-            [{{ finding.severity === 'error' ? '错误' : '警告' }}] <code>{{ finding.code }}</code>
-            {{ finding.message }}
+            [{{ finding.severity === 'error' ? $t('common.error') : $t('common.warning') }}]
+            <code>{{ finding.code }}</code>
+            {{ localizedFindingText(finding) }}
             <span class="muted">{{ finding.remedy }}</span>
           </li>
         </ul>
@@ -126,14 +136,16 @@ const findings = computed<Finding[]>(() => props.detail?.findings ?? []);
     </template>
 
     <template #footer>
-      <button @click="$emit('validate')">校验该 Skill</button>
-      <button @click="$emit('action', ['enable', record.id])">启用</button>
-      <button @click="$emit('action', ['disable', record.id])">禁用</button>
-      <button @click="$emit('action', ['update', record.id])">刷新</button>
+      <button @click="$emit('validate')">{{ $t('detail.validateSkill') }}</button>
+      <button @click="$emit('action', ['enable', record.id])">{{ $t('detail.enable') }}</button>
+      <button @click="$emit('action', ['disable', record.id])">{{ $t('detail.disable') }}</button>
+      <button @click="$emit('action', ['update', record.id])">{{ $t('detail.refresh') }}</button>
       <button class="danger" @click="$emit('action', ['uninstall', record.id, '--hard'])">
-        卸载并删除原件
+        {{ $t('detail.uninstallHard') }}
       </button>
-      <button class="danger" @click="$emit('action', ['uninstall', record.id])">卸载</button>
+      <button class="danger" @click="$emit('action', ['uninstall', record.id])">
+        {{ $t('detail.uninstall') }}
+      </button>
     </template>
   </DialogShell>
 </template>

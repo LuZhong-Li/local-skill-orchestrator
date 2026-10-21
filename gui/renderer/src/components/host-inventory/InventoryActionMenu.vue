@@ -17,8 +17,10 @@ const managedByTool = computed(() => !isUserWritableCopy(props.copy));
 </script>
 
 <template>
-  <span v-if="managedByTool" class="muted managed-by-tool">由对应工具管理</span>
-  <span v-else-if="actions.length === 0" class="muted">无可用动作</span>
+  <span v-if="managedByTool" class="muted managed-by-tool">
+    {{ $t('inventory.action.managedByTool') }}
+  </span>
+  <span v-else-if="actions.length === 0" class="muted">{{ $t('inventory.action.noActions') }}</span>
   <span v-else class="action-menu">
     <button
       v-for="option in actions"
@@ -28,7 +30,7 @@ const managedByTool = computed(() => !isUserWritableCopy(props.copy));
       :data-testid="`inventory-action-${option.action}`"
       :data-path="path"
       :disabled="option.disabled"
-      :title="option.reason ?? '先预览影响范围，确认后才写入'"
+      :title="option.reason ?? $t('inventory.action.previewHint')"
       @click="emit('action', option.action, path)"
     >
       {{ option.label }}
