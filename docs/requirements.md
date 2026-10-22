@@ -2214,7 +2214,7 @@ M4c 一期只读：只盘点、只对账、只呈现，不改变任何文件。
 7. CLI / GUI 使用同一动作计划；八字段封装与退出码回归不变；
 8. 三平台夹具、慢测试、GUI 冒烟、类型 / 规范 / 格式 / 构建门禁全部通过。
 
-#### 9.3.9 M6 跨宿主分发与批量治理（含操作、界面与 i18n）
+#### 9.3.9 M5 跨宿主分发与批量治理（含操作、界面与 i18n）
 
 > **编号说明（2026-10-20）**：9.3.6 已占用 M5，且本文档不重排既有定稿章节。为保持里程碑编号唯一，本节按顺序取 **M6**，章节号为 **9.3.9**；讨论中的「M5：跨宿主分发与批量治理 + 体验 / i18n」即本节 M6。M6 **不新增指令、不新增 `reconcile` 写动作**：R8 的新宿主分发复用既有 `reconcile repair` 的 `not_distributed` 场景，R4 只扩展既有 `reconcile` 的选择粒度与批量结果。
 >
@@ -2673,6 +2673,46 @@ M4c 一期只读：只盘点、只对账、只呈现，不改变任何文件。
 | 界面质量 | 最小窗口与长路径不溢出；间距使用设计令牌；开发 / 生产一致；可访问性标签完整 |
 | 结构护栏 | 超阈值文件数继续为 0；新增逻辑拆分到组件或纯函数；i18n 使用 vue-i18n，按 runtime-only / 预编译控制体积，不再引入第二套 i18n 框架 |
 | 验证 | GUI 冒烟覆盖双语切换、批量流程、取消、部分失败与空 / 加载 / 完成态；三平台路径夹具通过 |
+
+### 9.3.10 M6 — 批量采纳与审计报告导出
+
+背景：dogfood 166 副本仅 1 个纳管，审计矩阵建不起来；审计结果只在 GUI 看，
+无法进 CI/团队评审。本批降低纳管门槛并让审计结果可流通。
+
+R20  批量采纳入口：盘点"未纳管"区支持多选，复用 M5 批量选择 UI
+     （checkbox、根级全选、批量动作栏）。
+R21  批量采纳预览：执行前汇总预览，列出每个待采纳副本的源路径、
+     目标 workspace 路径、frontmatter 摘要、潜在冲突。
+R22  冲突策略：workspace 已存在同 skill_id 时默认跳过 + warning，
+     不覆盖；CLI 提供 --rename 或 --force 选项。
+R23  批量执行隔离：复用 M5 批量执行模型——逐 item try/catch、
+     真实进度、planned/succeeded/failed/skipped 汇总、单项失败不中断。
+R24  归一化复用：批量采纳每个 item 自动走 M5 T3 frontmatter 归一化
+     （六字段、author/version 提升顶层、未知字段进 extensions）。
+R25  采纳后审计联动：批量采纳完成后自动触发 scan --inventory --audit，
+     GUI 切到审计视图显示新纳管 skill 的矩阵行。
+R26  CLI 批量采纳：adopt 指令扩展 --bulk 模式，支持 --role 过滤、
+     --limit N、--dry-run；不新增指令。
+R27  Markdown 报告：scan --inventory --audit --format markdown 输出
+     结构化报告：总览表、按 skill 矩阵、按 host 缺失清单、按严重度排序。
+R28  HTML 报告：--format html 输出自包含单文件 HTML（内联 CSS，
+     无外部 JS/CDN/字体），可邮件/群发送。
+R29  SARIF 报告：--format sarif 输出 SARIF 2.1.0，审计行映射为 result
+     （ruleId 复用 W-DRIFT-xxx/W-MISSING-xxx），可进 GitHub Code Scanning。
+R30  报告元信息：含生成时间戳、skill-manager 版本、workspace 路径、
+     宿主列表；不含本机用户名等 PII。
+R31  GUI 导出：审计视图加"导出报告"按钮，选 markdown/html/sarif，
+     弹系统保存对话框。
+R32  frontmatter 漂移：审计矩阵新增判定——同 skill 在不同宿主副本的
+     frontmatter 关键字段（description/license/targets）不一致时
+     标为 frontmatter_drift。
+R33  版本漂移：同 skill 不同宿主 version 字段不同或缺失时
+     标为 version_drift。
+R34  漂移细分：报告和 GUI 里 drift 细分为 checksum_drift /
+     frontmatter_drift / version_drift，各自计数。
+R35  不做清单：不做中央库/symlink、不做 registry 远程安装、
+     不扩宿主（Cursor/OpenCode/Gemini CLI 留 M7）、不做多设备/GitHub
+     备份、不改 17 指令/8 结果字段/7 退出码契约（仅扩展参数）。
 
 ### 9.4 非功能需求
 
