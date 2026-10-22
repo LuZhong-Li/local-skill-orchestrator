@@ -2708,6 +2708,11 @@ R32  frontmatter 漂移：审计矩阵新增判定——同 skill 在不同宿�
      标为 frontmatter_drift。
 R33  版本漂移：同 skill 不同宿主 version 字段不同或缺失时
      标为 version_drift。
+
+     R32/R33 共同裁决：drift 判定前提：同一 skill_id 存在 ≥2 个副本时才比较字段一致性；
+     单副本 skill 不报 drift。version 取值顺序：顶层 version → metadata.version
+     → 缺失；全部副本缺失不报 drift（降级为 note 级元数据不完整）。
+
 R34  漂移细分：报告和 GUI 里 drift 细分为 checksum_drift /
      frontmatter_drift / version_drift，各自计数。
 R35  不做清单：不做中央库/symlink、不做 registry 远程安装、
