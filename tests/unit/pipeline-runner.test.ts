@@ -1,4 +1,4 @@
-﻿/** pipeline runner 单元测试。 */
+/** pipeline runner 单元测试。 */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,8 +7,15 @@ import {
   HumanFallbackProvider,
   getMetaSkill,
   runPipeline,
+  runPipelineWithAnswers,
 } from '../../kernel/core/pipeline/index.ts';
-import type { PipelinePlan, PipelineStage, IntelligenceProvider } from '../../kernel/core/pipeline/types.ts';
+
+const DUMMY_ANSWERS = { q1: 'who', q2: 'success', q3: 'constraint' };
+import type {
+  PipelinePlan,
+  PipelineStage,
+  IntelligenceProvider,
+} from '../../kernel/core/pipeline/types.ts';
 
 test('StubProvider 对每个 pending 环节产出非空内容', async () => {
   const provider = new StubProvider();
@@ -22,13 +29,18 @@ test('skipped 环节不产出文档', async () => {
     problemId: 'test-1',
     kind: 'new-feature',
     stages: [
-      { stage: 'requirements', status: 'pending', reason: '需要', deliverableDoc: 'doc.requirements' },
+      {
+        stage: 'requirements',
+        status: 'pending',
+        reason: '需要',
+        deliverableDoc: 'doc.requirements',
+      },
       { stage: 'research', status: 'skipped', reason: '不需要', deliverableDoc: 'research.fetch' },
     ],
     createdAt: new Date().toISOString(),
   };
 
-  const docs = await runPipeline(plan, new StubProvider());
+  const docs = await runPipelineWithAnswers(plan, new StubProvider(), DUMMY_ANSWERS);
   assert.equal(docs.length, 1);
   assert.equal(docs[0].stage, 'requirements');
 });
@@ -58,13 +70,18 @@ test('HumanFallbackProvider 不中断整批执行', async () => {
     problemId: 'test-2',
     kind: 'new-feature',
     stages: [
-      { stage: 'requirements', status: 'pending', reason: '需要', deliverableDoc: 'doc.requirements' },
+      {
+        stage: 'requirements',
+        status: 'pending',
+        reason: '需要',
+        deliverableDoc: 'doc.requirements',
+      },
       { stage: 'design', status: 'pending', reason: '需要', deliverableDoc: 'design.arch' },
     ],
     createdAt: new Date().toISOString(),
   };
 
-  const docs = await runPipeline(plan, new FailingProvider());
+  const docs = await runPipelineWithAnswers(plan, new FailingProvider(), DUMMY_ANSWERS);
   assert.equal(docs.length, 2);
   docs.forEach((doc) => {
     assert.ok(doc.content.includes('（请人工填写）'));
@@ -102,14 +119,19 @@ test('runPipeline 正常流程：所有 pending 环节都产出文档', async ()
     problemId: 'test-3',
     kind: 'new-feature',
     stages: [
-      { stage: 'requirements', status: 'pending', reason: '需要', deliverableDoc: 'doc.requirements' },
+      {
+        stage: 'requirements',
+        status: 'pending',
+        reason: '需要',
+        deliverableDoc: 'doc.requirements',
+      },
       { stage: 'design', status: 'pending', reason: '需要', deliverableDoc: 'design.arch' },
       { stage: 'plan', status: 'pending', reason: '需要', deliverableDoc: 'plan.milestone' },
     ],
     createdAt: new Date().toISOString(),
   };
 
-  const docs = await runPipeline(plan, new StubProvider());
+  const docs = await runPipelineWithAnswers(plan, new StubProvider(), DUMMY_ANSWERS);
   assert.equal(docs.length, 3);
   assert.ok(docs.every((doc) => doc.content.length > 0));
   assert.ok(docs.every((doc) => doc.source === 'human-fallback'));
@@ -120,12 +142,17 @@ test('DeliverableDoc 字段完整', async () => {
     problemId: 'test-4',
     kind: 'new-feature',
     stages: [
-      { stage: 'requirements', status: 'pending', reason: '需要', deliverableDoc: 'doc.requirements' },
+      {
+        stage: 'requirements',
+        status: 'pending',
+        reason: '需要',
+        deliverableDoc: 'doc.requirements',
+      },
     ],
     createdAt: new Date().toISOString(),
   };
 
-  const docs = await runPipeline(plan, new StubProvider());
+  const docs = await runPipelineWithAnswers(plan, new StubProvider(), DUMMY_ANSWERS);
   const doc = docs[0];
   assert.ok(doc.stage);
   assert.ok(doc.docType);
@@ -139,7 +166,12 @@ test('多个 skipped 环节都被正确跳过', async () => {
     problemId: 'test-5',
     kind: 'new-feature',
     stages: [
-      { stage: 'requirements', status: 'pending', reason: '需要', deliverableDoc: 'doc.requirements' },
+      {
+        stage: 'requirements',
+        status: 'pending',
+        reason: '需要',
+        deliverableDoc: 'doc.requirements',
+      },
       { stage: 'research', status: 'skipped', reason: '不需要', deliverableDoc: 'research.fetch' },
       { stage: 'design', status: 'pending', reason: '需要', deliverableDoc: 'design.arch' },
       { stage: 'plan', status: 'skipped', reason: '不需要', deliverableDoc: 'plan.milestone' },
@@ -148,7 +180,7 @@ test('多个 skipped 环节都被正确跳过', async () => {
     createdAt: new Date().toISOString(),
   };
 
-  const docs = await runPipeline(plan, new StubProvider());
+  const docs = await runPipelineWithAnswers(plan, new StubProvider(), DUMMY_ANSWERS);
   assert.equal(docs.length, 3);
   const stages = docs.map((d) => d.stage);
   assert.ok(stages.includes('requirements'));
@@ -161,7 +193,12 @@ test('done 状态环节不处理（当前只处理 pending）', async () => {
     problemId: 'test-6',
     kind: 'new-feature',
     stages: [
-      { stage: 'requirements', status: 'done', reason: '已完成', deliverableDoc: 'doc.requirements' },
+      {
+        stage: 'requirements',
+        status: 'done',
+        reason: '已完成',
+        deliverableDoc: 'doc.requirements',
+      },
       { stage: 'design', status: 'pending', reason: '需要', deliverableDoc: 'design.arch' },
     ],
     createdAt: new Date().toISOString(),

@@ -3,7 +3,13 @@
 import type { PipelinePlan, DeliverableDoc, IntelligenceProvider, Questionnaire } from './types.ts';
 import { HumanFallbackProvider } from './provider.ts';
 import { getMetaSkill } from './meta-skills.ts';
-import { createQuestionnaire, recordAnswer, isConverged, getOpenQuestions, buildDecisionRecords } from './questionnaire.ts';
+import {
+  createQuestionnaire,
+  recordAnswer,
+  isConverged,
+  getOpenQuestions,
+  buildDecisionRecords,
+} from './questionnaire.ts';
 
 /**
  * 执行流水线计划，产出各环节的交付文档。
@@ -11,14 +17,19 @@ import { createQuestionnaire, recordAnswer, isConverged, getOpenQuestions, build
  */
 export async function runPipeline(
   plan: PipelinePlan,
-  provider: IntelligenceProvider
+  provider: IntelligenceProvider,
 ): Promise<DeliverableDoc[]> {
   // 找到 requirements 环节
   const requirementsStage = plan.stages.find((s) => s.stage === 'requirements');
-  
+
   if (requirementsStage && requirementsStage.status === 'pending') {
-    const q = createQuestionnaire({ id: plan.problemId, statement: '', kind: plan.kind, involvesUi: false });
-    
+    const q = createQuestionnaire({
+      id: plan.problemId,
+      statement: '',
+      kind: plan.kind,
+      involvesUi: false,
+    });
+
     if (!isConverged(q)) {
       // 未收敛，返回问卷文档
       const openQuestions = getOpenQuestions(q);
@@ -44,10 +55,15 @@ export async function runPipeline(
 export async function runPipelineWithAnswers(
   plan: PipelinePlan,
   provider: IntelligenceProvider,
-  answers: Record<string, string>
+  answers: Record<string, string>,
 ): Promise<DeliverableDoc[]> {
-  let q = createQuestionnaire({ id: plan.problemId, statement: '', kind: plan.kind, involvesUi: false });
-  
+  let q = createQuestionnaire({
+    id: plan.problemId,
+    statement: '',
+    kind: plan.kind,
+    involvesUi: false,
+  });
+
   // 记录所有回答
   for (const [questionId, answer] of Object.entries(answers)) {
     q = recordAnswer(q, questionId, answer);
@@ -63,7 +79,7 @@ export async function runPipelineWithAnswers(
 async function runCompletePipeline(
   plan: PipelinePlan,
   provider: IntelligenceProvider,
-  questionnaire?: Questionnaire
+  questionnaire?: Questionnaire,
 ): Promise<DeliverableDoc[]> {
   const safeProvider = new HumanFallbackProvider(provider);
   const docs: DeliverableDoc[] = [];

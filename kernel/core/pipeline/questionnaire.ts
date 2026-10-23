@@ -1,6 +1,12 @@
 ﻿/** 需求追问状态机。 */
 
-import type { Problem, Question, Questionnaire, QuestionnaireState, DecisionRecord } from './types.ts';
+import type {
+  Problem,
+  Question,
+  Questionnaire,
+  QuestionnaireState,
+  DecisionRecord,
+} from './types.ts';
 
 /**
  * 创建初始问卷。
@@ -27,12 +33,14 @@ export function createQuestionnaire(problem: Problem, maxRounds = 3): Questionna
  */
 export function recordAnswer(q: Questionnaire, questionId: string, answer: string): Questionnaire {
   const newQuestions = q.questions.map((question) =>
-    question.id === questionId ? { ...question, answer } : question
+    question.id === questionId ? { ...question, answer } : question,
   );
 
   let newState: QuestionnaireState = q.state;
   if (newState === 'asking') {
-    const allRequiredAnswered = newQuestions.filter((x) => x.required).every((x) => x.answer !== undefined);
+    const allRequiredAnswered = newQuestions
+      .filter((x) => x.required)
+      .every((x) => x.answer !== undefined);
     if (allRequiredAnswered) {
       newState = 'converged';
     }
