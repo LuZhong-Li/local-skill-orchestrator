@@ -53,6 +53,17 @@ async function openBatchAction(context, action) {
   );
 }
 
+async function showCopiesTab(context) {
+  await context.evaluate(
+    'document.querySelector(\'[data-testid="inventory-tab-copies"]\')?.click()',
+  );
+  const ready = await context.waitFor(
+    'document.querySelector(\'[data-testid="inventory-refresh"]\') !== null',
+    60,
+  );
+  if (!ready) throw new Error('无法返回副本视图');
+}
+
 async function executeBatch(context, cancelImmediately = false) {
   const ready = await context.waitFor(
     '(() => { const b = document.querySelector(\'[data-testid="inventory-action-execute"]\'); return b !== null && b.disabled === false; })()',
@@ -126,6 +137,12 @@ export async function runInventoryBatchChecks(context) {
   );
   check('多选复选框汇总到批量动作栏', selectedBar.includes('已选 2 项'), cut(selectedBar, 160));
   await openBatchAction(context, 'adopt');
+  const previewText = await dialogText(context);
+  const previewRows = Number(
+    await context.evaluate(
+      'document.querySelectorAll(\'[data-testid="adopt-preview-items"] .adopt-preview-item\').length',
+    ),
+  );
   const sections = await context.evaluate(
     `['writes', 'ledger', 'warnings'].map((name) =>
       document.querySelector('[data-testid="action-section-' + name + '"]') !== null
@@ -136,6 +153,21 @@ export async function runInventoryBatchChecks(context) {
     Array.isArray(sections) && sections.every(Boolean),
     JSON.stringify(sections),
   );
+  check(
+    '采纳预览展示源路径/目标/frontmatter/冲突且只列选中项',
+    previewRows === 2 &&
+      ['源路径', '工作区目标', 'frontmatter', '冲突'].every((label) => previewText.includes(label)),
+    `rows=${String(previewRows)} ${cut(previewText, 320)}`,
+  );
+  const protectedDisabled =
+    (await context.evaluate(
+      `(() => {
+        const protectedCopies = [...document.querySelectorAll('input[type="checkbox"][data-path]')]
+          .filter((item) => item.dataset.path.includes('.system'));
+        return protectedCopies.length > 0 && protectedCopies.every((item) => item.disabled === true);
+      })()`,
+    )) === true;
+  check('非 user 副本不进入批量写选择', protectedDisabled);
   writeFileSync(
     join(staleTwo, 'SKILL.md'),
     '---\nname: batch-stale-two\ndescription: changed after preview\n---\n\n# changed\n',
@@ -148,8 +180,23 @@ export async function runInventoryBatchChecks(context) {
       staleSummary.includes('失败 1'),
     cut(staleSummary, 260),
   );
+  check(
+    '批量采纳成功后自动切到审计视图',
+    await context.waitFor(
+      'document.querySelector(\'[data-testid="inventory-tab-audit"]\')?.getAttribute("aria-selected") === "true" && document.querySelector(\'[data-testid="audit-matrix"]\') !== null',
+      120,
+    ),
+  );
+  check(
+    '新采纳 Skill 自动进入审计矩阵',
+    await context.waitFor(
+      "document.querySelector('[data-testid=\"audit-matrix\"]')?.innerText.includes('batch-stale-one') === true",
+      120,
+    ),
+  );
   await closeDialog(context);
 
+  await showCopiesTab(context);
   await refreshInventory();
   for (const path of cancelCopies) await selectInventoryCopy(context, path);
   await openBatchAction(context, 'adopt');

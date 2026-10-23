@@ -1,5 +1,6 @@
 import errors from './errors-zh-CN.ts';
 import inventoryBatch from './inventory-batch-zh-CN.ts';
+import inventoryAdopt from './inventory-adopt-zh-CN.ts';
 import inventoryRootEmpty from './inventory-root-empty-zh-CN.ts';
 import inventoryRootState from './inventory-root-state-zh-CN.ts';
 import audit from './audit-zh-CN.ts';
@@ -321,6 +322,7 @@ export default {
     ledgerMissing: '无账本（旧工作区按推断处理）',
     ledgerUnreadable: '不可读（不修复、不覆盖）',
     batch: inventoryBatch,
+    unmanagedAdopt: inventoryAdopt,
 
     untrackedTitle: '未纳管清单',
     untrackedHint:

@@ -1,0 +1,20 @@
+export default {
+  title: '批量采纳到工作区',
+  subtitle: '内核已预览全部可采纳的用户副本；下方只保留当前勾选项。',
+  policy: '重复 Skill ID 与已占用目标默认跳过。每个副本独立事务，单项失败不会阻断其余条目。',
+  previewTitle: '本次采纳预览',
+  sourcePath: '源路径',
+  target: '工作区目标',
+  frontmatter: 'frontmatter',
+  conflict: '冲突',
+  description: '描述：{value}',
+  version: '版本：{value}',
+  missingValue: '（未声明）',
+  noSelection: '当前勾选项没有可执行批量采纳的候选。',
+  conflictValues: {
+    none: '无冲突',
+    same_content: '已存在相同内容',
+    different_content: '已存在不同内容',
+    target_occupied: '目标被其他 Skill 占用',
+  },
+} as const;

@@ -52,12 +52,14 @@ test('契约：盘点视图走通用 scan --inventory，不直接访问 preload 
   assert.equal(host.includes('install'), false, '盘点视图不得包含安装类调用');
   assert.equal(host.includes('uninstall'), false);
   assert.match(host, /inventory\.intro/);
-  assert.match(host, /@done="load"/);
+  assert.match(host, /@done="handleActionDone"/);
 
   const dialog = read('gui/renderer/src/components/host-inventory/InventoryActionDialog.vue');
+  const actionPlan = read('gui/renderer/src/host-inventory-action-plan.ts');
   assert.match(dialog, /function buildPreviewArgv\(\): string\[\]/);
   assert.match(dialog, /function executeBatch\(/);
-  assert.match(dialog, /function planItemSignature\(/);
+  assert.match(dialog, /planItemSignature/);
+  assert.match(actionPlan, /export function planItemSignature\(/);
   assert.match(dialog, /'--apply'/);
   assert.match(dialog, /'--yes'/);
   assert.equal(dialog.includes('window.skillManager'), false);

@@ -7,6 +7,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import type {
   InventoryExportResult,
   InventoryScanData,
+  ReconcileApplyData,
   ReconcileAction,
   Result,
 } from '@skill-manager/contract';
@@ -14,6 +15,7 @@ import InventorySummary from './host-inventory/InventorySummary.vue';
 import InventoryHostGroups from './host-inventory/InventoryHostGroups.vue';
 import InventoryCopyDetails from './host-inventory/InventoryCopyDetails.vue';
 import InventoryActionDialog from './host-inventory/InventoryActionDialog.vue';
+import UnmanagedBulkAdoptDialog from './unmanaged/UnmanagedBulkAdoptDialog.vue';
 import AuditMatrixView from './audit/AuditMatrixView.vue';
 import { localizedFindingsText } from '../i18n/error-text.ts';
 import { t } from '../i18n/index.ts';
@@ -117,6 +119,13 @@ function previewBatchAction(nextAction: ReconcileAction): void {
 
 function closeAction(): void {
   actionOpen.value = false;
+}
+
+async function handleActionDone(result: ReconcileApplyData | null): Promise<void> {
+  await load();
+  if (action.value === 'adopt' && actionBatch.value && (result?.summary.succeeded ?? 0) > 0) {
+    tab.value = 'audit';
+  }
 }
 
 function toggleSelection(key: string): void {
@@ -374,15 +383,22 @@ onMounted(load);
     </template>
     <AuditMatrixView v-else :run="run" />
 
+    <UnmanagedBulkAdoptDialog
+      v-if="actionOpen && actionBatch && action === 'adopt'"
+      :targets="actionTargets"
+      :run="run"
+      @close="closeAction"
+      @done="handleActionDone"
+    />
     <InventoryActionDialog
-      v-if="tab === 'copies' && actionOpen"
+      v-if="actionOpen && !(actionBatch && action === 'adopt')"
       :action="action"
       :path="actionPath"
       :targets="actionTargets"
       :batch="actionBatch"
       :run="run"
       @close="closeAction"
-      @done="load"
+      @done="handleActionDone"
     />
   </section>
 </template>

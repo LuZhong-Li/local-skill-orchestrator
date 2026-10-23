@@ -19,6 +19,14 @@ import DialogShell from '../DialogShell.vue';
 
 import { inventoryActionLabel } from '../../inventory-actions.ts';
 import type { BatchTarget } from '../../inventory-batch.ts';
+import {
+  adoptPreviewRows as adoptPreviewRowsOf,
+  failedReconcileResult,
+  filterBulkAdoptPlan,
+  mergeBatchPlans as mergePlans,
+  planItemSignature,
+  skippedReconcileResults,
+} from '../../host-inventory-action-plan.ts';
 import { localizedFindingsText } from '../../i18n/error-text.ts';
 import { t } from '../../i18n/index.ts';
 
@@ -29,9 +37,11 @@ const props = defineProps<{
   run: (argv: string[]) => Promise<Result<Record<string, unknown>>>;
   // 是否为批量模式
   batch?: boolean;
+  bulkAdopt?: boolean;
+  contextNote?: string;
 }>();
 
-const emit = defineEmits<{ close: []; done: [] }>();
+const emit = defineEmits<{ close: []; done: [result: ReconcileApplyData | null] }>();
 
 const preview = ref<ReconcilePreviewData | null>(null);
 const result = ref<ReconcileApplyData | null>(null);
@@ -44,6 +54,16 @@ const cancelRequested = ref(false);
 const currentItemIndex = ref(0);
 
 const destructive = computed(() => props.action === 'clean' || props.action === 'accept');
+
+const dialogTitle = computed(() =>
+  props.bulkAdopt
+    ? t('inventory.unmanagedAdopt.title')
+    : t('inventory.actionDialog.title', { action: actionLabel(props.action) }),
+);
+
+const dialogSubtitle = computed(() =>
+  props.bulkAdopt ? t('inventory.unmanagedAdopt.subtitle') : t('inventory.actionDialog.subtitle'),
+);
 
 const shared = computed(() =>
   (preview.value?.transaction_groups ?? [])
@@ -106,6 +126,8 @@ const backups = computed(() => [
   ...new Set((preview.value?.items ?? []).flatMap((item) => item.backups)),
 ]);
 
+const adoptPreviewRows = computed(() => adoptPreviewRowsOf(preview.value));
+
 const canExecute = computed(
   () =>
     !loading.value &&
@@ -145,7 +167,27 @@ function targetArgv(target: BatchTarget): string[] {
   return ['--path', target.path ?? ''];
 }
 
+async function loadBulkAdoptPreview(targets: BatchTarget[]): Promise<ReconcilePreviewData | null> {
+  // KernelBridge appends --json to every GUI invocation.
+  const response = await props.run(['reconcile', '--action', 'adopt', '--bulk', '--dry-run']);
+  findings.value.push(...response.findings);
+  const payload = response.data as unknown as ReconcilePreviewData;
+  if (!response.ok || payload?.mode !== 'reconcile') {
+    error.value =
+      findingsText(response.findings) ||
+      t('inventory.actionDialog.previewFailed', { code: response.exit_code });
+    return null;
+  }
+  const filtered = filterBulkAdoptPlan(payload, targets);
+  if (filtered.items.length === 0) {
+    error.value = t('inventory.unmanagedAdopt.noSelection');
+    return null;
+  }
+  return filtered;
+}
+
 async function loadBatchPreview(targets: BatchTarget[]): Promise<ReconcilePreviewData | null> {
+  if (props.bulkAdopt) return loadBulkAdoptPreview(targets);
   const plans: ReconcilePreviewData[] = [];
   for (const target of targets) {
     const response = await props.run([
@@ -164,43 +206,7 @@ async function loadBatchPreview(targets: BatchTarget[]): Promise<ReconcilePrevie
     }
     plans.push(payload);
   }
-  return mergeBatchPlans(plans);
-}
-
-function mergeBatchPlans(plans: ReconcilePreviewData[]): ReconcilePreviewData | null {
-  const first = plans[0];
-  if (first === undefined) return null;
-  const items = [
-    ...new Map(
-      plans.flatMap((plan) => plan.items).map((item) => [item.physical_key, item]),
-    ).values(),
-  ];
-  const transactionGroups = [
-    ...new Map(
-      plans.flatMap((plan) => plan.transaction_groups).map((group) => [group.group_id, group]),
-    ).values(),
-  ];
-  const planned = items.filter((item) => item.status === 'planned');
-  return {
-    ...first,
-    selection: {
-      mode: 'batch',
-      action: props.action,
-      roots: [],
-      apply: false,
-    },
-    items,
-    transaction_groups: transactionGroups,
-    summary: {
-      selected: items.length,
-      planned: planned.length,
-      skipped: items.length - planned.length,
-      destructive: planned.filter((item) => item.action === 'accept' || item.action === 'clean')
-        .length,
-      shared_groups: transactionGroups.filter((group) => group.shared).length,
-    },
-    notes: [...new Set(plans.flatMap((plan) => plan.notes))],
-  };
+  return mergePlans(plans, props.action);
 }
 
 function itemSelectionArgv(item: ReconcilePlanItem): string[] {
@@ -214,26 +220,6 @@ function itemSelectionArgv(item: ReconcilePlanItem): string[] {
   return ['--path', item.target_path];
 }
 
-function planItemSignature(item: ReconcilePlanItem): string {
-  return JSON.stringify({
-    physical_key: item.physical_key,
-    target_path: item.target_path,
-    skill_id: item.skill_id,
-    host_ids: item.host_ids,
-    format: item.format,
-    visibility: item.visibility,
-    root_roles: item.root_roles,
-    status: item.status,
-    reason: item.reason,
-    before: item.before,
-    action: item.action,
-    after: item.after,
-    writes: item.writes,
-    ledger_changes: item.ledger_changes,
-    warnings: item.warnings,
-  });
-}
-
 function staleFinding(item: ReconcilePlanItem): Finding {
   return {
     code: 'E-RECONCILE-002',
@@ -245,28 +231,10 @@ function staleFinding(item: ReconcilePlanItem): Finding {
   };
 }
 
-function failedResult(
-  item: ReconcilePlanItem,
-  stage: string,
-  reason: string,
-  message: string,
-  itemFindings: Finding[] = [],
-): ReconcileResultItem {
-  return {
-    item_id: item.item_id,
-    status: 'failed',
-    target_path: item.target_path,
-    stage,
-    reason,
-    message,
-    findings: itemFindings,
-  };
-}
-
 async function executeBatch(plan: ReconcilePreviewData): Promise<ReconcileApplyData> {
   const startedAt = Date.now();
   const plannedItems = plan.items.filter((item) => item.status === 'planned');
-  const results = skippedResults(plan);
+  const results = skippedReconcileResults(plan);
   let attempted = 0;
 
   for (const plannedItem of plannedItems) {
@@ -293,18 +261,6 @@ async function executeBatch(plan: ReconcilePreviewData): Promise<ReconcileApplyD
       duration_ms: Math.max(0, Date.now() - startedAt),
     },
   };
-}
-
-function skippedResults(plan: ReconcilePreviewData): ReconcileResultItem[] {
-  return plan.items
-    .filter((item) => item.status === 'skipped')
-    .map((item) => ({
-      item_id: item.item_id,
-      status: 'skipped',
-      target_path: item.target_path,
-      stage: 'plan',
-      ...(item.reason === undefined ? {} : { reason: item.reason, message: item.reason }),
-    }));
 }
 
 async function executeBatchItem(item: ReconcilePlanItem): Promise<ReconcileResultItem> {
@@ -336,7 +292,7 @@ async function freshBatchPlanItem(item: ReconcilePlanItem): Promise<FreshBatchIt
   ) {
     const finding = staleFinding(item);
     return {
-      result: failedResult(item, 'preview', 'plan_stale', finding.message, [finding]),
+      result: failedReconcileResult(item, 'preview', 'plan_stale', finding.message, [finding]),
     };
   }
   return { item: current };
@@ -346,7 +302,7 @@ function previewFailure(
   item: ReconcilePlanItem,
   response: Result<Record<string, unknown>>,
 ): ReconcileResultItem {
-  return failedResult(
+  return failedReconcileResult(
     item,
     'preview',
     response.findings[0]?.code ?? 'preview_failed',
@@ -369,7 +325,7 @@ async function applyBatchItem(item: ReconcilePlanItem): Promise<ReconcileResultI
   const applied = response.data as unknown as ReconcileApplyData;
   return (
     applied.results?.find((result) => result.target_path === item.target_path) ??
-    failedResult(
+    failedReconcileResult(
       item,
       'execute',
       'missing_result',
@@ -431,7 +387,7 @@ async function execute(): Promise<void> {
     } else {
       await executeSingle();
     }
-    emit('done');
+    emit('done', result.value);
   } catch (cause) {
     error.value = messageOf(cause);
   } finally {
@@ -468,12 +424,15 @@ onMounted(loadPreview);
 
 <template>
   <DialogShell
-    :title="$t('inventory.actionDialog.title', { action: actionLabel(action) })"
-    :subtitle="$t('inventory.actionDialog.subtitle')"
+    :title="dialogTitle"
+    :subtitle="dialogSubtitle"
     wide
     data-testid="inventory-action-dialog"
     @close="emit('close')"
   >
+    <p v-if="contextNote" class="muted context-note" data-testid="inventory-action-context">
+      {{ contextNote }}
+    </p>
     <p v-if="path" class="muted action-target">
       {{ $t('inventory.actionDialog.target') }} <code>{{ path }}</code>
     </p>
@@ -496,6 +455,55 @@ onMounted(loadPreview);
     <p v-if="error !== ''" class="bad">{{ error }}</p>
 
     <template v-if="preview !== null && !loading">
+      <section
+        v-if="adoptPreviewRows.length > 0"
+        data-testid="adopt-preview-items"
+        class="adopt-preview"
+      >
+        <h3>{{ $t('inventory.unmanagedAdopt.previewTitle') }}</h3>
+        <article
+          v-for="row in adoptPreviewRows"
+          :key="row.item_id"
+          class="adopt-preview-item"
+          :data-testid="`adopt-preview-${row.requested_id}`"
+        >
+          <div>
+            <strong>{{ $t('inventory.unmanagedAdopt.sourcePath') }}</strong>
+            <code :title="row.source_path">{{ row.source_path }}</code>
+          </div>
+          <div>
+            <strong>{{ $t('inventory.unmanagedAdopt.target') }}</strong>
+            <code :title="row.target_path">{{ row.target_path }}</code>
+            <span v-if="row.requested_id !== row.target_id" class="muted">
+              {{ row.requested_id }} → {{ row.target_id }}
+            </span>
+          </div>
+          <div>
+            <strong>{{ $t('inventory.unmanagedAdopt.frontmatter') }}</strong>
+            <span>
+              {{
+                $t('inventory.unmanagedAdopt.description', {
+                  value: row.description || $t('inventory.unmanagedAdopt.missingValue'),
+                })
+              }}
+            </span>
+            <span>
+              {{
+                $t('inventory.unmanagedAdopt.version', {
+                  value: row.version ?? $t('inventory.unmanagedAdopt.missingValue'),
+                })
+              }}
+            </span>
+          </div>
+          <div>
+            <strong>{{ $t('inventory.unmanagedAdopt.conflict') }}</strong>
+            <span :data-conflict="row.conflict">
+              {{ $t(`inventory.unmanagedAdopt.conflictValues.${row.conflict}`) }}
+            </span>
+          </div>
+        </article>
+      </section>
+
       <div
         v-if="shared.length > 0 && preview.transaction_groups.some((g) => g.shared)"
         class="shared-box"
@@ -716,6 +724,45 @@ onMounted(loadPreview);
   margin: 0 0 calc(var(--space) * 2);
   font-size: 12px;
   word-break: break-all;
+}
+
+.context-note {
+  margin: 0 0 calc(var(--space) * 3);
+  padding: calc(var(--space) * 2) calc(var(--space) * 3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  font-size: 12px;
+}
+
+.adopt-preview {
+  display: grid;
+  gap: calc(var(--space) * 2);
+  margin-bottom: calc(var(--space) * 3);
+}
+
+.adopt-preview-item {
+  display: grid;
+  gap: calc(var(--space) * 1.5);
+  padding: calc(var(--space) * 2) calc(var(--space) * 3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  font-size: 12px;
+}
+
+.adopt-preview-item div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--space) * 2);
+  align-items: baseline;
+}
+
+.adopt-preview-item code {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .danger-box {

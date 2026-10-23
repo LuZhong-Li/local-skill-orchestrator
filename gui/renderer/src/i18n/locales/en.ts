@@ -1,5 +1,6 @@
 import errors from './errors-en.ts';
 import inventoryBatch from './inventory-batch-en.ts';
+import inventoryAdopt from './inventory-adopt-en.ts';
 import inventoryRootEmpty from './inventory-root-empty-en.ts';
 import inventoryRootState from './inventory-root-state-en.ts';
 import audit from './audit-en.ts';
@@ -334,6 +335,7 @@ export default {
     ledgerMissing: 'no ledger (inferred for legacy workspace)',
     ledgerUnreadable: 'unreadable (not repaired or overwritten)',
     batch: inventoryBatch,
+    unmanagedAdopt: inventoryAdopt,
 
     untrackedTitle: 'Unmanaged copies',
     untrackedHint:
