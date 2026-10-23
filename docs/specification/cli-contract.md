@@ -923,7 +923,7 @@ skill-manager scan --inventory --audit
 | `--format` | 输出 Markdown、HTML 或 SARIF 2.1.0 报告；只能与 `--inventory --audit` 同用 |
 | `--output` | 将指定格式原子写入用户给出的路径；只能与 `--format` 同用 |
 
-不传 `--format` 时保持既有 JSON / 人类可读 / machine 输出不变。传 `--format` 且不传 `--output` 时，stdout 直接输出报告原文；传 `--output` 时，报告写入目标文件，stdout 返回既有 Result。`--format` 与 `--json` 互斥。CLI 报告文案固定英文；GUI 菜单标签可本地化。
+不传 `--format` 时保持既有 JSON / 人类可读 / machine 输出不变。传 `--format` 且不传 `--output` 时，stdout 直接输出报告原文；此模式与 `--json` 互斥。传 `--output` 时，报告写入目标文件，stdout 返回既有 Result，并允许 `--json` 请求结构化 Result。CLI 报告文案固定英文；GUI 菜单标签可本地化。
 
 报告输出是用户显式请求的文件写入；除该目标文件外，审计不得修改工作区、索引、账本或宿主副本。
 

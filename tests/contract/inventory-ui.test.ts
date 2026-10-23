@@ -146,7 +146,7 @@ test('契约：盘点结果类型只来自 contract', () => {
   const inventory = read('kernel/dispatch/scan/inventory.ts');
   assert.match(
     inventory,
-    /InventoryRootView,\s*InventoryScanData\s*\} from '@skill-manager\/contract';/,
+    /InventoryRootView[\s\S]*InventoryScanData[\s\S]*from '@skill-manager\/contract';/,
   );
   const contract = read('contract/src/host-inventory.ts');
   assert.match(contract, /export interface InventoryScanData/);

@@ -69,10 +69,35 @@ export async function run(
   }
 
   const result = await dispatch({ args, now: utcNow(), interaction });
+  const rawReport = rawReportOf(args.command, args, result);
+  if (rawReport !== null) {
+    process.stdout.write(rawReport.endsWith('\n') ? rawReport : `${rawReport}\n`);
+    return result.exit_code;
+  }
   process.stdout.write(
     `${render(result, { json, machine, color, verbose: flag(args, 'verbose') })}\n`,
   );
   return result.exit_code;
+}
+
+function rawReportOf(
+  command: string,
+  args: ReturnType<typeof parseArgs>['args'],
+  result: Awaited<ReturnType<typeof dispatch>>,
+): string | null {
+  if (
+    command !== 'scan' ||
+    option(args, 'format') === undefined ||
+    option(args, 'output') !== undefined
+  ) {
+    return null;
+  }
+  const data = result.data;
+  if (data === null || typeof data !== 'object') return null;
+  const report = (data as Record<string, unknown>)['report'];
+  if (report === null || typeof report !== 'object') return null;
+  const content = (report as Record<string, unknown>)['content'];
+  return typeof content === 'string' ? content : null;
 }
 
 function helpText(): string {
@@ -108,6 +133,13 @@ function helpText(): string {
     '  --id <标识>             reconcile 与 --host 一起选择技能副本',
     '  --classification <类>   reconcile 分类批量过滤，需配合 --host 或 --root',
     '  --target <目标>         adopt 的工作区目标覆盖',
+    '  --bulk                  批量采纳当前盘点中的候选副本',
+    '  --role <角色>           bulk 采纳的角色过滤，可重复',
+    '  --limit <N>             bulk 采纳候选数量上限',
+    '  --rename                bulk 采纳同 ID 冲突时自动取 -2/-3 后缀',
+    '  --force                 bulk 采纳同 ID 内容不同时备份后覆盖',
+    '  --format <格式>         审计报告格式：markdown / html / sarif',
+    '  --output <路径>         把审计报告写入指定路径',
     '  --apply                 reconcile 显式执行；默认只预览',
     '  --hard                  卸载时连同中心库原件一并删除',
     '  --keep-library          卸载时保留中心库原件（默认行为，供显式声明）',

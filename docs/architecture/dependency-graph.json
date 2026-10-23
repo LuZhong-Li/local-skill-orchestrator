@@ -465,6 +465,12 @@
       "layer": "core"
     },
     {
+      "path": "kernel/audit/report-write.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
       "path": "kernel/core/adapters/index.ts",
       "kind": "source",
       "region": "kernel-core",
@@ -2734,6 +2740,13 @@
       "specifier": "./report-render.ts",
       "from_layer": "core",
       "to_layer": "core"
+    },
+    {
+      "from": "kernel/audit/report-write.ts",
+      "to": "kernel/store/atomic/index.ts",
+      "specifier": "../store/atomic/index.ts",
+      "from_layer": "core",
+      "to_layer": "store"
     },
     {
       "from": "kernel/core/adapters/index.ts",
@@ -6181,6 +6194,13 @@
     },
     {
       "from": "kernel/dispatch/reconcile/options.ts",
+      "to": "kernel/dispatch/reconcile/adopt-bulk.ts",
+      "specifier": "./adopt-bulk.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/reconcile/options.ts",
       "to": "kernel/dispatch/result/index.ts",
       "specifier": "../result/index.ts",
       "from_layer": "dispatch",
@@ -7889,6 +7909,20 @@
     },
     {
       "from": "kernel/dispatch/scan/inventory.ts",
+      "to": "kernel/audit/report-render.ts",
+      "specifier": "../../audit/report-render.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/scan/inventory.ts",
+      "to": "kernel/audit/report-write.ts",
+      "specifier": "../../audit/report-write.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/scan/inventory.ts",
       "to": "kernel/core/hosts/index.ts",
       "specifier": "../../core/hosts/index.ts",
       "from_layer": "dispatch",
@@ -8841,15 +8875,15 @@
     }
   ],
   "stats": {
-    "source_files": 278,
+    "source_files": 279,
     "asset_nodes": 1,
-    "nodes": 279,
-    "edges": 1023,
+    "nodes": 280,
+    "edges": 1027,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 12,
-      "core": 72,
+      "core": 73,
       "dispatch": 67,
       "entry": 2,
       "gui": 63,
@@ -8859,8 +8893,8 @@
     },
     "outgoing": {
       "contract": 19,
-      "core": 296,
-      "dispatch": 506,
+      "core": 297,
+      "dispatch": 509,
       "entry": 8,
       "gui": 130,
       "public": 6,
@@ -8869,17 +8903,17 @@
     },
     "incoming": {
       "contract": 19,
-      "core": 349,
-      "dispatch": 208,
+      "core": 351,
+      "dispatch": 209,
       "entry": 1,
       "gui": 130,
       "public": 1,
       "scripts": 36,
-      "store": 279
+      "store": 280
     },
     "cross_layer_edges": {
-      "core->store": 112,
-      "dispatch->core": 163,
+      "core->store": 113,
+      "dispatch->core": 165,
       "dispatch->store": 144,
       "entry->core": 1,
       "entry->dispatch": 5,

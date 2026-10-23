@@ -9,6 +9,7 @@ import type {
 import { finding } from '../../store/findings.ts';
 import { flag, option, optionList, type ParsedArgs } from '../parsers/index.ts';
 import { buildResult, type Result } from '../result/index.ts';
+import { validateBulkAdoptFlags } from './adopt-bulk.ts';
 
 const ACTIONS = new Set<string>(RECONCILE_ACTIONS);
 const ROLES = new Set<HostRootRole>(['user', 'system', 'platform', 'project']);
@@ -38,6 +39,10 @@ const ALLOWED_OPTIONS = new Set([
   'apply',
   'yes',
   'dry-run',
+  'bulk',
+  'limit',
+  'rename',
+  'force',
   'workspace',
   'json',
   'machine',
@@ -108,6 +113,17 @@ function forbiddenFlagsError(args: ParsedArgs): Result<unknown> | undefined {
       '--apply',
       '--apply 与 --dry-run 不能同时给出',
       '默认即为预览；执行时只给 --apply',
+    );
+  }
+  const conflictFlagError = validateBulkAdoptFlags({
+    rename: flag(args, 'rename'),
+    force: flag(args, 'force'),
+  });
+  if (conflictFlagError !== undefined) {
+    return invalid(
+      '--rename',
+      '--rename 与 --force 不能同时给出',
+      '两者互斥；默认冲突项跳过，重命名或覆盖只能二选一',
     );
   }
   return undefined;
@@ -233,6 +249,57 @@ function actionSelectorError(
   return undefined;
 }
 
+function bulkActionOptionsError(
+  args: ParsedArgs,
+  action: ReconcileAction,
+): Result<unknown> | undefined {
+  const bulk = flag(args, 'bulk');
+  const limit = option(args, 'limit');
+  const rename = flag(args, 'rename');
+  const force = flag(args, 'force');
+  if ((bulk || limit !== undefined || rename || force) && action !== 'adopt') {
+    return invalid(
+      '--bulk',
+      `${action} 不接受批量 adopt 选项`,
+      '--bulk、--limit、--rename 与 --force 只用于 reconcile --action adopt',
+    );
+  }
+  if ((rename || force || limit !== undefined) && !bulk) {
+    return invalid(
+      '--bulk',
+      '冲突策略与 limit 需要配合 --bulk',
+      '请补充 --bulk，或移除 --limit / --rename / --force',
+    );
+  }
+  return undefined;
+}
+
+function bulkSelectorError(args: ParsedArgs): Result<unknown> | undefined {
+  if (!flag(args, 'bulk')) return undefined;
+  if (
+    option(args, 'path') !== undefined ||
+    optionList(args, 'id').length > 0 ||
+    option(args, 'classification') !== undefined
+  ) {
+    return invalid(
+      '--bulk',
+      '--bulk 不能与 --path / --id / --classification 混用',
+      '批量 adopt 从盘点候选展开；仅可再用 --role 与 --limit 收窄',
+    );
+  }
+  return undefined;
+}
+
+function limitError(args: ParsedArgs): Result<unknown> | undefined {
+  const value = option(args, 'limit');
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    return invalid('--limit', `--limit 必须是正整数：${value}`, '请给出大于 0 的整数');
+  }
+  return undefined;
+}
+
 function missingSelectorError(args: ParsedArgs): Result<unknown> | undefined {
   const path = option(args, 'path');
   const ids = optionList(args, 'id');
@@ -240,7 +307,9 @@ function missingSelectorError(args: ParsedArgs): Result<unknown> | undefined {
   const roots = optionList(args, 'root');
   const host = option(args, 'host');
   const classification = option(args, 'classification');
+  const bulk = flag(args, 'bulk');
   if (
+    !bulk &&
     path === undefined &&
     !(ids.length > 0 && host !== undefined) &&
     roles.length === 0 &&
@@ -260,12 +329,22 @@ function selectionError(args: ParsedArgs, action: ReconcileAction): Result<unkno
   for (const error of [
     forbiddenFlagsError(args),
     selectorShapeError(args),
+    bulkSelectorError(args),
+    limitError(args),
     actionSelectorError(args, action),
+    bulkActionOptionsError(args, action),
     missingSelectorError(args),
   ]) {
     if (error !== undefined) return error;
   }
   return undefined;
+}
+
+function applyBulkOptions(selection: ReconcileSelection, args: ParsedArgs): void {
+  if (!flag(args, 'bulk')) return;
+  selection.bulk = true;
+  if (flag(args, 'rename')) selection.conflict = 'rename';
+  if (flag(args, 'force')) selection.conflict = 'force';
 }
 
 function commonOptionsError(args: ParsedArgs): Result<unknown> | undefined {
@@ -293,8 +372,10 @@ function isBatchSelection(
   roles: readonly HostRootRole[],
   roots: readonly string[],
   classification: InventoryClassificationKey | undefined,
+  bulk: boolean,
 ): boolean {
   return (
+    bulk ||
     ids.length > 1 ||
     roles.length > 0 ||
     (roots.length > 0 && ids.length === 0 && classification === undefined) ||
@@ -308,9 +389,10 @@ function selectionModeOf(
   roles: readonly HostRootRole[],
   roots: readonly string[],
   classification: InventoryClassificationKey | undefined,
+  bulk: boolean,
 ): ReconcileSelection['mode'] {
   if (path !== undefined) return 'path';
-  if (isBatchSelection(ids, roles, roots, classification)) return 'batch';
+  if (isBatchSelection(ids, roles, roots, classification, bulk)) return 'batch';
   return ids.length > 0 ? 'id-host' : 'classification';
 }
 
@@ -322,8 +404,9 @@ function selectionOf(args: ParsedArgs, action: ReconcileAction): ReconcileSelect
   const classification = option(args, 'classification') as InventoryClassificationKey | undefined;
   const roots = optionList(args, 'root');
   const target = option(args, 'target');
+  const bulk = flag(args, 'bulk');
   const selection: ReconcileSelection = {
-    mode: selectionModeOf(path, ids, roles, roots, classification),
+    mode: selectionModeOf(path, ids, roles, roots, classification, bulk),
     action,
     roots,
     apply: flag(args, 'apply'),
@@ -337,6 +420,9 @@ function selectionOf(args: ParsedArgs, action: ReconcileAction): ReconcileSelect
   if (classification !== undefined) selection.classification = classification;
   if (roles.length > 0) selection.roles = roles;
   if (target !== undefined) selection.target = target;
+  applyBulkOptions(selection, args);
+  const limit = option(args, 'limit');
+  if (limit !== undefined) selection.limit = Number(limit);
   return selection;
 }
 

@@ -1,6 +1,6 @@
 /** scan 指令的稳定计划与结果类型；不包含执行逻辑。 */
 import type { ScanSummary } from '../../core/discovery/index.ts';
-import type { PluginIndex } from '@skill-manager/contract';
+import type { AuditReportFormat, PluginIndex } from '@skill-manager/contract';
 import type { ParsedArgs } from '../parsers/index.ts';
 
 /** M4c-1 将增加 inventory；本批只生成 workspace 计划。 */
@@ -22,6 +22,8 @@ export interface InventoryScanPlan {
   mode: 'inventory';
   workspaceRoot: string;
   audit: boolean;
+  format?: Exclude<AuditReportFormat, 'json'>;
+  output?: string;
 }
 
 /** workspace 与 inventory 两条互斥路径；插件模式由 scan 入口先行分流。 */

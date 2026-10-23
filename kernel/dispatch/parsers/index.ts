@@ -30,6 +30,9 @@ export const BOOLEAN_OPTIONS = new Set([
   'inventory',
   'apply',
   'audit',
+  'bulk',
+  'rename',
+  'force',
 ]);
 
 /**
@@ -58,6 +61,9 @@ export const VALUE_OPTIONS = new Set([
   'classification',
   'action',
   'role',
+  'limit',
+  'format',
+  'output',
 ]);
 
 /**

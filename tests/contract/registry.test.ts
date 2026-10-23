@@ -7,8 +7,6 @@ import { REGISTERED_COMMANDS } from '../../kernel/dispatch/registry/index.ts';
 import { BOOLEAN_OPTIONS, VALUE_OPTIONS } from '../../kernel/dispatch/parsers/index.ts';
 
 const root = new URL('../../', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
-// M6 T0 先登记 CLI 契约；parser 注册与运行时校验由 T3 完成。
-const M6_T0_PENDING_OPTIONS = new Set(['bulk', 'limit', 'rename', 'force', 'format', 'output']);
 
 function read(relative: string): string {
   return readFileSync(join(root, relative), 'utf8');
@@ -51,8 +49,7 @@ test('契约：契约中写明的每个选项都已登记为布尔选项或取�
   assert.ok(declared.size > 0, '未从契约中解析出任何选项');
 
   const unregistered = [...declared].filter(
-    (name) =>
-      !BOOLEAN_OPTIONS.has(name) && !VALUE_OPTIONS.has(name) && !M6_T0_PENDING_OPTIONS.has(name),
+    (name) => !BOOLEAN_OPTIONS.has(name) && !VALUE_OPTIONS.has(name),
   );
   assert.deepEqual(
     unregistered,

@@ -1,7 +1,13 @@
 /** scan --inventory：只读展开根清单并发现物理副本；不做对账。 */
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import type { InventoryRootView, InventoryScanData } from '@skill-manager/contract';
+import type {
+  AuditReportMeta,
+  InventoryRootView,
+  InventoryScanData,
+} from '@skill-manager/contract';
+import { renderAuditReport } from '../../audit/report-render.ts';
+import { writeAuditReport } from '../../audit/report-write.ts';
 import { loadIndex, TOOL_VERSION } from '../../core/index/index.ts';
 import { inventoryRootsForAll } from '../../core/hosts/inventory.ts';
 import { loadHostRegistry } from '../../core/hosts/index.ts';
@@ -16,7 +22,7 @@ import { CODES, type Finding } from '@skill-manager/contract';
 import { finding } from '../../store/findings.ts';
 import { toKernelError } from '../../store/errors.ts';
 import { layoutOf, type WorkspaceLayout } from '../../store/workspace/index.ts';
-import { flag, type ParsedArgs } from '../parsers/index.ts';
+import { flag, option, type ParsedArgs } from '../parsers/index.ts';
 import { buildResult, type Result } from '../result/index.ts';
 import type { InventoryScanPlan } from './types.ts';
 export type { InventorySnapshot, WorkspaceReadState } from './snapshot.ts';
@@ -31,12 +37,28 @@ const INVENTORY_ALLOWED_OPTIONS = new Set([
   'verbose',
   'help',
   'version',
+  'format',
+  'output',
 ]);
 
 const INVENTORY_CONFLICTS = new Set(['kind', 'root', 'dry-run']);
 
 /** `--inventory` 与现有 scan 选项的互斥/白名单（参数类错误）。 */
 export function inventoryOptionsError(args: ParsedArgs): Result<unknown> | null {
+  const format = option(args, 'format');
+  const output = option(args, 'output');
+  for (const error of [
+    reportOptionError(args, format, output),
+    auditScopeError(args),
+    positionalsError(args),
+    allowedOptionsError(args),
+  ]) {
+    if (error !== null) return error;
+  }
+  return null;
+}
+
+function auditScopeError(args: ParsedArgs): Result<unknown> | null {
   if (flag(args, 'audit') && args.options['inventory'] !== true) {
     return buildResult('scan', [
       finding(CODES.INPUT_INVALID_ARG, {
@@ -47,6 +69,10 @@ export function inventoryOptionsError(args: ParsedArgs): Result<unknown> | null 
       }),
     ]);
   }
+  return null;
+}
+
+function positionalsError(args: ParsedArgs): Result<unknown> | null {
   if (args.options['inventory'] !== true) return null;
   if (args.positionals.length > 0) {
     return buildResult('scan', [
@@ -58,6 +84,11 @@ export function inventoryOptionsError(args: ParsedArgs): Result<unknown> | null 
       }),
     ]);
   }
+  return null;
+}
+
+function allowedOptionsError(args: ParsedArgs): Result<unknown> | null {
+  if (args.options['inventory'] !== true) return null;
   for (const name of Object.keys(args.options)) {
     if (INVENTORY_ALLOWED_OPTIONS.has(name)) continue;
     const conflict = INVENTORY_CONFLICTS.has(name);
@@ -69,6 +100,98 @@ export function inventoryOptionsError(args: ParsedArgs): Result<unknown> | null 
         remedy: conflict
           ? '盘点模式不与对象类型、根覆盖或预演组合；请移除冲突选项'
           : '盘点模式只接受 --workspace 与通用输出选项',
+      }),
+    ]);
+  }
+  return null;
+}
+
+function reportOptionError(
+  args: ParsedArgs,
+  format: string | undefined,
+  output: string | undefined,
+): Result<unknown> | null {
+  for (const error of [
+    reportScopeError(args),
+    reportFormatValueError(format),
+    reportOutputFormatError(output, format),
+    reportJsonMutexError(args, format, output),
+  ]) {
+    if (error !== null) return error;
+  }
+  return null;
+}
+
+function reportScopeError(args: ParsedArgs): Result<unknown> | null {
+  if (option(args, 'format') === undefined && option(args, 'output') === undefined) {
+    return null;
+  }
+  if (args.options['inventory'] !== true) {
+    return buildResult('scan', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--format',
+        message: '--format 只能与 --inventory --audit 同用',
+        remedy: '请补充盘点与审计入口，或移除 --format / --output',
+      }),
+    ]);
+  }
+  if (args.options['audit'] !== true) {
+    return buildResult('scan', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--format',
+        message: '审计报告格式需要同时给出 --inventory --audit',
+        remedy: '请补充 --audit；报告只渲染审计矩阵',
+      }),
+    ]);
+  }
+  return null;
+}
+
+function reportFormatValueError(format: string | undefined): Result<unknown> | null {
+  if (format !== undefined && format !== 'markdown' && format !== 'html' && format !== 'sarif') {
+    return buildResult('scan', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--format',
+        message: `未知的报告格式：${format}`,
+        remedy: '只允许 markdown、html 或 sarif',
+      }),
+    ]);
+  }
+  return null;
+}
+
+function reportOutputFormatError(
+  output: string | undefined,
+  format: string | undefined,
+): Result<unknown> | null {
+  if (output !== undefined && format === undefined) {
+    return buildResult('scan', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--output',
+        message: '--output 必须与 --format 同用',
+        remedy: '请指定 markdown、html 或 sarif 报告格式',
+      }),
+    ]);
+  }
+  return null;
+}
+
+function reportJsonMutexError(
+  args: ParsedArgs,
+  format: string | undefined,
+  output: string | undefined,
+): Result<unknown> | null {
+  if (format !== undefined && output === undefined && args.options['json'] === true) {
+    return buildResult('scan', [
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--format',
+        message: '无 --output 的 raw --format 与 --json 互斥',
+        remedy: '需要 Result JSON 时请同时给出 --output；raw stdout 只输出报告原文',
       }),
     ]);
   }
@@ -196,5 +319,54 @@ export function inventoryScanCommand(plan: InventoryScanPlan, observedAt: string
     degradation: snapshot.reconciled.degradation,
     ...(plan.audit ? { audit: inventoryAuditOf(snapshot, observedAt) } : {}),
   };
-  return buildResult('scan', snapshot.findings, [], { data });
+  if (plan.format === undefined) {
+    return buildResult('scan', snapshot.findings, [], { data });
+  }
+  if (data.audit === undefined) {
+    return buildResult('scan', [
+      ...snapshot.findings,
+      finding(CODES.INPUT_INVALID_ARG, {
+        source: 'input',
+        target: '--format',
+        message: '报告格式需要同时给出 --inventory --audit',
+        remedy: '请补充 --audit 后重试',
+      }),
+    ]);
+  }
+  const meta: AuditReportMeta = {
+    generated_at: observedAt,
+    tool_version: TOOL_VERSION,
+    workspace: snapshot.layout.root,
+    hosts: data.hosts.map((host) => host.host_id),
+    observed_at: data.audit.observed_at,
+  };
+  const report = renderAuditReport(plan.format, data.audit, meta);
+  if (plan.output === undefined) {
+    return buildResult('scan', snapshot.findings, [], {
+      data: { ...data, report },
+    });
+  }
+  try {
+    const written = writeAuditReport(plan.output, report.content);
+    return buildResult('scan', snapshot.findings, [], {
+      data: {
+        ...data,
+        report: {
+          format: report.format,
+          ...written,
+        },
+      },
+    });
+  } catch (error) {
+    const kernelError = toKernelError(error, CODES.IO_FAILED);
+    return buildResult('scan', [
+      ...snapshot.findings,
+      finding(kernelError.code, {
+        source: kernelError.source,
+        target: kernelError.target || plan.output,
+        message: kernelError.message,
+        remedy: kernelError.remedy,
+      }),
+    ]);
+  }
 }
