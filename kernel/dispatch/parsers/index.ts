@@ -4,6 +4,7 @@
  * 只做参数层面的处理：识别全局选项、区分位置参数、产出结构性错误。
  * 不包含任何领域规则。
  */
+
 import { CODES, type Finding } from '@skill-manager/contract';
 import { finding } from '../../store/findings.ts';
 
@@ -68,6 +69,12 @@ export const VALUE_OPTIONS = new Set([
   'problem',
   'output-dir',
   'answers',
+  // LLM provider 专用
+  'llm-provider',
+  'llm-api-key',
+  'llm-base-url',
+  'llm-model',
+  'llm-temperature',
 ]);
 
 /**

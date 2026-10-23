@@ -849,6 +849,12 @@
       "layer": "core"
     },
     {
+      "path": "kernel/core/pipeline/llm-providers.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
       "path": "kernel/core/pipeline/meta-skills.ts",
       "kind": "source",
       "region": "kernel-core",
@@ -4577,6 +4583,13 @@
     },
     {
       "from": "kernel/core/pipeline/index.ts",
+      "to": "kernel/core/pipeline/llm-providers.ts",
+      "specifier": "./llm-providers.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/index.ts",
       "to": "kernel/core/pipeline/meta-skills.ts",
       "specifier": "./meta-skills.ts",
       "from_layer": "core",
@@ -4619,6 +4632,13 @@
     },
     {
       "from": "kernel/core/pipeline/index.ts",
+      "to": "kernel/core/pipeline/types.ts",
+      "specifier": "./types.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/llm-providers.ts",
       "to": "kernel/core/pipeline/types.ts",
       "specifier": "./types.ts",
       "from_layer": "core",
@@ -7174,6 +7194,13 @@
     },
     {
       "from": "kernel/dispatch/registry/commands/pipeline.ts",
+      "to": "kernel/core/pipeline/types.ts",
+      "specifier": "../../../core/pipeline/types.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/registry/commands/pipeline.ts",
       "to": "kernel/dispatch/parsers/index.ts",
       "specifier": "../../parsers/index.ts",
       "from_layer": "dispatch",
@@ -9295,15 +9322,15 @@
     }
   ],
   "stats": {
-    "source_files": 300,
+    "source_files": 301,
     "asset_nodes": 1,
-    "nodes": 301,
-    "edges": 1069,
+    "nodes": 302,
+    "edges": 1072,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 12,
-      "core": 82,
+      "core": 83,
       "dispatch": 68,
       "entry": 2,
       "gui": 73,
@@ -9313,8 +9340,8 @@
     },
     "outgoing": {
       "contract": 19,
-      "core": 315,
-      "dispatch": 515,
+      "core": 317,
+      "dispatch": 516,
       "entry": 8,
       "gui": 147,
       "public": 6,
@@ -9323,7 +9350,7 @@
     },
     "incoming": {
       "contract": 19,
-      "core": 370,
+      "core": 373,
       "dispatch": 213,
       "entry": 1,
       "gui": 147,
@@ -9333,7 +9360,7 @@
     },
     "cross_layer_edges": {
       "core->store": 113,
-      "dispatch->core": 166,
+      "dispatch->core": 167,
       "dispatch->store": 145,
       "entry->core": 1,
       "entry->dispatch": 5,
