@@ -13,6 +13,7 @@ test('契约：三处 package.json 与内核 TOOL_VERSION 同源（发布前不�
   assert.match(rootVersion, /^\d+\.\d+\.\d+$/, '版本号必须是三段式');
   assert.equal(readVersion('gui/package.json'), rootVersion, '界面包与根包版本一致');
   assert.equal(readVersion('kernel/package.json'), rootVersion, '内核包与根包版本一致');
+  assert.equal(readVersion('contract/package.json'), rootVersion, '契约包与根包版本一致');
   assert.equal(
     TOOL_VERSION,
     rootVersion,
