@@ -1,5 +1,35 @@
 # 变更记录
 
+## 0.7.0
+
+> 发布日期：2026-10-23
+
+### 中文摘要
+
+- **批量采纳**：未纳管清单支持多选、根级全选与批量预览；一次预览显示源路径、目标、frontmatter 摘要与冲突，随后逐 item 展示进度和成功/失败/取消汇总。CLI 提供 `--rename` / `--force` 冲突策略，采纳成功后 GUI 自动刷新并切换到跨宿主审计。
+- **审计报告导出**：`scan --inventory --audit` 支持导出 Markdown、HTML 与 SARIF 2.1.0；HTML 为无脚本、无外部资源的自包含单文件，SARIF 可直接接入 GitHub Code Scanning。
+- **漂移细分**：审计漂移细分 checksum / frontmatter / version 三类；frontmatter 与版本只在同一 Skill 的多副本组内比较，单副本及全部缺失版本不会误报漂移。
+- **审计矩阵 GUI**：新增 Skill × Host 审计矩阵、drift 子类型和字段差异详情，以及 Markdown / HTML / SARIF 导出菜单。
+
+### English Summary
+
+- **Bulk adoption**: unmanaged copies now support multi-select, root select-all, one consolidated preview, and per-item progress with succeeded/failed/cancelled summaries. Preview includes source path, target, frontmatter summary, and conflict policy; the CLI provides `--rename` and `--force`. Successful adoption refreshes and switches to the cross-host audit view.
+- **Audit report export**: `scan --inventory --audit` can export Markdown, HTML, and SARIF 2.1.0. HTML is a self-contained single file with no scripts or external resources, while SARIF is compatible with GitHub Code Scanning.
+- **Drift breakdown**: audit drift is classified as checksum, frontmatter, or version drift. Frontmatter and version fields are compared only within multi-copy groups, so single copies and all-missing versions do not produce false drift.
+- **Audit matrix GUI**: added a Skill × Host matrix, drift subtype and field-difference details, plus Markdown / HTML / SARIF export controls.
+
+### Known Issues
+
+- `npm audit` currently reports 0 findings. The 8 moderate findings from
+  v0.6.0 (electron-builder packaging chain, sprintf-js GHSA-hp3w-g68c-fv3c)
+  have been resolved by upstream dependency updates.
+
+### Verification
+
+- Regular tests: **834 items** (833 pass + 1 platform-specific skip).
+- GUI smoke: **94/94**, including bulk adoption, stale-plan isolation, cancellation boundaries, audit refresh, and bilingual rendering.
+- Report gates include Markdown/HTML/SARIF golden snapshots, SARIF 2.1.0 schema validation, reject external HTML resources, `<workspace>` PII redaction, and the five R22 conflict scenarios.
+
 ## 0.6.0
 
 > 发布日期：2026-10-21
