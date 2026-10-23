@@ -837,6 +837,30 @@
       "layer": "core"
     },
     {
+      "path": "kernel/core/pipeline/classify.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
+      "path": "kernel/core/pipeline/index.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
+      "path": "kernel/core/pipeline/plan.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
+      "path": "kernel/core/pipeline/types.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
       "path": "kernel/core/plugins/catalog.ts",
       "kind": "source",
       "region": "kernel-core",
@@ -4498,6 +4522,41 @@
       "from": "kernel/core/metadata/validate.ts",
       "to": "kernel/core/metadata/validate-meta.ts",
       "specifier": "./validate-meta.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/classify.ts",
+      "to": "kernel/core/pipeline/types.ts",
+      "specifier": "./types.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/index.ts",
+      "to": "kernel/core/pipeline/classify.ts",
+      "specifier": "./classify.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/index.ts",
+      "to": "kernel/core/pipeline/plan.ts",
+      "specifier": "./plan.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/index.ts",
+      "to": "kernel/core/pipeline/types.ts",
+      "specifier": "./types.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/plan.ts",
+      "to": "kernel/core/pipeline/types.ts",
+      "specifier": "./types.ts",
       "from_layer": "core",
       "to_layer": "core"
     },
@@ -9067,15 +9126,15 @@
     }
   ],
   "stats": {
-    "source_files": 290,
+    "source_files": 294,
     "asset_nodes": 1,
-    "nodes": 291,
-    "edges": 1045,
+    "nodes": 295,
+    "edges": 1050,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 12,
-      "core": 73,
+      "core": 77,
       "dispatch": 67,
       "entry": 2,
       "gui": 73,
@@ -9085,7 +9144,7 @@
     },
     "outgoing": {
       "contract": 19,
-      "core": 297,
+      "core": 302,
       "dispatch": 509,
       "entry": 8,
       "gui": 147,
@@ -9095,7 +9154,7 @@
     },
     "incoming": {
       "contract": 19,
-      "core": 351,
+      "core": 356,
       "dispatch": 209,
       "entry": 1,
       "gui": 147,
