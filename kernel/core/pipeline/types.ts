@@ -65,3 +65,31 @@ export interface IntelligenceProvider {
   readonly name: string;
   generate(prompt: string, context: Record<string, unknown>): Promise<string>;
 }
+
+/** 单个追问问题。 */
+export interface Question {
+  id: string;
+  text: string;
+  required: boolean;
+  answer?: string;
+}
+
+/** 追问状态机状态。 */
+export type QuestionnaireState = 'idle' | 'asking' | 'converged' | 'max_rounds_reached';
+
+/** 决策记录。 */
+export interface DecisionRecord {
+  questionId: string;
+  question: string;
+  answer: string;
+  rationale: string;
+}
+
+/** 完整的追问问卷状态。 */
+export interface Questionnaire {
+  problemId: string;
+  state: QuestionnaireState;
+  rounds: number;
+  maxRounds: number;
+  questions: Question[];
+}
