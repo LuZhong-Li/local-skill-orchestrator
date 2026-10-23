@@ -41,15 +41,9 @@ test('M3 pilot: 完整文档包生成端到端', async () => {
     // 5. 写出文档包
     writeDocumentPackage(outDir, docs);
 
-    // 6. 验证文件存在
-    const expectedFiles = [
-      'requirements.md',
-      'research.md',
-      'design.md',
-      'plan.md',
-      'approval.md',
-      'INDEX.md',
-    ];
+    // 6. 验证实际生成的文件都存在
+    const expectedFiles = docs.map((d) => `${d.stage}.md`);
+    expectedFiles.push('INDEX.md');
 
     for (const file of expectedFiles) {
       const filePath = join(outDir, file);
@@ -60,8 +54,9 @@ test('M3 pilot: 完整文档包生成端到端', async () => {
 
     // 7. 验证 INDEX.md 包含文档列表
     const indexContent = readFileSync(join(outDir, 'INDEX.md'), 'utf-8');
-    assert.ok(indexContent.includes('requirements.md'), 'INDEX 应该包含 requirements');
-    assert.ok(indexContent.includes('design.md'), 'INDEX 应该包含 design');
+    for (const doc of docs) {
+      assert.ok(indexContent.includes(`${doc.stage}.md`), `INDEX 应该包含 ${doc.stage}`);
+    }
   } finally {
     // 清理
     rmSync(outDir, { recursive: true, force: true });

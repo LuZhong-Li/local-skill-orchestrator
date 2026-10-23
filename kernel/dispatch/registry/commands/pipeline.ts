@@ -18,36 +18,37 @@ import { join } from 'node:path';
 /** pipeline run 命令处理器 */
 const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unknown>> => {
   const findings: Finding[] = [];
-  const problem = option(context.args, 'problem');
-  const outputDir = option(context.args, 'output-dir');
+  let problem = option(context.args, 'problem');
+  let outputDir = option(context.args, 'output-dir');
   const answersRaw = optionList(context.args, 'answers');
   const json = flag(context.args, 'json');
 
-  if (!problem) {
-    findings.push(
-      finding(CODES.INPUT_MISSING_ARG, {
-        source: 'input',
-        target: '--problem',
-        message: '缺少 --problem 选项',
-        remedy: '请提供 --problem "问题描述"',
-      }),
-    );
-  }
-
-  if (!outputDir) {
-    findings.push(
-      finding(CODES.INPUT_MISSING_ARG, {
-        source: 'input',
-        target: '--output-dir',
-        message: '缺少 --output-dir 选项',
-        remedy: '请提供 --output-dir 目录路径',
-      }),
-    );
-  }
-
-  if (findings.length > 0) {
+  if (!problem || !outputDir) {
+    if (!problem) {
+      findings.push(
+        finding(CODES.INPUT_MISSING_ARG, {
+          source: 'input',
+          target: '--problem',
+          message: '缺少 --problem 选项',
+          remedy: '请提供 --problem "问题描述"',
+        }),
+      );
+    }
+    if (!outputDir) {
+      findings.push(
+        finding(CODES.INPUT_MISSING_ARG, {
+          source: 'input',
+          target: '--output-dir',
+          message: '缺少 --output-dir 选项',
+          remedy: '请提供 --output-dir 目录路径',
+        }),
+      );
+    }
     return buildResult(context.args.command, findings);
   }
+
+  problem = problem as string;
+  outputDir = outputDir as string;
 
   // 解析 answers（格式 q1=a1）
   const answers: Record<string, string> = {};
@@ -61,19 +62,19 @@ const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unkno
   }
 
   // 执行流水线
-  const classification = classifyProblem(problem!);
-  const plan = planPipeline({
+  const classification = classifyProblem(problem);
+  const planResult = planPipeline({
     id: 'cli-pipeline',
-    statement: problem!,
+    statement: problem,
     kind: classification.kind,
     involvesUi: classification.involvesUi,
   });
 
   let docs;
   if (Object.keys(answers).length > 0) {
-    docs = await runPipelineWithAnswers(plan, new StubProvider(), answers);
+    docs = await runPipelineWithAnswers(planResult, new StubProvider(), answers);
   } else {
-    docs = await runPipeline(plan, new StubProvider());
+    docs = await runPipeline(planResult, new StubProvider());
   }
 
   // 检查是否是 questionnaire-pending
@@ -83,10 +84,10 @@ const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unkno
   }
 
   // 收敛了，写出文档包
-  writeDocumentPackage(outputDir!, docs);
+  writeDocumentPackage(outputDir, docs);
 
-  const docPaths = docs.map((d) => join(outputDir!, `${d.stage}.md`));
-  docPaths.push(join(outputDir!, 'INDEX.md'));
+  const docPaths = docs.map((d) => join(outputDir, `${d.stage}.md`));
+  docPaths.push(join(outputDir, 'INDEX.md'));
 
   return buildResult(context.args.command, [], [], {
     data: {
