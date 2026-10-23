@@ -4,7 +4,7 @@ import {
   compareFrontmatterGroup,
   type AuditFrontmatterComparison,
   type AuditFrontmatterCopy,
-} from '../../audit/audit-frontmatter.ts';
+} from '../../audit/index.ts';
 import type { AuditCopy, InventoryAuditSource } from './audit-types.ts';
 
 const CHECKSUM_DRIFT_REASONS = new Set(['content_drift', 'source_changed', 'source_ref_mismatch']);

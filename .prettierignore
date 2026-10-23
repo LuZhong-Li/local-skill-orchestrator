@@ -7,3 +7,9 @@ build/
 dist/
 out/
 package-lock.json
+
+# 报告 golden 与上游 schema 保持逐字节原样
+tests/fixtures/audit-report/expected.md
+tests/fixtures/audit-report/expected.html
+tests/fixtures/audit-report/expected.sarif
+tests/fixtures/sarif/

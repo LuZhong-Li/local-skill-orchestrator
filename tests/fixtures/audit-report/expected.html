@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skill audit report</title>
+<style>:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; background: #f6f7f9; color: #1f2937; }
+main { max-width: 1100px; margin: 32px auto; padding: 24px; background: #fff; border-radius: 12px; }
+h1, h2 { color: #111827; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0 28px; }
+th, td { padding: 8px 10px; border: 1px solid #d7dce2; text-align: left; vertical-align: top; }
+th { background: #eef2f6; }
+.meta { color: #4b5563; }
+@media (prefers-color-scheme: dark) {
+  body { background: #111827; color: #e5e7eb; }
+  main { background: #1f2937; }
+  h1, h2 { color: #f9fafb; }
+  th { background: #374151; }
+  th, td { border-color: #4b5563; }
+  .meta { color: #cbd5e1; }
+}</style>
+</head>
+<body>
+<main>
+<h1>Skill audit report</h1>
+<p class="meta">
+Generated: 2026-10-23T04:01:02Z<br>
+Tool version: 0.6.0<br>
+Workspace: &lt;workspace&gt;<br>
+Observed at: 2026-10-23T04:00:00Z<br>
+Hosts: claude, codex, cursor
+</p>
+<h2>Overview</h2>
+<table>
+<thead><tr>
+<th>Metric</th>
+<th>Count</th>
+</tr></thead>
+<tbody>
+<tr><td>Declared</td><td>6</td></tr>
+<tr><td>Distributed</td><td>1</td></tr>
+<tr><td>Missing</td><td>1</td></tr>
+<tr><td>Checksum drift</td><td>1</td></tr>
+<tr><td>Frontmatter drift</td><td>1</td></tr>
+<tr><td>Version drift</td><td>1</td></tr>
+<tr><td>Visibility mismatch</td><td>1</td></tr>
+<tr><td>Undeclared</td><td>1</td></tr>
+<tr><td>Unmapped</td><td>1</td></tr>
+<tr><td>Workspace only</td><td>1</td></tr>
+<tr><td>Insufficient</td><td>1</td></tr>
+</tbody>
+</table>
+<h2>Skill matrix</h2>
+<table>
+<thead><tr>
+<th>Skill</th>
+<th>Target</th>
+<th>Status</th>
+<th>Evidence</th>
+<th>Details</th>
+</tr></thead>
+<tbody>
+<tr><td>skill-a</td><td>claude</td><td>distributed</td><td>authoritative/authoritative/authoritative</td><td>—</td></tr>
+<tr><td>skill-a</td><td>codex</td><td>missing</td><td>insufficient/insufficient/insufficient</td><td>ledger_missing</td></tr>
+<tr><td>skill-b</td><td>claude</td><td>drift (checksum)</td><td>authoritative/authoritative/authoritative</td><td>content_drift, checksum_drift</td></tr>
+<tr><td>skill-b</td><td>codex</td><td>drift (frontmatter)</td><td>authoritative/authoritative/authoritative</td><td>description: Claude description / Codex description</td></tr>
+<tr><td>skill-b</td><td>cursor</td><td>drift (version)</td><td>authoritative/authoritative/authoritative</td><td>claude: 1.0.0; cursor: 2.0.0</td></tr>
+<tr><td>skill-c</td><td>claude</td><td>undeclared</td><td>insufficient/inferred/insufficient</td><td>target_undeclared</td></tr>
+<tr><td>skill-c</td><td>codex</td><td>visibility_mismatch</td><td>authoritative/authoritative/authoritative</td><td>visibility_mismatch</td></tr>
+<tr><td>skill-d</td><td>claude</td><td>insufficient</td><td>insufficient/insufficient/insufficient</td><td>ledger_unreadable</td></tr>
+<tr><td>skill-d</td><td>codex</td><td>workspace_only</td><td>insufficient/insufficient/insufficient</td><td>workspace_target_not_host</td></tr>
+<tr><td>skill-e</td><td>claude</td><td>unmapped</td><td>insufficient/insufficient/insufficient</td><td>target_unmapped</td></tr>
+</tbody>
+</table>
+<h2>Missing by host</h2>
+<ul>
+<li>codex: skill-a — ledger_missing</li>
+</ul>
+<h2>Findings</h2>
+<table>
+<thead><tr>
+<th>Severity</th>
+<th>Rule</th>
+<th>Skill</th>
+<th>Target</th>
+<th>Message</th>
+</tr></thead>
+<tbody>
+<tr><td>error</td><td>W-MISSING-001</td><td>skill-a</td><td>codex</td><td>Skill skill-a is missing from declared target codex.</td></tr>
+<tr><td>warning</td><td>W-DRIFT-001</td><td>skill-b</td><td>claude</td><td>Skill skill-b has content checksum drift on claude.</td></tr>
+<tr><td>warning</td><td>W-DRIFT-002</td><td>skill-b</td><td>codex</td><td>Skill skill-b has frontmatter drift on codex: description.</td></tr>
+<tr><td>warning</td><td>W-DRIFT-003</td><td>skill-b</td><td>cursor</td><td>Skill skill-b has version drift on cursor.</td></tr>
+<tr><td>warning</td><td>W-MISSING-003</td><td>skill-c</td><td>codex</td><td>Skill skill-c visibility does not match expectations on codex.</td></tr>
+<tr><td>note</td><td>W-MISSING-002</td><td>skill-c</td><td>claude</td><td>Skill skill-c exists on claude but is not declared in targets.</td></tr>
+<tr><td>note</td><td>W-MISSING-004</td><td>skill-d</td><td>claude</td><td>Skill skill-d on claude has insufficient audit evidence.</td></tr>
+<tr><td>note</td><td>W-MISSING-004</td><td>skill-e</td><td>claude</td><td>Skill skill-e on claude has insufficient audit evidence.</td></tr>
+</tbody>
+</table>
+</main>
+</body>
+</html>

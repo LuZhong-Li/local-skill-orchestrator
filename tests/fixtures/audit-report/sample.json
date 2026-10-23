@@ -1,0 +1,219 @@
+{
+  "audit": {
+    "observed_at": "2026-10-23T04:00:00Z",
+    "summary": {
+      "declared": 6,
+      "distributed": 1,
+      "missing": 1,
+      "drift": 3,
+      "visibility_mismatch": 1,
+      "undeclared": 1,
+      "unmapped": 1,
+      "workspace_only": 1,
+      "insufficient": 1,
+      "drift_by_subtype": {
+        "checksum": 1,
+        "frontmatter": 1,
+        "version": 1
+      }
+    },
+    "rows": [
+      {
+        "skill_id": "skill-a",
+        "target": "claude",
+        "scope": "global",
+        "host_id": "claude",
+        "expected_enabled": true,
+        "ledger_state": "active",
+        "target_path": "C:\\Users\\alice\\.claude\\skills\\skill-a",
+        "copy_path": "C:\\Users\\alice\\.claude\\skills\\skill-a",
+        "status": "distributed",
+        "evidence": {
+          "managed": "authoritative",
+          "content": "authoritative",
+          "source": "authoritative"
+        },
+        "reasons": [],
+        "observed_at": "2026-10-23T04:00:00Z"
+      },
+      {
+        "skill_id": "skill-a",
+        "target": "codex",
+        "scope": "global",
+        "host_id": "codex",
+        "expected_enabled": true,
+        "ledger_state": "none",
+        "target_path": "C:\\Users\\alice\\.codex\\skills\\skill-a",
+        "status": "missing",
+        "evidence": {
+          "managed": "insufficient",
+          "content": "insufficient",
+          "source": "insufficient"
+        },
+        "reasons": ["ledger_missing"],
+        "observed_at": "2026-10-23T04:00:00Z"
+      },
+      {
+        "skill_id": "skill-b",
+        "target": "claude",
+        "scope": "global",
+        "host_id": "claude",
+        "expected_enabled": true,
+        "ledger_state": "active",
+        "target_path": "C:\\Users\\alice\\.claude\\skills\\skill-b",
+        "copy_path": "C:\\Users\\alice\\.claude\\skills\\skill-b",
+        "status": "drift",
+        "evidence": {
+          "managed": "authoritative",
+          "content": "authoritative",
+          "source": "authoritative"
+        },
+        "reasons": ["content_drift", "checksum_drift"],
+        "observed_at": "2026-10-23T04:00:00Z",
+        "drift_subtype": "checksum"
+      },
+      {
+        "skill_id": "skill-b",
+        "target": "codex",
+        "scope": "global",
+        "host_id": "codex",
+        "expected_enabled": true,
+        "ledger_state": "active",
+        "target_path": "C:\\Users\\alice\\.codex\\skills\\skill-b",
+        "copy_path": "C:\\Users\\alice\\.codex\\skills\\skill-b",
+        "status": "drift",
+        "evidence": {
+          "managed": "authoritative",
+          "content": "authoritative",
+          "source": "authoritative"
+        },
+        "reasons": ["frontmatter_drift"],
+        "observed_at": "2026-10-23T04:00:00Z",
+        "drift_subtype": "frontmatter",
+        "frontmatter_diffs": [
+          {
+            "field": "description",
+            "values": [
+              { "host": "claude", "role": "user", "value": "Claude description" },
+              { "host": "codex", "role": "user", "value": "Codex description" }
+            ]
+          }
+        ]
+      },
+      {
+        "skill_id": "skill-b",
+        "target": "cursor",
+        "scope": "global",
+        "host_id": "cursor",
+        "expected_enabled": true,
+        "ledger_state": "active",
+        "target_path": "C:\\Users\\alice\\.cursor\\skills\\skill-b",
+        "copy_path": "C:\\Users\\alice\\.cursor\\skills\\skill-b",
+        "status": "drift",
+        "evidence": {
+          "managed": "authoritative",
+          "content": "authoritative",
+          "source": "authoritative"
+        },
+        "reasons": ["version_drift"],
+        "observed_at": "2026-10-23T04:00:00Z",
+        "drift_subtype": "version",
+        "version_diff": {
+          "values": [
+            { "host": "claude", "role": "user", "version": "1.0.0" },
+            { "host": "cursor", "role": "user", "version": "2.0.0" }
+          ]
+        }
+      },
+      {
+        "skill_id": "skill-c",
+        "target": "claude",
+        "scope": "global",
+        "host_id": "claude",
+        "expected_enabled": false,
+        "ledger_state": "none",
+        "copy_path": "C:\\Users\\alice\\.claude\\skills\\skill-c",
+        "status": "undeclared",
+        "evidence": {
+          "managed": "insufficient",
+          "content": "inferred",
+          "source": "insufficient"
+        },
+        "reasons": ["target_undeclared"],
+        "observed_at": "2026-10-23T04:00:00Z"
+      },
+      {
+        "skill_id": "skill-c",
+        "target": "codex",
+        "scope": "global",
+        "host_id": "codex",
+        "expected_enabled": false,
+        "ledger_state": "active",
+        "copy_path": "C:\\Users\\alice\\.codex\\skills\\skill-c",
+        "status": "visibility_mismatch",
+        "evidence": {
+          "managed": "authoritative",
+          "content": "authoritative",
+          "source": "authoritative"
+        },
+        "reasons": ["visibility_mismatch"],
+        "observed_at": "2026-10-23T04:00:00Z"
+      },
+      {
+        "skill_id": "skill-d",
+        "target": "claude",
+        "scope": "global",
+        "host_id": "claude",
+        "expected_enabled": true,
+        "ledger_state": "unreadable",
+        "status": "insufficient",
+        "evidence": {
+          "managed": "insufficient",
+          "content": "insufficient",
+          "source": "insufficient"
+        },
+        "reasons": ["ledger_unreadable"],
+        "observed_at": "2026-10-23T04:00:00Z"
+      },
+      {
+        "skill_id": "skill-d",
+        "target": "codex",
+        "scope": "global",
+        "expected_enabled": true,
+        "ledger_state": "none",
+        "target_path": "C:\\Users\\alice\\workspace\\skills\\skill-d",
+        "status": "workspace_only",
+        "evidence": {
+          "managed": "insufficient",
+          "content": "insufficient",
+          "source": "insufficient"
+        },
+        "reasons": ["workspace_target_not_host"],
+        "observed_at": "2026-10-23T04:00:00Z"
+      },
+      {
+        "skill_id": "skill-e",
+        "target": "claude",
+        "scope": "global",
+        "host_id": "claude",
+        "expected_enabled": true,
+        "ledger_state": "none",
+        "status": "unmapped",
+        "evidence": {
+          "managed": "insufficient",
+          "content": "insufficient",
+          "source": "insufficient"
+        },
+        "reasons": ["target_unmapped"],
+        "observed_at": "2026-10-23T04:00:00Z"
+      }
+    ]
+  },
+  "meta": {
+    "generated_at": "2026-10-23T04:01:02Z",
+    "tool_version": "0.6.0",
+    "workspace": "C:\\Users\\alice\\workspace",
+    "hosts": ["claude", "codex", "cursor"],
+    "observed_at": "2026-10-23T04:00:00Z"
+  }
+}

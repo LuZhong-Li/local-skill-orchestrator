@@ -453,6 +453,18 @@
       "layer": "core"
     },
     {
+      "path": "kernel/audit/index.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
+      "path": "kernel/audit/report-render.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
       "path": "kernel/core/adapters/index.ts",
       "kind": "source",
       "region": "kernel-core",
@@ -2696,6 +2708,20 @@
       "specifier": "./types.ts",
       "from_layer": "gui",
       "to_layer": "gui"
+    },
+    {
+      "from": "kernel/audit/index.ts",
+      "to": "kernel/audit/audit-frontmatter.ts",
+      "specifier": "./audit-frontmatter.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/audit/index.ts",
+      "to": "kernel/audit/report-render.ts",
+      "specifier": "./report-render.ts",
+      "from_layer": "core",
+      "to_layer": "core"
     },
     {
       "from": "kernel/core/adapters/index.ts",
@@ -7578,8 +7604,8 @@
     },
     {
       "from": "kernel/dispatch/scan/audit-comparison.ts",
-      "to": "kernel/audit/audit-frontmatter.ts",
-      "specifier": "../../audit/audit-frontmatter.ts",
+      "to": "kernel/audit/index.ts",
+      "specifier": "../../audit/index.ts",
       "from_layer": "dispatch",
       "to_layer": "core"
     },
@@ -8712,15 +8738,15 @@
     }
   ],
   "stats": {
-    "source_files": 274,
+    "source_files": 276,
     "asset_nodes": 1,
-    "nodes": 275,
-    "edges": 1008,
+    "nodes": 277,
+    "edges": 1010,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 12,
-      "core": 70,
+      "core": 72,
       "dispatch": 65,
       "entry": 2,
       "gui": 63,
@@ -8730,7 +8756,7 @@
     },
     "outgoing": {
       "contract": 19,
-      "core": 294,
+      "core": 296,
       "dispatch": 493,
       "entry": 8,
       "gui": 130,
@@ -8740,7 +8766,7 @@
     },
     "incoming": {
       "contract": 19,
-      "core": 342,
+      "core": 344,
       "dispatch": 201,
       "entry": 1,
       "gui": 130,

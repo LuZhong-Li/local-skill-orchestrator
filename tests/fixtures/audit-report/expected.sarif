@@ -1,0 +1,252 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "skill-manager",
+          "version": "0.6.0",
+          "rules": [
+            {
+              "id": "W-MISSING-001",
+              "name": "W-MISSING-001",
+              "shortDescription": {
+                "text": "Declared host target is missing"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            },
+            {
+              "id": "W-MISSING-002",
+              "name": "W-MISSING-002",
+              "shortDescription": {
+                "text": "Host copy is not declared as a target"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "W-MISSING-003",
+              "name": "W-MISSING-003",
+              "shortDescription": {
+                "text": "Host copy visibility does not match declaration"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "W-MISSING-004",
+              "name": "W-MISSING-004",
+              "shortDescription": {
+                "text": "Audit evidence is insufficient or unmapped"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              }
+            },
+            {
+              "id": "W-DRIFT-001",
+              "name": "W-DRIFT-001",
+              "shortDescription": {
+                "text": "Skill content checksum drift"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "W-DRIFT-002",
+              "name": "W-DRIFT-002",
+              "shortDescription": {
+                "text": "Skill frontmatter drift"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "W-DRIFT-003",
+              "name": "W-DRIFT-003",
+              "shortDescription": {
+                "text": "Skill version drift"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            }
+          ]
+        }
+      },
+      "originalUriBaseIds": {
+        "%SRCROOT%": {},
+        "SKILL_MANAGER_AUDIT": {}
+      },
+      "results": [
+        {
+          "ruleId": "W-MISSING-001",
+          "level": "error",
+          "message": {
+            "text": "Skill skill-a is missing from declared target codex."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "hosts/codex/skills/skill-a/SKILL.md",
+                  "uriBaseId": "SKILL_MANAGER_AUDIT"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "skillManagerAudit/v1": "skill-a|codex|global|missing|none"
+          }
+        },
+        {
+          "ruleId": "W-DRIFT-001",
+          "level": "warning",
+          "message": {
+            "text": "Skill skill-b has content checksum drift on claude."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "hosts/claude/skills/skill-b/SKILL.md",
+                  "uriBaseId": "SKILL_MANAGER_AUDIT"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "skillManagerAudit/v1": "skill-b|claude|global|drift|checksum"
+          }
+        },
+        {
+          "ruleId": "W-DRIFT-002",
+          "level": "warning",
+          "message": {
+            "text": "Skill skill-b has frontmatter drift on codex: description."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "hosts/codex/skills/skill-b/SKILL.md",
+                  "uriBaseId": "SKILL_MANAGER_AUDIT"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "skillManagerAudit/v1": "skill-b|codex|global|drift|frontmatter"
+          }
+        },
+        {
+          "ruleId": "W-DRIFT-003",
+          "level": "warning",
+          "message": {
+            "text": "Skill skill-b has version drift on cursor."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "hosts/cursor/skills/skill-b/SKILL.md",
+                  "uriBaseId": "SKILL_MANAGER_AUDIT"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "skillManagerAudit/v1": "skill-b|cursor|global|drift|version"
+          }
+        },
+        {
+          "ruleId": "W-MISSING-003",
+          "level": "warning",
+          "message": {
+            "text": "Skill skill-c visibility does not match expectations on codex."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "hosts/codex/skills/skill-c/SKILL.md",
+                  "uriBaseId": "SKILL_MANAGER_AUDIT"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "skillManagerAudit/v1": "skill-c|codex|global|visibility_mismatch|none"
+          }
+        },
+        {
+          "ruleId": "W-MISSING-002",
+          "level": "note",
+          "message": {
+            "text": "Skill skill-c exists on claude but is not declared in targets."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "hosts/claude/skills/skill-c/SKILL.md",
+                  "uriBaseId": "SKILL_MANAGER_AUDIT"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "skillManagerAudit/v1": "skill-c|claude|global|undeclared|none"
+          }
+        },
+        {
+          "ruleId": "W-MISSING-004",
+          "level": "note",
+          "message": {
+            "text": "Skill skill-d on claude has insufficient audit evidence."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "hosts/claude/skills/skill-d/SKILL.md",
+                  "uriBaseId": "SKILL_MANAGER_AUDIT"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "skillManagerAudit/v1": "skill-d|claude|global|insufficient|none"
+          }
+        },
+        {
+          "ruleId": "W-MISSING-004",
+          "level": "note",
+          "message": {
+            "text": "Skill skill-e on claude has insufficient audit evidence."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "hosts/claude/skills/skill-e/SKILL.md",
+                  "uriBaseId": "SKILL_MANAGER_AUDIT"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "skillManagerAudit/v1": "skill-e|claude|global|unmapped|none"
+          }
+        }
+      ]
+    }
+  ]
+}
