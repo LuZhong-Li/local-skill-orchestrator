@@ -1,9 +1,9 @@
-﻿/** pipeline 命令处理器。 */
+/** pipeline 命令处理器。 */
 
 import { CODES, type Finding } from '@skill-manager/contract';
 import { finding } from '../../../store/findings.ts';
 import { buildResult, type Result } from '../../result/index.ts';
-import { option, optionList, flag } from '../../parsers/index.ts';
+import { option, optionList } from '../../parsers/index.ts';
 import {
   classifyProblem,
   planPipeline,
@@ -12,7 +12,7 @@ import {
   StubProvider,
   writeDocumentPackage,
 } from '../../../core/pipeline/index.ts';
-import type { CommandContext, CommandHandler, CommandSpec } from '../types.ts';
+import type { CommandHandler, CommandSpec } from '../types.ts';
 import { join } from 'node:path';
 
 /** pipeline run 命令处理器 */
@@ -21,7 +21,6 @@ const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unkno
   let problem = option(context.args, 'problem');
   let outputDir = option(context.args, 'output-dir');
   const answersRaw = optionList(context.args, 'answers');
-  const json = flag(context.args, 'json');
 
   if (!problem || !outputDir) {
     if (!problem) {
@@ -78,8 +77,9 @@ const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unkno
   }
 
   // 检查是否是 questionnaire-pending
-  if (docs.length === 1 && docs[0].docType === 'questionnaire-pending') {
-    const data = JSON.parse(docs[0].content);
+  const first = docs[0];
+  if (docs.length === 1 && first && first.docType === 'questionnaire-pending') {
+    const data = JSON.parse(first.content);
     return buildResult(context.args.command, [], [], { data });
   }
 

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-23T10:58:34.096Z",
+  "generated_at": "2026-10-23T16:52:12.497Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -620,7 +620,7 @@
         "function": "parseArgs",
         "scope": "parseArgs",
         "signature": "export function parseArgs(argv: string[]): ParseOutcome {",
-        "complexity": 20,
+        "complexity": 23,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },
@@ -671,6 +671,16 @@
         "scope": "toggleHandler",
         "signature": "return async ({ args, now, interaction }) => {",
         "complexity": 15,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/registry/commands/pipeline.ts#<anonymous>#c773f3734732",
+        "file": "kernel/dispatch/registry/commands/pipeline.ts",
+        "function": "<anonymous>",
+        "scope": "<module>",
+        "signature": "const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unknown>> => {",
+        "complexity": 11,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },

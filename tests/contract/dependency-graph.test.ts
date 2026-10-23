@@ -58,7 +58,6 @@ test('架构：除声明的入口外不存在孤立源码文件', () => {
     'gui/preload/index.ts',
     'gui/renderer/env.d.ts',
     'gui/renderer/src/main.ts',
-    'kernel/core/pipeline/index.ts',
     'kernel/entry/exe.ts',
   ]);
 });

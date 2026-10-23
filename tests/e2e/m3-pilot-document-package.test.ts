@@ -1,9 +1,10 @@
-﻿/** M3 pilot 端到端测试。 */
+/** M3 pilot 端到端测试。 */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { rmSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { makeTempDir } from '../helpers/temp.ts';
 import {
   classifyProblem,
   planPipeline,
@@ -14,7 +15,7 @@ import {
 
 test('M3 pilot: 完整文档包生成端到端', async () => {
   const problem = '把一个产品想法做成完整方案文档包';
-  const outDir = mkdtempSync(join(process.cwd(), 'tmp-m3-pilot-'));
+  const outDir = makeTempDir('m3-pilot-');
 
   try {
     // 1. 分类
@@ -57,8 +58,8 @@ test('M3 pilot: 完整文档包生成端到端', async () => {
     for (const doc of docs) {
       assert.ok(indexContent.includes(`${doc.stage}.md`), `INDEX 应该包含 ${doc.stage}`);
     }
-  } finally {
-    // 清理
+  } catch (e) {
     rmSync(outDir, { recursive: true, force: true });
+    throw e;
   }
 });

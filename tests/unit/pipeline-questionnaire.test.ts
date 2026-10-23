@@ -1,4 +1,4 @@
-﻿/** pipeline questionnaire 单元测试。 */
+/** pipeline questionnaire 单元测试。 */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -90,7 +90,7 @@ test('getOpenQuestions 只返回未答的 required', () => {
 });
 
 test('runPipelineWithAnswers 收敛后产出完整文档', async () => {
-  let q = createQuestionnaire(testProblem);
+  const q = createQuestionnaire(testProblem);
   const answers: Record<string, string> = {};
 
   for (const question of q.questions) {
@@ -123,7 +123,7 @@ test('buildDecisionRecords 返回已回答问题的记录', () => {
 });
 
 test('requirements 文档包含决策记录', async () => {
-  let q = createQuestionnaire(testProblem);
+  const q = createQuestionnaire(testProblem);
   const answers: Record<string, string> = {};
 
   for (const question of q.questions) {

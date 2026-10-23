@@ -31,6 +31,7 @@ const EXPECTED_COMMANDS = [
   'import',
   'restore',
   'reconcile',
+  'pipeline run',
 ];
 
 /** 结果封装的必填顶层字段 */
