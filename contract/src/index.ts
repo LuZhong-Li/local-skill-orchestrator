@@ -8,3 +8,4 @@ export * from './host-reconciliation.ts';
 export * from './host-roots.ts';
 export * from './host-inventory.ts';
 export * from './reconcile.ts';
+export * from './audit-report.ts';

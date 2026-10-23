@@ -20,6 +20,7 @@ export const RECONCILE_WARNING_SHARED_NON_USER_ROLE = 'shared_root_non_user_role
 export type ReconcileAction = (typeof RECONCILE_ACTIONS)[number];
 export type ReconcileSelectionMode = 'path' | 'id-host' | 'classification' | 'batch';
 export type ReconcileSourceOfTruth = 'host' | 'workspace' | 'ledger';
+export type AdoptConflictPolicy = 'skip' | 'rename' | 'force';
 export type ReconcileWriteAction = 'add' | 'modify' | 'remove';
 export type ReconcileWriteKind =
   | 'library'
@@ -31,6 +32,43 @@ export type ReconcileWriteKind =
   | 'host_landings'
   | 'plugin_index';
 export type ReconcileLedgerState = 'active' | 'orphaned';
+
+export interface BulkAdoptPolicy {
+  enabled: boolean;
+  roles?: HostRootRole[];
+  limit?: number;
+  conflict: AdoptConflictPolicy;
+  dry_run: boolean;
+}
+
+export interface BulkAdoptItem {
+  skill_id: string;
+  source_path: string;
+  host: string;
+  role: HostRootRole;
+  target_path: string;
+  conflict: AdoptPreview['conflict'];
+}
+
+export type BulkAdoptSelection = BulkAdoptItem[];
+
+export interface AdoptPreview {
+  source_path: string;
+  requested_skill_id: string;
+  target_skill_id: string;
+  description: string;
+  version: string | null;
+  conflict: 'none' | 'same_content' | 'different_content' | 'target_occupied';
+  conflict_policy: AdoptConflictPolicy;
+}
+
+export interface BulkAdoptSummary {
+  candidates: number;
+  limited: number;
+  conflict_skipped: number;
+  renamed: number;
+  forced: number;
+}
 
 export interface ReconcileSelection {
   mode: ReconcileSelectionMode;
@@ -44,6 +82,10 @@ export interface ReconcileSelection {
   roots: string[];
   /** batch 选择器：按角色选择；写动作仍只执行 user。 */
   roles?: HostRootRole[];
+  /** M6：选择全部 adoptable candidate，而不是要求显式 path / id。 */
+  bulk?: boolean;
+  limit?: number;
+  conflict?: AdoptConflictPolicy;
   target?: string;
   apply: boolean;
 }
@@ -110,6 +152,7 @@ export interface ReconcilePlanItem {
   ledger_changes: ReconcileLedgerChange[];
   backups: string[];
   warnings: string[];
+  adopt_preview?: AdoptPreview;
 }
 
 export interface ReconcileTransactionGroup {
@@ -132,6 +175,7 @@ export interface ReconcilePlanSummary {
   failed?: number;
   cancelled?: number;
   duration_ms?: number;
+  bulk?: BulkAdoptSummary;
 }
 
 /** `reconcile` 的稳定预览载荷；T0 只产出计划，不执行写入。 */

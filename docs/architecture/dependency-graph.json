@@ -3,6 +3,12 @@
   "source": "scripts/check-layer.mjs",
   "nodes": [
     {
+      "path": "contract/src/audit-report.ts",
+      "kind": "source",
+      "region": "contract",
+      "layer": "contract"
+    },
+    {
       "path": "contract/src/codes.ts",
       "kind": "source",
       "region": "contract",
@@ -1647,6 +1653,13 @@
       "from": "contract/src/host-inventory.ts",
       "to": "contract/src/host-roots.ts",
       "specifier": "./host-roots.ts",
+      "from_layer": "contract",
+      "to_layer": "contract"
+    },
+    {
+      "from": "contract/src/index.ts",
+      "to": "contract/src/audit-report.ts",
+      "specifier": "./audit-report.ts",
       "from_layer": "contract",
       "to_layer": "contract"
     },
@@ -8652,14 +8665,14 @@
     }
   ],
   "stats": {
-    "source_files": 271,
+    "source_files": 272,
     "asset_nodes": 1,
-    "nodes": 272,
-    "edges": 1002,
+    "nodes": 273,
+    "edges": 1003,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
-      "contract": 11,
+      "contract": 12,
       "core": 69,
       "dispatch": 64,
       "entry": 2,
@@ -8669,7 +8682,7 @@
       "store": 12
     },
     "outgoing": {
-      "contract": 18,
+      "contract": 19,
       "core": 294,
       "dispatch": 488,
       "entry": 8,
@@ -8679,7 +8692,7 @@
       "store": 21
     },
     "incoming": {
-      "contract": 18,
+      "contract": 19,
       "core": 339,
       "dispatch": 199,
       "entry": 1,

@@ -441,6 +441,16 @@ V-11 覆盖取值域、长度与类型三项判定，因此对应三个问题码
 
 ---
 
+## 9.1 M6 批量与报告加法
+
+M6 不改变 8 字段结果封装、问题码类别或退出码取值：
+
+1. `reconcile --action adopt --bulk` 复用既有 `data.summary`，仅加法 `bulk` 计数与逐 item 状态；
+2. `scan --inventory --audit` 的 audit row 仅加法 `drift_subtype`、`frontmatter_diffs`、`version_diff`，旧消费者可忽略；
+3. `scan --format markdown|html|sarif` 且无 `--output` 时 stdout 为报告原文；有 `--output` 时为既有 Result，`data.report` 提供格式、路径与字节数；
+4. 报告生成失败沿用现有问题码与退出码，不新增退出码；
+5. CLI 报告文案固定英文，不因 GUI locale 改变机器契约。
+
 ## 10. 修订记录
 
 本规范当前为**版本 1，状态为待评审**；下列修订均发生在首次评审通过之前，不构成契约变更。

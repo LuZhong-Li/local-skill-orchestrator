@@ -152,6 +152,29 @@ export type InventoryAuditStatus =
   | 'workspace_only'
   | 'insufficient';
 
+export type DriftSubtype = 'checksum' | 'frontmatter' | 'version';
+
+export interface FrontmatterFieldValue {
+  host: string;
+  role: HostRootRole;
+  value: string | null;
+}
+
+export interface FrontmatterFieldDiff {
+  field: 'name' | 'description' | 'license' | 'compatibility' | 'allowed-tools';
+  values: FrontmatterFieldValue[];
+}
+
+export interface VersionFieldValue {
+  host: string;
+  role: HostRootRole;
+  version: string | null;
+}
+
+export interface VersionDiff {
+  values: VersionFieldValue[];
+}
+
 export type InventoryAuditLedgerState = 'active' | 'orphaned' | 'missing' | 'none' | 'unreadable';
 
 /** 一行表示 skill × targets[] 声明项 × scope。 */
@@ -173,6 +196,10 @@ export interface InventoryAuditRow {
   evidence: ReconciliationEvidence;
   reasons: string[];
   observed_at: string;
+  /** 仅 status=drift 时存在。 */
+  drift_subtype?: DriftSubtype;
+  frontmatter_diffs?: FrontmatterFieldDiff[];
+  version_diff?: VersionDiff;
 }
 
 export interface InventoryAuditSummary {
@@ -185,6 +212,12 @@ export interface InventoryAuditSummary {
   unmapped: number;
   workspace_only: number;
   insufficient: number;
+  /** 旧消费者可忽略；仅对 drift 行按 subtype 分项计数。 */
+  drift_by_subtype?: {
+    checksum: number;
+    frontmatter: number;
+    version: number;
+  };
 }
 
 export interface InventoryAuditData {

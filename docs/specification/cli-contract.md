@@ -876,6 +876,57 @@ N-02 与 N-03 原先受「落位路径相对哪个根」未决所限，该语义
 
 ---
 
+## 8.1 M6 批量采纳与报告参数（加法）
+
+本节只扩展现有 `reconcile` / `scan` 的参数与输出形态，不新增指令；第 3 节指令总数仍为 17。
+
+### 8.1.1 `reconcile --action adopt` 批量模式
+
+**语法**：
+
+```text
+skill-manager reconcile --action adopt --bulk
+  [--role <user|system|platform|project>]
+  [--limit <N>]
+  [--dry-run]
+  [--rename | --force]
+  [--apply]
+```
+
+**选项语义**：
+
+| 选项 | 语义 |
+|---|---|
+| `--bulk` | 展开当前盘点的 adoptable 候选；不要求逐个给出 `--path` 或 `--id` |
+| `--role` | 过滤候选角色，可重复；省略时默认 `user` |
+| `--limit <N>` | 在物理副本去重、角色过滤和稳定排序后限制候选数；`N` 必须是正整数 |
+| `--dry-run` | 只生成预览；与 `--apply` 互斥 |
+| `--rename` | 同 ID 内容不同时选择下一个合法 `-2` / `-3` 后缀；不能与 `--force` 同用 |
+| `--force` | 同 ID 内容不同时允许备份后原子覆盖；不能与 `--rename` 同用 |
+
+非 user 角色的候选项仍按既有写保护返回 `skipped`；`--force` 不放宽该边界。批量结果继续使用 8 字段 Result，`data.summary.bulk` 可提供 candidates / limited / conflict_skipped / renamed / forced 计数。
+
+### 8.1.2 `scan` 审计报告输出
+
+**语法扩展**：
+
+```text
+skill-manager scan --inventory --audit
+  [--format <markdown|html|sarif>]
+  [--output <路径>]
+```
+
+**选项语义**：
+
+| 选项 | 语义 |
+|---|---|
+| `--format` | 输出 Markdown、HTML 或 SARIF 2.1.0 报告；只能与 `--inventory --audit` 同用 |
+| `--output` | 将指定格式原子写入用户给出的路径；只能与 `--format` 同用 |
+
+不传 `--format` 时保持既有 JSON / 人类可读 / machine 输出不变。传 `--format` 且不传 `--output` 时，stdout 直接输出报告原文；传 `--output` 时，报告写入目标文件，stdout 返回既有 Result。`--format` 与 `--json` 互斥。CLI 报告文案固定英文；GUI 菜单标签可本地化。
+
+报告输出是用户显式请求的文件写入；除该目标文件外，审计不得修改工作区、索引、账本或宿主副本。
+
 ## 9. 修订记录
 
 本规范当前为**版本 1，状态为待评审**；下列修订均发生在首次评审通过之前，不构成契约变更。
