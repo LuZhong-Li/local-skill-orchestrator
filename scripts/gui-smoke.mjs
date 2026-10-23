@@ -109,6 +109,23 @@ if (appIndex >= 0 && (appArgument === undefined || appArgument.startsWith('--'))
  */
 const packagedApp = appArgument === undefined ? undefined : resolve(appArgument);
 
+async function waitForUpdatedSkill(workspace) {
+  const skillDir = join(workspace, 'skills', 'smoke-skill');
+  let content = '';
+  let meta = '';
+  for (let index = 0; index < 80; index += 1) {
+    content = readTextOrFallback(join(skillDir, 'SKILL.md'), '').replace(/\r\n/g, '\n');
+    meta = readTextOrFallback(join(skillDir, 'skill_meta.yaml'), '');
+    if (content === '# smoke v2' && /ref: v1\.1\.0/.test(meta)) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return {
+    content,
+    meta,
+    refLine: /^\s*ref:\s*.*$/m.exec(meta)?.[0]?.trim() ?? '(source.ref missing)',
+  };
+}
+
 async function main() {
   const PORT = await freePort();
   const gitPort = await freePort();
@@ -361,23 +378,11 @@ async function main() {
       "[...document.querySelectorAll('.dialog footer button')].find((b) => b.textContent.includes('确认执行'))?.click()",
     );
 
-    let updatedContent = '';
-    for (let index = 0; index < 80; index += 1) {
-      updatedContent = readFileSync(
-        join(workspace, 'skills', 'smoke-skill', 'SKILL.md'),
-        'utf8',
-      ).replace(/\r\n/g, '\n');
-      if (updatedContent === '# smoke v2') break;
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-    const updatedMeta = readFileSync(
-      join(workspace, 'skills', 'smoke-skill', 'skill_meta.yaml'),
-      'utf8',
-    );
+    const updated = await waitForUpdatedSkill(workspace);
     check(
       '确认后更新到目标标签并持久化 source.ref',
-      updatedContent === '# smoke v2' && /ref: v1\.1\.0/.test(updatedMeta),
-      `内容 ${JSON.stringify(updatedContent)}｜meta ${updatedMeta.replace(/\s+/g, ' ').slice(0, 120)}`,
+      updated.content === '# smoke v2' && /ref: v1\.1\.0/.test(updated.meta),
+      `内容 ${JSON.stringify(updated.content)}｜${updated.refLine}`,
     );
     check(
       '更新完成后结果视图重新检查为已是最新',

@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-20T18:35:32.680Z",
+  "generated_at": "2026-10-23T10:58:34.096Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -860,7 +860,7 @@
         "function": "main",
         "scope": "main",
         "signature": "async function main() {",
-        "complexity": 30,
+        "complexity": 28,
         "owner": "scripts",
         "clearedBy": "P2"
       },
