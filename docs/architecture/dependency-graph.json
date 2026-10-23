@@ -849,7 +849,25 @@
       "layer": "core"
     },
     {
+      "path": "kernel/core/pipeline/meta-skills.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
       "path": "kernel/core/pipeline/plan.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
+      "path": "kernel/core/pipeline/provider.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
+      "path": "kernel/core/pipeline/runner.ts",
       "kind": "source",
       "region": "kernel-core",
       "layer": "core"
@@ -4541,8 +4559,29 @@
     },
     {
       "from": "kernel/core/pipeline/index.ts",
+      "to": "kernel/core/pipeline/meta-skills.ts",
+      "specifier": "./meta-skills.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/index.ts",
       "to": "kernel/core/pipeline/plan.ts",
       "specifier": "./plan.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/index.ts",
+      "to": "kernel/core/pipeline/provider.ts",
+      "specifier": "./provider.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/index.ts",
+      "to": "kernel/core/pipeline/runner.ts",
+      "specifier": "./runner.ts",
       "from_layer": "core",
       "to_layer": "core"
     },
@@ -4554,7 +4593,42 @@
       "to_layer": "core"
     },
     {
+      "from": "kernel/core/pipeline/meta-skills.ts",
+      "to": "kernel/core/pipeline/types.ts",
+      "specifier": "./types.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
       "from": "kernel/core/pipeline/plan.ts",
+      "to": "kernel/core/pipeline/types.ts",
+      "specifier": "./types.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/provider.ts",
+      "to": "kernel/core/pipeline/types.ts",
+      "specifier": "./types.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/runner.ts",
+      "to": "kernel/core/pipeline/meta-skills.ts",
+      "specifier": "./meta-skills.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/runner.ts",
+      "to": "kernel/core/pipeline/provider.ts",
+      "specifier": "./provider.ts",
+      "from_layer": "core",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/core/pipeline/runner.ts",
       "to": "kernel/core/pipeline/types.ts",
       "specifier": "./types.ts",
       "from_layer": "core",
@@ -9126,15 +9200,15 @@
     }
   ],
   "stats": {
-    "source_files": 294,
+    "source_files": 297,
     "asset_nodes": 1,
-    "nodes": 295,
-    "edges": 1050,
+    "nodes": 298,
+    "edges": 1058,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 12,
-      "core": 77,
+      "core": 80,
       "dispatch": 67,
       "entry": 2,
       "gui": 73,
@@ -9144,7 +9218,7 @@
     },
     "outgoing": {
       "contract": 19,
-      "core": 302,
+      "core": 310,
       "dispatch": 509,
       "entry": 8,
       "gui": 147,
@@ -9154,7 +9228,7 @@
     },
     "incoming": {
       "contract": 19,
-      "core": 356,
+      "core": 364,
       "dispatch": 209,
       "entry": 1,
       "gui": 147,

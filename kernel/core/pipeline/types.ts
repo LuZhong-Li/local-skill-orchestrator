@@ -50,3 +50,18 @@ export interface PipelinePlan {
   stages: StagePlan[];
   createdAt: string;
 }
+
+/** 单份交付文档。 */
+export interface DeliverableDoc {
+  stage: PipelineStage;
+  docType: string;
+  content: string;
+  source: string;
+  createdAt: string;
+}
+
+/** 智能生成提供者接口。 */
+export interface IntelligenceProvider {
+  readonly name: string;
+  generate(prompt: string, context: Record<string, unknown>): Promise<string>;
+}
