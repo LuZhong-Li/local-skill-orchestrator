@@ -165,6 +165,7 @@ function resolveSpecifier(fromFile, specifier) {
 const KERNEL_REGIONS = {
   store: 'kernel-store',
   core: 'kernel-core',
+  audit: 'kernel-core',
   dispatch: 'kernel-dispatch',
   entry: 'kernel-entry',
 };

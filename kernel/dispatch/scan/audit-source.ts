@@ -1,14 +1,28 @@
 /** 读取工作区元数据与两套账本，组装审计投影所需的只读 source。 */
-import { resolve } from 'node:path';
-import type { InventoryAuditData } from '@skill-manager/contract';
+import { dirname, join, resolve } from 'node:path';
+import {
+  DISABLED_SUFFIX,
+  SKILL_MD_NAME,
+  type InventoryAuditData,
+  type ReconciledInventoryCopy,
+  type ReconciledInventoryCorruptCopy,
+} from '@skill-manager/contract';
 import { loadHostRegistry } from '../../core/hosts/index.ts';
+import { inventoryPhysicalKey, readSkillFrontmatter } from '../../core/inventory/discover.ts';
 import { loadPluginIndex } from '../../store/plugin-registry/index.ts';
 import { loadHostLandings } from '../../store/host-landings/index.ts';
 import { readMetaFile } from '../../core/metadata/read.ts';
 import type { SkillTarget } from '../../core/metadata/types.ts';
 import type { InventorySnapshot } from './snapshot.ts';
 import { buildInventoryAudit } from './audit-projection.ts';
-import type { AuditLedgerRecord, AuditSkill, InventoryAuditSource } from './audit-types.ts';
+import type {
+  AuditCopy,
+  AuditLedgerRecord,
+  AuditSkill,
+  InventoryAuditSource,
+} from './audit-types.ts';
+
+type SnapshotCopy = ReconciledInventoryCopy | ReconciledInventoryCorruptCopy;
 
 function objectOf(item: unknown): Record<string, unknown> | undefined {
   if (item === null || typeof item !== 'object' || Array.isArray(item)) return undefined;
@@ -113,17 +127,64 @@ function ledgerStateOf(loaded: {
   return loaded.index === null ? 'unreadable' : 'ok';
 }
 
+function sameCopyPath(copyPath: string, ledgerPath: string): boolean {
+  const copyKey = inventoryPhysicalKey(copyPath);
+  const ledgerKey = inventoryPhysicalKey(ledgerPath);
+  return ledgerKey === copyKey || inventoryPhysicalKey(dirname(ledgerPath)) === copyKey;
+}
+
+function ledgerOfCopy(
+  copy: SnapshotCopy,
+  records: readonly AuditLedgerRecord[],
+): AuditLedgerRecord | undefined {
+  return records.find(
+    (record) =>
+      sameCopyPath(copy.path, record.target_path) &&
+      (record.host_id === copy.host_id || copy.consumed_by.includes(record.host_id)),
+  );
+}
+
+function checksumMatches(copy: SnapshotCopy): boolean {
+  const checksumReasons = new Set(['content_drift', 'source_changed', 'source_ref_mismatch']);
+  return !copy.reconciliation.drift_reasons.some((reason) => checksumReasons.has(reason));
+}
+
+function auditCopy(copy: SnapshotCopy, records: readonly AuditLedgerRecord[]): AuditCopy {
+  const ledger = ledgerOfCopy(copy, records);
+  const marker =
+    copy.format === 'skill'
+      ? join(
+          copy.path,
+          copy.visibility === 'disabled' ? `${SKILL_MD_NAME}${DISABLED_SUFFIX}` : SKILL_MD_NAME,
+        )
+      : undefined;
+  const frontmatter = marker === undefined ? { raw: null } : readSkillFrontmatter(marker);
+  return {
+    ...copy,
+    audit_skill_id: ledger?.skill_id ?? copy.skill_id ?? '',
+    frontmatter: frontmatter.raw,
+    checksum_matches: checksumMatches(copy),
+    ...('reason' in frontmatter ? { unreadable_reason: frontmatter.reason } : {}),
+  };
+}
+
 function sourceOf(input: {
   snapshot: InventorySnapshot;
   observedAt: string;
   hostLedger: ReturnType<typeof loadHostLandings>;
   pluginLedger: ReturnType<typeof loadPluginIndex>;
 }): InventoryAuditSource {
+  const ledgerRecords = [
+    ...hostLedgerRecords(input.hostLedger),
+    ...pluginLedgerRecords(input.pluginLedger),
+  ];
   return {
     observed_at: input.observedAt,
     workspace_root: input.snapshot.layout.root,
     skills: auditSkillsOf(input.snapshot),
-    copies: [...input.snapshot.reconciled.copies, ...input.snapshot.reconciled.corrupt],
+    copies: [...input.snapshot.reconciled.copies, ...input.snapshot.reconciled.corrupt].map(
+      (copy) => auditCopy(copy, ledgerRecords),
+    ),
     missing: input.snapshot.reconciled.missing,
     roots: input.snapshot.roots,
     known_hosts: knownHostsOf(input.snapshot),
@@ -131,10 +192,7 @@ function sourceOf(input: {
       host_landings: ledgerStateOf(input.hostLedger),
       plugin_landings: ledgerStateOf(input.pluginLedger),
     },
-    ledger_records: [
-      ...hostLedgerRecords(input.hostLedger),
-      ...pluginLedgerRecords(input.pluginLedger),
-    ],
+    ledger_records: ledgerRecords,
   };
 }
 

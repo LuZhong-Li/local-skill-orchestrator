@@ -7,9 +7,18 @@ import type {
   ReconciliationFormat,
   ReconciliationVisibility,
 } from '@skill-manager/contract';
+import type { AuditFrontmatterCopy } from '../../audit/audit-frontmatter.ts';
 import type { SkillTarget } from '../../core/metadata/types.ts';
 
-export type AuditCopy = ReconciledInventoryCopy | ReconciledInventoryCorruptCopy;
+type AuditFrontmatterFields = Pick<
+  AuditFrontmatterCopy,
+  'frontmatter' | 'checksum_matches' | 'unreadable_reason'
+>;
+
+export type AuditCopy = (ReconciledInventoryCopy | ReconciledInventoryCorruptCopy) &
+  AuditFrontmatterFields & {
+    audit_skill_id: string;
+  };
 
 export interface AuditLedgerRecord {
   source: 'host_landings' | 'plugin_landings';

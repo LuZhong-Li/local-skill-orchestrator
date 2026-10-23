@@ -447,6 +447,12 @@
       "layer": "gui"
     },
     {
+      "path": "kernel/audit/audit-frontmatter.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
       "path": "kernel/core/adapters/index.ts",
       "kind": "source",
       "region": "kernel-core",
@@ -1156,6 +1162,12 @@
     },
     {
       "path": "kernel/dispatch/scan/aggregate.ts",
+      "kind": "source",
+      "region": "kernel-dispatch",
+      "layer": "dispatch"
+    },
+    {
+      "path": "kernel/dispatch/scan/audit-comparison.ts",
       "kind": "source",
       "region": "kernel-dispatch",
       "layer": "dispatch"
@@ -7565,6 +7577,20 @@
       "to_layer": "core"
     },
     {
+      "from": "kernel/dispatch/scan/audit-comparison.ts",
+      "to": "kernel/audit/audit-frontmatter.ts",
+      "specifier": "../../audit/audit-frontmatter.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/scan/audit-comparison.ts",
+      "to": "kernel/dispatch/scan/audit-types.ts",
+      "specifier": "./audit-types.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
       "from": "kernel/dispatch/scan/audit-projection.ts",
       "to": "kernel/core/inventory/discover.ts",
       "specifier": "../../core/inventory/discover.ts",
@@ -7580,6 +7606,13 @@
     },
     {
       "from": "kernel/dispatch/scan/audit-projection.ts",
+      "to": "kernel/dispatch/scan/audit-comparison.ts",
+      "specifier": "./audit-comparison.ts",
+      "from_layer": "dispatch",
+      "to_layer": "dispatch"
+    },
+    {
+      "from": "kernel/dispatch/scan/audit-projection.ts",
       "to": "kernel/dispatch/scan/audit-types.ts",
       "specifier": "./audit-types.ts",
       "from_layer": "dispatch",
@@ -7589,6 +7622,13 @@
       "from": "kernel/dispatch/scan/audit-source.ts",
       "to": "kernel/core/hosts/index.ts",
       "specifier": "../../core/hosts/index.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/dispatch/scan/audit-source.ts",
+      "to": "kernel/core/inventory/discover.ts",
+      "specifier": "../../core/inventory/discover.ts",
       "from_layer": "dispatch",
       "to_layer": "core"
     },
@@ -7640,6 +7680,13 @@
       "specifier": "../../store/plugin-registry/index.ts",
       "from_layer": "dispatch",
       "to_layer": "store"
+    },
+    {
+      "from": "kernel/dispatch/scan/audit-types.ts",
+      "to": "kernel/audit/audit-frontmatter.ts",
+      "specifier": "../../audit/audit-frontmatter.ts",
+      "from_layer": "dispatch",
+      "to_layer": "core"
     },
     {
       "from": "kernel/dispatch/scan/audit-types.ts",
@@ -8665,16 +8712,16 @@
     }
   ],
   "stats": {
-    "source_files": 272,
+    "source_files": 274,
     "asset_nodes": 1,
-    "nodes": 273,
-    "edges": 1003,
+    "nodes": 275,
+    "edges": 1008,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 12,
-      "core": 69,
-      "dispatch": 64,
+      "core": 70,
+      "dispatch": 65,
       "entry": 2,
       "gui": 63,
       "public": 1,
@@ -8684,7 +8731,7 @@
     "outgoing": {
       "contract": 19,
       "core": 294,
-      "dispatch": 488,
+      "dispatch": 493,
       "entry": 8,
       "gui": 130,
       "public": 6,
@@ -8693,8 +8740,8 @@
     },
     "incoming": {
       "contract": 19,
-      "core": 339,
-      "dispatch": 199,
+      "core": 342,
+      "dispatch": 201,
       "entry": 1,
       "gui": 130,
       "public": 1,
@@ -8703,7 +8750,7 @@
     },
     "cross_layer_edges": {
       "core->store": 112,
-      "dispatch->core": 155,
+      "dispatch->core": 158,
       "dispatch->store": 143,
       "entry->core": 1,
       "entry->dispatch": 5,

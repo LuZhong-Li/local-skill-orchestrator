@@ -5,7 +5,6 @@ import type {
   InventoryAuditData,
   InventoryAuditLedgerState,
   InventoryAuditRow,
-  InventoryAuditSummary,
   InventoryAuditStatus,
   ReconciliationEvidence,
   ReconciliationVisibility,
@@ -18,6 +17,7 @@ import type {
   AuditSkill,
   InventoryAuditSource,
 } from './audit-types.ts';
+import { summaryOf, withGroupComparisons } from './audit-comparison.ts';
 
 type Scope = 'global' | 'project';
 type ObservedScope = Scope | 'ambiguous';
@@ -150,7 +150,7 @@ function copiesOf(input: {
 }): AuditCopy[] {
   return input.source.copies.filter(
     (copy) =>
-      copy.skill_id === input.skillId &&
+      copy.audit_skill_id === input.skillId &&
       hostOfCopy(copy, input.hostId) &&
       scopeMatches(input.scope, copyScope(copy)),
   );
@@ -410,7 +410,7 @@ function addCopyUndeclared(input: {
 }): void {
   for (const copy of input.source.copies) {
     if (input.declaredPaths.has(inventoryPhysicalKey(copy.path))) continue;
-    const skill = copy.skill_id === undefined ? undefined : input.bySkill.get(copy.skill_id);
+    const skill = input.bySkill.get(copy.audit_skill_id);
     if (skill === undefined) continue;
     const scope = copyScope(copy);
     if (scope === 'ambiguous') continue;
@@ -476,33 +476,9 @@ function undeclaredRowsOf(
   return [...rows.values()];
 }
 
-function emptySummary(): InventoryAuditSummary {
-  return {
-    declared: 0,
-    distributed: 0,
-    missing: 0,
-    drift: 0,
-    visibility_mismatch: 0,
-    undeclared: 0,
-    unmapped: 0,
-    workspace_only: 0,
-    insufficient: 0,
-  };
-}
-
-function summaryOf(
-  source: InventoryAuditSource,
-  rows: readonly InventoryAuditRow[],
-): InventoryAuditSummary {
-  const summary = emptySummary();
-  summary.declared = source.skills.reduce((count, skill) => count + skill.targets.length, 0);
-  for (const row of rows) summary[row.status] += 1;
-  return summary;
-}
-
 export function buildInventoryAudit(source: InventoryAuditSource): InventoryAuditData {
   const declared = declaredRowsOf(source);
-  const rows = [...declared, ...undeclaredRowsOf(source, declared)];
+  const rows = withGroupComparisons(source, [...declared, ...undeclaredRowsOf(source, declared)]);
   return {
     observed_at: source.observed_at,
     summary: summaryOf(source, rows),
