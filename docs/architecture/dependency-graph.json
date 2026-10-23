@@ -93,6 +93,12 @@
       "layer": "gui"
     },
     {
+      "path": "gui/main/audit-export.ts",
+      "kind": "source",
+      "region": "gui-main",
+      "layer": "gui"
+    },
+    {
       "path": "gui/main/index.ts",
       "kind": "source",
       "region": "gui-main",
@@ -196,6 +202,24 @@
     },
     {
       "path": "gui/renderer/src/App.vue",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/audit-matrix.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/components/audit/AuditExportMenu.vue",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/components/audit/AuditMatrixView.vue",
       "kind": "source",
       "region": "gui-renderer",
       "layer": "gui"
@@ -340,6 +364,18 @@
     },
     {
       "path": "gui/renderer/src/i18n/language.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/audit-en.ts",
+      "kind": "source",
+      "region": "gui-renderer",
+      "layer": "gui"
+    },
+    {
+      "path": "gui/renderer/src/i18n/locales/audit-zh-CN.ts",
       "kind": "source",
       "region": "gui-renderer",
       "layer": "gui"
@@ -1515,6 +1551,12 @@
       "layer": "scripts"
     },
     {
+      "path": "scripts/gui-smoke-audit.mjs",
+      "kind": "source",
+      "region": "scripts",
+      "layer": "scripts"
+    },
+    {
       "path": "scripts/gui-smoke-cdp.mjs",
       "kind": "source",
       "region": "scripts",
@@ -1825,6 +1867,20 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/main/audit-export.ts",
+      "to": "gui/bridge/commands.ts",
+      "specifier": "../bridge/commands.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/main/audit-export.ts",
+      "to": "gui/main/inventory-export.ts",
+      "specifier": "./inventory-export.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/main/index.ts",
       "to": "gui/bridge/commands.ts",
       "specifier": "../bridge/commands.ts",
@@ -1835,6 +1891,13 @@
       "from": "gui/main/index.ts",
       "to": "gui/bridge/kernel.ts",
       "specifier": "../bridge/kernel.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/main/index.ts",
+      "to": "gui/main/audit-export.ts",
+      "specifier": "./audit-export.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2154,6 +2217,34 @@
       "to_layer": "gui"
     },
     {
+      "from": "gui/renderer/src/components/audit/AuditMatrixView.vue",
+      "to": "gui/renderer/src/audit-matrix.ts",
+      "specifier": "../../audit-matrix.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/audit/AuditMatrixView.vue",
+      "to": "gui/renderer/src/components/audit/AuditExportMenu.vue",
+      "specifier": "./AuditExportMenu.vue",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/audit/AuditMatrixView.vue",
+      "to": "gui/renderer/src/i18n/error-text.ts",
+      "specifier": "../../i18n/error-text.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/audit/AuditMatrixView.vue",
+      "to": "gui/renderer/src/i18n/index.ts",
+      "specifier": "../../i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
       "from": "gui/renderer/src/components/ConfirmDialog.vue",
       "to": "gui/renderer/src/components/DialogShell.vue",
       "specifier": "./DialogShell.vue",
@@ -2311,6 +2402,13 @@
       "from": "gui/renderer/src/components/host-inventory/InventorySummary.vue",
       "to": "gui/renderer/src/i18n/index.ts",
       "specifier": "../../i18n/index.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/components/HostInventoryView.vue",
+      "to": "gui/renderer/src/components/audit/AuditMatrixView.vue",
+      "specifier": "./audit/AuditMatrixView.vue",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -2589,6 +2687,13 @@
     },
     {
       "from": "gui/renderer/src/i18n/locales/en.ts",
+      "to": "gui/renderer/src/i18n/locales/audit-en.ts",
+      "specifier": "./audit-en.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/locales/en.ts",
       "to": "gui/renderer/src/i18n/locales/errors-en.ts",
       "specifier": "./errors-en.ts",
       "from_layer": "gui",
@@ -2612,6 +2717,13 @@
       "from": "gui/renderer/src/i18n/locales/en.ts",
       "to": "gui/renderer/src/i18n/locales/inventory-root-state-en.ts",
       "specifier": "./inventory-root-state-en.ts",
+      "from_layer": "gui",
+      "to_layer": "gui"
+    },
+    {
+      "from": "gui/renderer/src/i18n/locales/zh-CN.ts",
+      "to": "gui/renderer/src/i18n/locales/audit-zh-CN.ts",
+      "specifier": "./audit-zh-CN.ts",
       "from_layer": "gui",
       "to_layer": "gui"
     },
@@ -8791,6 +8903,13 @@
     },
     {
       "from": "scripts/gui-smoke.mjs",
+      "to": "scripts/gui-smoke-audit.mjs",
+      "specifier": "./gui-smoke-audit.mjs",
+      "from_layer": "scripts",
+      "to_layer": "scripts"
+    },
+    {
+      "from": "scripts/gui-smoke.mjs",
       "to": "scripts/gui-smoke-cdp.mjs",
       "specifier": "./gui-smoke-cdp.mjs",
       "from_layer": "scripts",
@@ -8875,10 +8994,10 @@
     }
   ],
   "stats": {
-    "source_files": 279,
+    "source_files": 286,
     "asset_nodes": 1,
-    "nodes": 280,
-    "edges": 1027,
+    "nodes": 287,
+    "edges": 1038,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
@@ -8886,9 +9005,9 @@
       "core": 73,
       "dispatch": 67,
       "entry": 2,
-      "gui": 63,
+      "gui": 69,
       "public": 1,
-      "scripts": 50,
+      "scripts": 51,
       "store": 12
     },
     "outgoing": {
@@ -8896,9 +9015,9 @@
       "core": 297,
       "dispatch": 509,
       "entry": 8,
-      "gui": 130,
+      "gui": 140,
       "public": 6,
-      "scripts": 37,
+      "scripts": 38,
       "store": 21
     },
     "incoming": {
@@ -8906,9 +9025,9 @@
       "core": 351,
       "dispatch": 209,
       "entry": 1,
-      "gui": 130,
+      "gui": 140,
       "public": 1,
-      "scripts": 36,
+      "scripts": 37,
       "store": 280
     },
     "cross_layer_edges": {

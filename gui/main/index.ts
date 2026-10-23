@@ -15,6 +15,7 @@ import { registerUpdateIpc, sendUpdateReport } from './updates/ipc.ts';
 import { registerAppSettingsIpc } from './settings/ipc.ts';
 import { registerPluginIpc } from './plugins/ipc.ts';
 import { registerInventoryExportIpc } from './inventory-export.ts';
+import { registerAuditExportIpc } from './audit-export.ts';
 
 /** 主进程以 ES 模块运行，没有 __dirname，从模块地址推导 */
 const here = dirname(fileURLToPath(import.meta.url));
@@ -119,6 +120,7 @@ app.whenReady().then(() => {
   registerAppSettingsIpc(settingsStore);
   registerPluginIpc(bridge);
   registerInventoryExportIpc();
+  registerAuditExportIpc(bridge);
   app.on('before-quit', () => updates.stop());
   void updates.start();
   createWindow();

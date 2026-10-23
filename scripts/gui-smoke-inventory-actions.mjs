@@ -250,6 +250,7 @@ export async function runInventoryActionChecks(context) {
   console.log('[smoke] inventory selection checks complete');
   await runInventoryExportChecks(context);
   console.log('[smoke] inventory export checks complete');
+  console.log('[smoke] inventory adopt preview start');
   await preview(context, 'adopt', history);
   const adoptPreview = await dialogText(context);
   check(
@@ -268,6 +269,7 @@ export async function runInventoryActionChecks(context) {
   }
   check('采纳动作执行后返回 succeeded', adopted.includes('succeeded'), cut(adopted, 180));
   await closeDialog(context);
+  console.log('[smoke] inventory adopt checks complete');
   await refresh(context);
   const untrackedAfterAdopt = String(
     await context.evaluate(
@@ -277,6 +279,7 @@ export async function runInventoryActionChecks(context) {
   check('采纳后未纳管清单移除该副本', !untrackedAfterAdopt.includes('history-skill'));
 
   const sharedBytes = treeHash(workspace);
+  console.log('[smoke] inventory shared-root preview start');
   await preview(context, 'adopt', shared);
   const sharedText = await dialogText(context);
   check(

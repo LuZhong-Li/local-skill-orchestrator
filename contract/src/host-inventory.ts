@@ -304,4 +304,5 @@ export interface InventoryExportResult {
   canceled: boolean;
   path?: string;
   error?: string;
+  code?: string;
 }

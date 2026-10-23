@@ -2,6 +2,7 @@ import errors from './errors-en.ts';
 import inventoryBatch from './inventory-batch-en.ts';
 import inventoryRootEmpty from './inventory-root-empty-en.ts';
 import inventoryRootState from './inventory-root-state-en.ts';
+import audit from './audit-en.ts';
 
 export default {
   app: {
@@ -494,5 +495,6 @@ export default {
       confirmExecute: 'Confirm execution',
     },
   },
+  audit,
   errors,
 } as const;

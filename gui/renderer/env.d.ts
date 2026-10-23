@@ -1,5 +1,9 @@
 /// <reference types="vite/client" />
-import type { InventoryExportResult, InventoryScanData } from '@skill-manager/contract';
+import type {
+  AuditReportFormat,
+  InventoryExportResult,
+  InventoryScanData,
+} from '@skill-manager/contract';
 
 declare module '*.vue' {
   import type { DefineComponent } from 'vue';
@@ -29,6 +33,9 @@ interface SkillManagerApi {
   };
   inventory: {
     export(data: InventoryScanData): Promise<InventoryExportResult>;
+  };
+  audit: {
+    export(format: Exclude<AuditReportFormat, 'json'>): Promise<InventoryExportResult>;
   };
   updates: {
     check(): Promise<unknown>;

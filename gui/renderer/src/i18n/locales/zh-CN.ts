@@ -2,6 +2,7 @@ import errors from './errors-zh-CN.ts';
 import inventoryBatch from './inventory-batch-zh-CN.ts';
 import inventoryRootEmpty from './inventory-root-empty-zh-CN.ts';
 import inventoryRootState from './inventory-root-state-zh-CN.ts';
+import audit from './audit-zh-CN.ts';
 
 export default {
   app: {
@@ -476,5 +477,6 @@ export default {
       confirmExecute: '确认执行',
     },
   },
+  audit,
   errors,
 } as const;

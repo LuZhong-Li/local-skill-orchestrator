@@ -5,7 +5,11 @@
  * 「哪些指令需要确认」由内核判定，渲染层只负责把预览结果展示给用户。
  */
 import { contextBridge, ipcRenderer } from 'electron';
-import type { InventoryExportResult, InventoryScanData } from '@skill-manager/contract';
+import type {
+  AuditReportFormat,
+  InventoryExportResult,
+  InventoryScanData,
+} from '@skill-manager/contract';
 
 const api = {
   /** 直发一条指令：只读查询与已确认的写操作都走这里 */
@@ -42,6 +46,10 @@ const api = {
     /** 仅把当前盘点结果交给主进程保存到用户显式选择的文件 */
     export: (data: InventoryScanData): Promise<InventoryExportResult> =>
       ipcRenderer.invoke('inventory:export', data),
+  },
+  audit: {
+    export: (format: Exclude<AuditReportFormat, 'json'>): Promise<InventoryExportResult> =>
+      ipcRenderer.invoke('audit:export', format),
   },
   updates: {
     /** 手动触发一次只读检查 */

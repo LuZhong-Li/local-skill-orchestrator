@@ -14,6 +14,7 @@ import InventorySummary from './host-inventory/InventorySummary.vue';
 import InventoryHostGroups from './host-inventory/InventoryHostGroups.vue';
 import InventoryCopyDetails from './host-inventory/InventoryCopyDetails.vue';
 import InventoryActionDialog from './host-inventory/InventoryActionDialog.vue';
+import AuditMatrixView from './audit/AuditMatrixView.vue';
 import { localizedFindingsText } from '../i18n/error-text.ts';
 import { t } from '../i18n/index.ts';
 import {
@@ -33,6 +34,7 @@ const props = defineProps<{
 }>();
 
 const data = ref<InventoryScanData | null>(null);
+const tab = ref<'copies' | 'audit'>('copies');
 const loading = ref(false);
 const error = ref('');
 const actionOpen = ref(false);
@@ -183,168 +185,197 @@ onMounted(load);
 
 <template>
   <section class="content inventory-view" data-testid="host-inventory">
-    <div class="panel wide">
-      <div class="view-head">
-        <div>
-          <h2>{{ $t('inventory.viewTitle') }}</h2>
-          <p class="muted">{{ $t('inventory.intro') }}</p>
-        </div>
-        <div class="view-actions">
-          <button
-            data-testid="inventory-export"
-            :disabled="loading || exporting || data === null"
-            @click="exportResult"
-          >
-            {{ exporting ? $t('inventory.exporting') : $t('common.export') }}
-          </button>
-          <button class="primary" data-testid="inventory-refresh" :disabled="loading" @click="load">
-            {{ loading ? $t('inventory.refreshing') : $t('toolbar.rescan') }}
-          </button>
-        </div>
-      </div>
-
-      <!-- 批量动作栏 -->
-      <div
-        v-if="data !== null && selectedCount > 0"
-        class="batch-bar"
-        data-testid="batch-action-bar"
+    <div class="inventory-tabs" role="tablist">
+      <button
+        role="tab"
+        data-testid="inventory-tab-copies"
+        :class="{ active: tab === 'copies' }"
+        :aria-selected="tab === 'copies'"
+        @click="tab = 'copies'"
       >
-        <span class="batch-count" data-testid="batch-selected-count">
-          {{ $t('inventory.batch.selected', { count: selectedCount }) }}
-        </span>
-        <div class="batch-actions">
-          <button
-            v-for="opt in batchActions"
-            :key="opt.action"
-            :class="{ 'primary danger': opt.destructive, primary: !opt.destructive }"
-            :data-testid="`batch-action-${opt.action}`"
-            @click="previewBatchAction(opt.action)"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
-        <button class="ghost" data-testid="batch-clear" @click="clearSelection">
-          {{ $t('inventory.batch.clear') }}
-        </button>
-      </div>
-
-      <p v-if="error !== ''" class="bad" data-testid="inventory-error">{{ error }}</p>
-      <p v-if="exportMessage !== ''" class="export-ok" data-testid="inventory-export-message">
-        {{ exportMessage }}
-      </p>
-      <p v-if="exportError !== ''" class="bad" data-testid="inventory-export-error">
-        {{ exportError }}
-      </p>
-      <p v-if="loading && data === null" class="muted" data-testid="inventory-loading">
-        {{ $t('inventory.loadingBody') }}
-      </p>
+        {{ $t('audit.tabs.copies') }}
+      </button>
+      <button
+        role="tab"
+        data-testid="inventory-tab-audit"
+        :class="{ active: tab === 'audit' }"
+        :aria-selected="tab === 'audit'"
+        @click="tab = 'audit'"
+      >
+        {{ $t('audit.tabs.audit') }}
+      </button>
     </div>
 
-    <template v-if="data !== null">
-      <div class="panel wide workspace-banner" data-testid="inventory-workspace">
-        <p v-if="data.workspace.state === 'uninitialized'">
-          <strong>{{ $t('inventory.workspaceUninitializedTitle') }}</strong>
-          {{ $t('inventory.workspaceUninitializedBody') }}
+    <template v-if="tab === 'copies'">
+      <div class="panel wide">
+        <div class="view-head">
+          <div>
+            <h2>{{ $t('inventory.viewTitle') }}</h2>
+            <p class="muted">{{ $t('inventory.intro') }}</p>
+          </div>
+          <div class="view-actions">
+            <button
+              data-testid="inventory-export"
+              :disabled="loading || exporting || data === null"
+              @click="exportResult"
+            >
+              {{ exporting ? $t('inventory.exporting') : $t('common.export') }}
+            </button>
+            <button
+              class="primary"
+              data-testid="inventory-refresh"
+              :disabled="loading"
+              @click="load"
+            >
+              {{ loading ? $t('inventory.refreshing') : $t('toolbar.rescan') }}
+            </button>
+          </div>
+        </div>
+
+        <!-- 批量动作栏 -->
+        <div
+          v-if="data !== null && selectedCount > 0"
+          class="batch-bar"
+          data-testid="batch-action-bar"
+        >
+          <span class="batch-count" data-testid="batch-selected-count">
+            {{ $t('inventory.batch.selected', { count: selectedCount }) }}
+          </span>
+          <div class="batch-actions">
+            <button
+              v-for="opt in batchActions"
+              :key="opt.action"
+              :class="{ 'primary danger': opt.destructive, primary: !opt.destructive }"
+              :data-testid="`batch-action-${opt.action}`"
+              @click="previewBatchAction(opt.action)"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
+          <button class="ghost" data-testid="batch-clear" @click="clearSelection">
+            {{ $t('inventory.batch.clear') }}
+          </button>
+        </div>
+
+        <p v-if="error !== ''" class="bad" data-testid="inventory-error">{{ error }}</p>
+        <p v-if="exportMessage !== ''" class="export-ok" data-testid="inventory-export-message">
+          {{ exportMessage }}
         </p>
-        <p v-else-if="data.workspace.state === 'unreadable'">
-          <strong>{{ $t('inventory.workspaceUnreadableTitle') }}</strong>
-          {{ $t('inventory.workspaceUnreadableBody') }}
+        <p v-if="exportError !== ''" class="bad" data-testid="inventory-export-error">
+          {{ exportError }}
         </p>
-        <p v-else>
-          <strong>{{ $t('inventory.workspaceInitializedTitle') }}</strong>
-          {{ $t('inventory.workspaceInitializedBody') }}
+        <p v-if="loading && data === null" class="muted" data-testid="inventory-loading">
+          {{ $t('inventory.loadingBody') }}
         </p>
-        <p class="muted path">{{ data.workspace.root }}</p>
       </div>
 
-      <InventorySummary :summary="data.summary" />
+      <template v-if="data !== null">
+        <div class="panel wide workspace-banner" data-testid="inventory-workspace">
+          <p v-if="data.workspace.state === 'uninitialized'">
+            <strong>{{ $t('inventory.workspaceUninitializedTitle') }}</strong>
+            {{ $t('inventory.workspaceUninitializedBody') }}
+          </p>
+          <p v-else-if="data.workspace.state === 'unreadable'">
+            <strong>{{ $t('inventory.workspaceUnreadableTitle') }}</strong>
+            {{ $t('inventory.workspaceUnreadableBody') }}
+          </p>
+          <p v-else>
+            <strong>{{ $t('inventory.workspaceInitializedTitle') }}</strong>
+            {{ $t('inventory.workspaceInitializedBody') }}
+          </p>
+          <p class="muted path">{{ data.workspace.root }}</p>
+        </div>
 
-      <section class="panel wide" data-testid="inventory-degradation">
-        <h2>{{ $t('inventory.ledgerTitle') }}</h2>
-        <p class="muted">
-          {{
-            $t('inventory.hostLedger', {
-              state:
-                data.degradation.host_landings === 'ok'
-                  ? $t('inventory.ledgerOk')
-                  : data.degradation.host_landings === 'missing'
-                    ? $t('inventory.ledgerMissing')
-                    : $t('inventory.ledgerUnreadable'),
-            })
-          }}
-          |
-          {{
-            $t('inventory.pluginLedger', {
-              state:
-                data.degradation.plugin_landings === 'ok'
-                  ? $t('inventory.ledgerOk')
-                  : data.degradation.plugin_landings === 'missing'
-                    ? $t('inventory.ledgerMissing')
-                    : $t('inventory.ledgerUnreadable'),
-            })
-          }}
-        </p>
-      </section>
+        <InventorySummary :summary="data.summary" />
 
-      <details class="panel wide untracked" data-testid="inventory-untracked" open>
-        <summary>
-          <strong>{{ $t('inventory.untrackedTitle') }}</strong>
-          <span class="count">{{ untracked.length }}</span>
-        </summary>
-        <p class="muted">{{ $t('inventory.untrackedHint') }}</p>
-        <InventoryCopyDetails
-          :copies="untracked"
-          test-id="inventory-untracked-copies"
-          :empty-text="$t('inventory.untrackedEmpty')"
+        <section class="panel wide" data-testid="inventory-degradation">
+          <h2>{{ $t('inventory.ledgerTitle') }}</h2>
+          <p class="muted">
+            {{
+              $t('inventory.hostLedger', {
+                state:
+                  data.degradation.host_landings === 'ok'
+                    ? $t('inventory.ledgerOk')
+                    : data.degradation.host_landings === 'missing'
+                      ? $t('inventory.ledgerMissing')
+                      : $t('inventory.ledgerUnreadable'),
+              })
+            }}
+            |
+            {{
+              $t('inventory.pluginLedger', {
+                state:
+                  data.degradation.plugin_landings === 'ok'
+                    ? $t('inventory.ledgerOk')
+                    : data.degradation.plugin_landings === 'missing'
+                      ? $t('inventory.ledgerMissing')
+                      : $t('inventory.ledgerUnreadable'),
+              })
+            }}
+          </p>
+        </section>
+
+        <details class="panel wide untracked" data-testid="inventory-untracked" open>
+          <summary>
+            <strong>{{ $t('inventory.untrackedTitle') }}</strong>
+            <span class="count">{{ untracked.length }}</span>
+          </summary>
+          <p class="muted">{{ $t('inventory.untrackedHint') }}</p>
+          <InventoryCopyDetails
+            :copies="untracked"
+            test-id="inventory-untracked-copies"
+            :empty-text="$t('inventory.untrackedEmpty')"
+            :selected-keys="selection.selected"
+            :show-selection="true"
+            @action="previewAction"
+            @toggle-selection="toggleSelection"
+            @toggle-all="(selected) => toggleAllInDetails(untracked, selected)"
+          />
+          <p class="muted action-hint">{{ $t('inventory.actionHint') }}</p>
+        </details>
+
+        <InventoryHostGroups
+          :hosts="data.hosts"
           :selected-keys="selection.selected"
           :show-selection="true"
           @action="previewAction"
           @toggle-selection="toggleSelection"
-          @toggle-all="(selected) => toggleAllInDetails(untracked, selected)"
+          @toggle-root="toggleRoot"
         />
-        <p class="muted action-hint">{{ $t('inventory.actionHint') }}</p>
-      </details>
 
-      <InventoryHostGroups
-        :hosts="data.hosts"
-        :selected-keys="selection.selected"
-        :show-selection="true"
-        @action="previewAction"
-        @toggle-selection="toggleSelection"
-        @toggle-root="toggleRoot"
-      />
+        <section v-if="data.corrupt.length > 0" class="panel wide" data-testid="inventory-corrupt">
+          <h2>{{ $t('inventory.corruptTitle', { count: data.corrupt.length }) }}</h2>
+          <p class="muted">{{ $t('inventory.corruptHint') }}</p>
+          <InventoryCopyDetails
+            :corrupt="data.corrupt"
+            test-id="inventory-corrupt-copies"
+            :selected-keys="selection.selected"
+            :show-selection="true"
+            @action="previewAction"
+            @toggle-selection="toggleSelection"
+            @toggle-all="(selected) => toggleAllInDetails(data!.corrupt, selected)"
+          />
+        </section>
 
-      <section v-if="data.corrupt.length > 0" class="panel wide" data-testid="inventory-corrupt">
-        <h2>{{ $t('inventory.corruptTitle', { count: data.corrupt.length }) }}</h2>
-        <p class="muted">{{ $t('inventory.corruptHint') }}</p>
-        <InventoryCopyDetails
-          :corrupt="data.corrupt"
-          test-id="inventory-corrupt-copies"
-          :selected-keys="selection.selected"
-          :show-selection="true"
-          @action="previewAction"
-          @toggle-selection="toggleSelection"
-          @toggle-all="(selected) => toggleAllInDetails(data!.corrupt, selected)"
-        />
-      </section>
-
-      <section v-if="data.missing.length > 0" class="panel wide" data-testid="inventory-missing">
-        <h2>{{ $t('inventory.missingTitle', { count: data.missing.length }) }}</h2>
-        <p class="muted">{{ $t('inventory.missingHint') }}</p>
-        <InventoryCopyDetails
-          :missing="data.missing"
-          test-id="inventory-missing-copies"
-          :selected-keys="selection.selected"
-          :show-selection="true"
-          @action="previewAction"
-          @toggle-selection="toggleSelection"
-          @toggle-all="(selected) => toggleAllInDetails(data!.missing, selected)"
-        />
-      </section>
+        <section v-if="data.missing.length > 0" class="panel wide" data-testid="inventory-missing">
+          <h2>{{ $t('inventory.missingTitle', { count: data.missing.length }) }}</h2>
+          <p class="muted">{{ $t('inventory.missingHint') }}</p>
+          <InventoryCopyDetails
+            :missing="data.missing"
+            test-id="inventory-missing-copies"
+            :selected-keys="selection.selected"
+            :show-selection="true"
+            @action="previewAction"
+            @toggle-selection="toggleSelection"
+            @toggle-all="(selected) => toggleAllInDetails(data!.missing, selected)"
+          />
+        </section>
+      </template>
     </template>
+    <AuditMatrixView v-else :run="run" />
 
     <InventoryActionDialog
-      v-if="actionOpen"
+      v-if="tab === 'copies' && actionOpen"
       :action="action"
       :path="actionPath"
       :targets="actionTargets"
@@ -364,6 +395,25 @@ onMounted(load);
   display: flex;
   flex-direction: column;
   gap: calc(var(--space) * 4);
+}
+
+.inventory-tabs {
+  display: flex;
+  gap: var(--space);
+  border-bottom: 1px solid var(--border);
+}
+
+.inventory-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  padding: calc(var(--space) * 2);
+}
+
+.inventory-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
 }
 
 .view-head {

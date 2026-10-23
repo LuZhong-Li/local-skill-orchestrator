@@ -105,6 +105,10 @@ export async function runPluginSmoke({ evaluate, waitFor, check, workspace }) {
     "[...document.querySelectorAll('[data-testid=\"plugin-hosts\"] option')].some((item) => item.value === 'plugin-smoke-skill')",
     80,
   );
+  await waitFor(
+    "document.querySelector('[data-testid=\"plugin-hosts\"]')?.innerText.includes('内置宿主') === true",
+    80,
+  );
   const hostBefore = String(
     await evaluate("document.querySelector('[data-testid=\"plugin-hosts\"]')?.innerText ?? ''"),
   );

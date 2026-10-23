@@ -14,6 +14,11 @@ interface ExportControlCancel {
   action: 'cancel';
 }
 
+export interface ExportDialogOptions {
+  defaultPath: string;
+  filters: Array<{ name: string; extensions: string[] }>;
+}
+
 /**
  * 冒烟测试无法自动操作原生保存对话框；仅当显式设置控制文件时，
  * 主进程按控制文件选择保存或取消。生产形态不设置该环境变量。
@@ -40,14 +45,13 @@ function controlOf(): ExportControlSave | ExportControlCancel | undefined {
   return undefined;
 }
 
-async function targetOf(event: Electron.IpcMainInvokeEvent): Promise<string | undefined> {
+export async function exportTargetOf(
+  event: Electron.IpcMainInvokeEvent,
+  options: ExportDialogOptions,
+): Promise<string | undefined> {
   const control = controlOf();
   if (control?.action === 'cancel') return undefined;
   if (control?.action === 'save') return control.path;
-  const options = {
-    defaultPath: 'skill-inventory.json',
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-  };
   const window = BrowserWindow.fromWebContents(event.sender);
   const result =
     window === null
@@ -61,7 +65,10 @@ export function registerInventoryExportIpc(): void {
     'inventory:export',
     async (event, data: InventoryScanData): Promise<InventoryExportResult> => {
       try {
-        const target = await targetOf(event);
+        const target = await exportTargetOf(event, {
+          defaultPath: 'skill-inventory.json',
+          filters: [{ name: 'JSON', extensions: ['json'] }],
+        });
         if (target === undefined) return { canceled: true };
         writeInventoryExport(target, data);
         return { canceled: false, path: target };

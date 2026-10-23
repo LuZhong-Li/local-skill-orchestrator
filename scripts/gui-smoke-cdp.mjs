@@ -1,4 +1,6 @@
 /** Minimal Chrome DevTools Protocol connection used by GUI smoke tests. */
+const DEBUG_CALL_TIMEOUT_MS = 90_000;
+
 export async function waitForTarget(port, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -56,7 +58,7 @@ export function connectDebugger(webSocketDebuggerUrl) {
         const timer = setTimeout(() => {
           pending.delete(id);
           reject(new Error(`调试调用超时：${method}`));
-        }, 30000);
+        }, DEBUG_CALL_TIMEOUT_MS);
         pending.set(id, { resolve, reject, timer });
       });
     },
