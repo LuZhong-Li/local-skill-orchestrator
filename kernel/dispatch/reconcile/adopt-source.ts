@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   CODES,
+  type AdoptConflictPolicy,
   type Finding,
   type ReconcilePlanItem,
   type ReconcileSelection,
@@ -269,6 +270,7 @@ function assertLibraryAdoptable(
   index: SkillIndex,
   skillId: string,
   hostDigest: string,
+  policy: AdoptConflictPolicy,
 ): void {
   const libraryDir = join(layout.skillsDir, skillId);
   const record = index.skills.find((item) => item.id === skillId);
@@ -303,6 +305,7 @@ function assertLibraryAdoptable(
       ),
     ]);
   }
+  if (policy === 'force') return;
   throw new AdoptError([
     invalid(
       CODES.RECONCILE_ACTION_UNSUPPORTED,
@@ -378,18 +381,26 @@ function identityOf(input: AdoptInput): AdoptIdentity {
   assertAdoptableShape(item);
   const front = frontmatterIdentity(item);
   const { findings, ...frontFields } = front;
+  const resolvedSkillId = item.adopt_preview?.target_skill_id ?? front.skillId;
   const target = targetIdentity({
     layout,
     index,
     selection,
-    skillId: front.skillId,
+    skillId: resolvedSkillId,
     status: front.status,
   });
   const hostDigest = computeLandingChecksum({ targetPath: item.target_path, format: 'skill' });
-  assertLibraryAdoptable(layout, index, front.skillId, hostDigest);
+  assertLibraryAdoptable(
+    layout,
+    index,
+    resolvedSkillId,
+    hostDigest,
+    item.adopt_preview?.conflict_policy ?? selection.conflict ?? 'skip',
+  );
   return {
     hostDir: item.target_path,
     ...frontFields,
+    skillId: resolvedSkillId,
     ...target,
     hostDigest,
     findings,

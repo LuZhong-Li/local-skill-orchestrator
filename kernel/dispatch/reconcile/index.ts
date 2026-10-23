@@ -10,7 +10,8 @@ import { decideConfirmation, isAffirmative, type ConfirmPlan } from '../policy/i
 import { workspaceRootOf } from '../shared/options.ts';
 import { inventorySnapshotOf } from '../scan/inventory.ts';
 import { parseReconcileOptions } from './options.ts';
-import { buildReconcilePreview, reconcilePlanSignature } from './plan.ts';
+import { buildReconcilePreview } from './plan.ts';
+import { reconcilePlanSignature } from './plan-support.ts';
 import { executeReconcilePlan } from './execute.ts';
 
 function selectionMissingResult(selectionMode: string): ReturnType<typeof buildResult> {

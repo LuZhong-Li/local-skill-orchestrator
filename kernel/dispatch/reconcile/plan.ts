@@ -9,7 +9,6 @@ import type {
   ReconcilePreviewData,
   ReconcileSelection,
   ReconcileSourceOfTruth,
-  ReconcileTransactionGroup,
   ReconcileWriteKind,
 } from '@skill-manager/contract';
 import {
@@ -18,10 +17,12 @@ import {
 } from '@skill-manager/contract';
 import { inventoryPhysicalKey } from '../../core/inventory/discover.ts';
 import type { InventorySnapshot } from '../scan/inventory.ts';
-import { allCandidates, notDistributedCandidates, unique, type Candidate } from './candidates.ts';
+import { allCandidates, notDistributedCandidates, type Candidate } from './candidates.ts';
+import { applyAdoptPlanning, bulkAdoptCandidates } from './adopt-bulk.ts';
 import { ledgerHostIds } from './group.ts';
 import { notesOf } from './plan-notes.ts';
 import { ledgerChanges, ledgerSourceOf } from './ledger-changes.ts';
+import { transactionGroups } from './plan-support.ts';
 import { rootMatches, selectBatchCandidates, selectionSummaryOf } from './selection.ts';
 
 interface ActionShape {
@@ -58,6 +59,15 @@ function classificationMatches(candidate: Candidate, classification: string): bo
 
 function selectCandidates(snapshot: InventorySnapshot, selection: ReconcileSelection): Candidate[] {
   const candidates = allCandidates(snapshot);
+  if (selection.action === 'adopt' && selection.bulk === true) {
+    return bulkAdoptCandidates(candidates, {
+      enabled: true,
+      ...(selection.roles === undefined ? {} : { roles: selection.roles }),
+      ...(selection.limit === undefined ? {} : { limit: selection.limit }),
+      conflict: selection.conflict ?? 'skip',
+      dry_run: !selection.apply,
+    });
+  }
   const selected = selectObservedCandidates(candidates, snapshot, selection);
   if (selection.mode === 'path') return selected;
   const targets = notDistributedCandidates(snapshot, selection, candidates);
@@ -327,12 +337,16 @@ function actionShape(
   selection: ReconcileSelection,
   candidate: Candidate,
 ): ActionShape {
+  const bulkAdoptCandidate =
+    selection.action === 'adopt' &&
+    selection.bulk === true &&
+    ['inferred_consistent', 'inferred_drift'].includes(actionableKeyOf(candidate));
   const reason =
     candidate.unavailable_reason ??
     nonUserRoleReason(candidate) ??
     actionEligibilityReason(snapshot, candidate, selection.action) ??
     cleanEligibilityReason(snapshot, candidate, selection.action) ??
-    unsupportedReason(candidate, selection.action);
+    (bulkAdoptCandidate ? undefined : unsupportedReason(candidate, selection.action));
   const ledger = ledgerSourceOf(candidate, selection.action);
   if (reason !== undefined) {
     return {
@@ -425,55 +439,17 @@ function itemOf(
   };
 }
 
-function transactionGroups(items: ReconcilePlanItem[]): ReconcileTransactionGroup[] {
-  const groups = new Map<string, ReconcileTransactionGroup>();
-  for (const item of items) {
-    const current = groups.get(item.transaction_group) ?? {
-      group_id: item.transaction_group,
-      physical_path: item.target_path,
-      item_ids: [],
-      host_ids: [],
-      ledger_sources: [],
-      shared: false,
-    };
-    current.item_ids.push(item.item_id);
-    current.host_ids = unique([...current.host_ids, ...item.host_ids]);
-    for (const change of item.ledger_changes) {
-      if (!current.ledger_sources.includes(change.source))
-        current.ledger_sources.push(change.source);
-    }
-    current.shared = current.host_ids.length > 1 || item.consumed_by.length > 1;
-    groups.set(item.transaction_group, current);
-  }
-  return [...groups.values()];
-}
-
-/** 预览与执行间的计划指纹；任一选中副本事实变化都会改变结果。 */
-export function reconcilePlanSignature(plan: ReconcilePreviewData): string {
-  return JSON.stringify({
-    selection: plan.selection,
-    items: plan.items.map((item) => ({
-      item_id: item.item_id,
-      action: item.action,
-      target_path: item.target_path,
-      root_roles: item.root_roles,
-      ...(item.skill_id === undefined ? {} : { skill_id: item.skill_id }),
-      status: item.status,
-      before: item.before,
-      after: item.after,
-      writes: item.writes,
-      ledger_changes: item.ledger_changes,
-    })),
-  });
-}
-
 /** 生成动作预览；调用方必须只读消费结果。 */
 export function buildReconcilePreview(
   snapshot: InventorySnapshot,
   selection: ReconcileSelection,
 ): ReconcilePreviewData {
   const candidates = selectCandidates(snapshot, selection);
-  const items = candidates.map((candidate, index) => itemOf(snapshot, selection, candidate, index));
+  const baseItems = candidates.map((candidate, index) =>
+    itemOf(snapshot, selection, candidate, index),
+  );
+  const adoption = applyAdoptPlanning(snapshot, selection, baseItems);
+  const items = adoption.items;
   const groups = transactionGroups(items);
   return {
     mode: 'reconcile',
@@ -490,6 +466,7 @@ export function buildReconcilePreview(
       skipped: items.filter((item) => item.status === 'skipped').length,
       destructive: items.filter((item) => item.action === 'clean').length,
       shared_groups: groups.filter((group) => group.shared).length,
+      ...(adoption.summary === undefined ? {} : { bulk: adoption.summary }),
     },
     notes: notesOf(selection.action),
   };
