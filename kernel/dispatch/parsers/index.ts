@@ -1,4 +1,4 @@
-/**
+﻿/**
  * L2 参数解析与参数级校验。
  *
  * 只做参数层面的处理：识别全局选项、区分位置参数、产出结构性错误。
@@ -64,6 +64,10 @@ export const VALUE_OPTIONS = new Set([
   'limit',
   'format',
   'output',
+  // pipeline 命令专用
+  'problem',
+  'output-dir',
+  'answers',
 ]);
 
 /**
@@ -73,7 +77,7 @@ export const VALUE_OPTIONS = new Set([
  * 未登记的取值选项与全部布尔选项在同一命令中重复出现时按参数类错误拒绝——
  * 静默取最后值会悄悄丢弃用户写下的前一个取值。
  */
-export const REPEATABLE_OPTIONS = new Set(['id', 'role', 'root']);
+export const REPEATABLE_OPTIONS = new Set(['id', 'role', 'root', 'answers']);
 
 /** 该选项是否设计为可重复（可在审计与测试中逐项核对） */
 export function isRepeatableOption(name: string): boolean {
@@ -98,7 +102,6 @@ export function parseArgs(argv: string[]): ParseOutcome {
   const positionals: string[] = [];
   const options: Record<string, string | true | string[]> = {};
   let command = '';
-
   const group: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
@@ -185,6 +188,12 @@ export function parseArgs(argv: string[]): ParseOutcome {
     if (group.length === 0 && command === 'config' && (token === 'get' || token === 'set')) {
       group.push(token);
       command = `config ${token}`;
+      continue;
+    }
+    // 支持 pipeline run 两层命令
+    if (group.length === 0 && command === 'pipeline' && token === 'run') {
+      group.push(token);
+      command = `pipeline run`;
       continue;
     }
     positionals.push(token);

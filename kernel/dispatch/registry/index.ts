@@ -1,4 +1,4 @@
-/**
+﻿/**
  * L2 指令注册与路由入口。
  *
  * 各命令处理器、宿主切换与共享确认逻辑已拆分到本目录模块；
@@ -23,6 +23,7 @@ import { installHandler, uninstallHandler } from './commands/lifecycle.ts';
 import { restoreHandler } from './commands/restore.ts';
 import { validateHandler } from './commands/validate.ts';
 import { reconcileHandler } from '../reconcile/index.ts';
+import { registerPipelineCommands } from './commands/pipeline.ts';
 import type { CommandContext, CommandHandler, CommandSpec } from './types.ts';
 
 export type { CommandContext, CommandHandler, CommandSpec } from './types.ts';
@@ -46,6 +47,7 @@ export const REGISTERED_COMMANDS = [
   'import',
   'restore',
   'reconcile',
+  'pipeline run',
 ] as const;
 
 const handlers = new Map<string, CommandHandler>();
@@ -54,6 +56,26 @@ const handlers = new Map<string, CommandHandler>();
 export function register(spec: CommandSpec): void {
   handlers.set(spec.name, spec.handler);
 }
+
+// 注册所有命令
+register({ name: 'init', handler: initHandler });
+register({ name: 'scan', handler: scanHandler });
+register({ name: 'install', handler: installHandler });
+register({ name: 'uninstall', handler: uninstallHandler });
+register({ name: 'validate', handler: validateHandler });
+register({ name: 'list', handler: listHandler });
+register({ name: 'inspect', handler: inspectHandler });
+register({ name: 'config get', handler: configGetHandler });
+register({ name: 'deps', handler: depsHandler });
+register({ name: 'export', handler: exportHandler });
+register({ name: 'config set', handler: configSetHandler });
+register({ name: 'enable', handler: toggleHandler('enable') });
+register({ name: 'disable', handler: toggleHandler('disable') });
+register({ name: 'update', handler: updateHandler });
+register({ name: 'import', handler: importHandler });
+register({ name: 'restore', handler: restoreHandler });
+register({ name: 'reconcile', handler: reconcileHandler });
+registerPipelineCommands(register);
 
 const KIND_COMMANDS = new Set([
   'scan',
@@ -101,23 +123,5 @@ export async function dispatch(context: CommandContext): Promise<Result<unknown>
       }),
     ]);
   }
-  return handler(context);
+  return await handler(context);
 }
-
-register({ name: 'init', handler: initHandler });
-register({ name: 'scan', handler: scanHandler });
-register({ name: 'install', handler: installHandler });
-register({ name: 'uninstall', handler: uninstallHandler });
-register({ name: 'validate', handler: validateHandler });
-register({ name: 'list', handler: listHandler });
-register({ name: 'inspect', handler: inspectHandler });
-register({ name: 'config get', handler: configGetHandler });
-register({ name: 'deps', handler: depsHandler });
-register({ name: 'export', handler: exportHandler });
-register({ name: 'config set', handler: configSetHandler });
-register({ name: 'enable', handler: toggleHandler('enable') });
-register({ name: 'disable', handler: toggleHandler('disable') });
-register({ name: 'update', handler: updateHandler });
-register({ name: 'import', handler: importHandler });
-register({ name: 'restore', handler: restoreHandler });
-register({ name: 'reconcile', handler: reconcileHandler });

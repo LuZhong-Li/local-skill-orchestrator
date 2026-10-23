@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * 命令行宿主入口。
  *
@@ -121,6 +121,12 @@ function helpText(): string {
     '  import <路径>           从备份清单恢复索引记录；已存在的标识一律跳过，不覆盖',
     '  restore <标识>          从备份载体把内容写回中心库并重分发副本；省略时间戳时取最新',
     '  reconcile               对盘点后的宿主副本生成显式动作计划（默认预览）',
+    '  pipeline run            运行文档流水线：问题 -> 分类 -> 规划 -> 文档包',
+    '',
+    'pipeline run 专用选项：',
+    '  --problem <描述>        输入问题描述（必填）',
+    '  --output-dir <路径>     文档包输出目录（必填）',
+    '  --answers q1=a1         问题答案，可重复（如 --answers q1=a --answers q2=b）',
     '',
     '通用选项：',
     '  --workspace <路径>      指定工作区根目录，覆盖环境变量',
