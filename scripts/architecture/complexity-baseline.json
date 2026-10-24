@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-23T16:52:12.497Z",
+  "generated_at": "2026-10-24T04:03:57.087Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -680,7 +680,7 @@
         "function": "<anonymous>",
         "scope": "<module>",
         "signature": "const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unknown>> => {",
-        "complexity": 11,
+        "complexity": 18,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },

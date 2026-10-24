@@ -1,4 +1,4 @@
-﻿/**
+/**
  * LLM Provider 实现。
  *
  * 支持 OpenAI 兼容的 API（Doubao、Claude、GPT 等）。
@@ -23,11 +23,11 @@ interface ChatMessage {
 
 /** OpenAI 兼容的响应格式 */
 interface ChatCompletionResponse {
-  choices: Array&lt;{
+  choices: Array<{
     message: {
       content: string;
     };
-  }&gt;;
+  }>;
 }
 
 /**
@@ -54,7 +54,7 @@ export class OpenAICompatibleProvider implements IntelligenceProvider {
     };
   }
 
-  async generate(prompt: string, context: Record<string, unknown>): Promise&lt;string&gt; {
+  async generate(prompt: string, context: Record<string, unknown>): Promise<string> {
     const systemPrompt = this.buildSystemPrompt(context);
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -65,7 +65,7 @@ export class OpenAICompatibleProvider implements IntelligenceProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`,
+        Authorization: `Bearer ${this.config.apiKey}`,
       },
       body: JSON.stringify({
         model: this.config.model,
@@ -80,13 +80,14 @@ export class OpenAICompatibleProvider implements IntelligenceProvider {
       throw new Error(`LLM API call failed (${response.status}): ${errorText}`);
     }
 
-    const data: ChatCompletionResponse = await response.json();
-    return data.choices[0].message.content || '';
+    const data = (await response.json()) as ChatCompletionResponse;
+    const first = data.choices[0];
+    return first?.message?.content ?? '';
   }
 
   private buildSystemPrompt(context: Record<string, unknown>): string {
-    const docType = context.docType as string || '文档';
-    const topic = context.topic as string || '未指定主题';
+    const docType = (context.docType as string) || '文档';
+    const topic = (context.topic as string) || '未指定主题';
 
     return `你是一个专业的技术文档写作助手。
 请根据用户的问题，生成一份高质量的${docType}。

@@ -29,14 +29,14 @@ function utcNow(): string {
  */
 export function createStdioInteraction(): Interaction {
   return {
-    interactive: process.stdin.isTTY === true &amp;&amp; process.stdout.isTTY === true,
-    write: (text: string): void =&gt; {
+    interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
+    write: (text: string): void => {
       process.stdout.write(text);
     },
-    read: (): Promise&lt;string&gt; =&gt;
-      new Promise((resolve) =&gt; {
+    read: (): Promise<string> =>
+      new Promise((resolve) => {
         const rl = createInterface({ input: process.stdin, output: process.stdout });
-        rl.once('line', (line) =&gt; {
+        rl.once('line', (line) => {
           rl.close();
           resolve(line);
         });
@@ -47,7 +47,7 @@ export function createStdioInteraction(): Interaction {
 export async function run(
   argv: string[],
   interaction: Interaction = createStdioInteraction(),
-): Promise&lt;number&gt; {
+): Promise<number> {
   const { args, findings } = parseArgs(argv);
   const json = flag(args, 'json');
   const machine = flag(args, 'machine');
@@ -60,10 +60,10 @@ export async function run(
   }
   if (flag(args, 'help') || args.command === '') {
     process.stdout.write(helpText());
-    return findings.length &gt; 0 ? exitCodeFor(findings) : 0;
+    return findings.length > 0 ? exitCodeFor(findings) : 0;
   }
 
-  if (findings.length &gt; 0) {
+  if (findings.length > 0) {
     const result = buildResult(args.command, findings);
     process.stdout.write(`${render(result, { json, machine, color })}\n`);
     return result.exit_code;
@@ -83,8 +83,8 @@ export async function run(
 
 function rawReportOf(
   command: string,
-  args: ReturnType&lt;typeof parseArgs&gt;['args'],
-  result: Awaited&lt;ReturnType&lt;typeof dispatch&gt;&gt;,
+  args: ReturnType<typeof parseArgs>['args'],
+  result: Awaited<ReturnType<typeof dispatch>>,
 ): string | null {
   if (
     command !== 'scan' ||
@@ -95,9 +95,9 @@ function rawReportOf(
   }
   const data = result.data;
   if (data === null || typeof data !== 'object') return null;
-  const report = (data as Record&lt;string, unknown&gt;)['report'];
+  const report = (data as Record<string, unknown>)['report'];
   if (report === null || typeof report !== 'object') return null;
-  const content = (report as Record&lt;string, unknown&gt;)['content'];
+  const content = (report as Record<string, unknown>)['content'];
   return typeof content === 'string' ? content : null;
 }
 
@@ -122,7 +122,7 @@ function helpText(): string {
     '  import <路径>           从备份清单恢复索引记录；已存在的标识一律跳过，不覆盖',
     '  restore <标识>          从备份载体把内容写回中心库并重分发副本；省略时间戳时取最新',
     '  reconcile               对盘点后的宿主副本生成显式动作计划（默认预览）',
-    '  pipeline run            运行文档流水线：问题 -&gt; 分类 -&gt; 规划 -&gt; 文档包',
+    '  pipeline run            运行文档流水线：问题 -> 分类 -> 规划 -> 文档包',
     '',
     'pipeline run 专用选项：',
     '  --problem <描述>        输入问题描述（必填）',
@@ -185,7 +185,7 @@ if (isEntryPoint()) {
   // 不用顶层 await：内核也要能被打包成 CommonJS 的单文件可执行形态
   // 不能直接 process.exit：macOS 的管道 stdout 可能尚未排空，会截断较大的 --json 输出。
   // 设置 exitCode 后让事件循环自然结束，退出码语义不变。
-  void run(process.argv.slice(2)).then((code) =&gt; {
+  void run(process.argv.slice(2)).then((code) => {
     process.exitCode = code;
   });
 }

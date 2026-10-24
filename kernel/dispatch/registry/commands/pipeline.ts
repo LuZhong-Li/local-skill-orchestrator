@@ -1,9 +1,9 @@
-﻿/** pipeline 命令处理器。 */
+/** pipeline 命令处理器。 */
 
 import { CODES, type Finding } from '@skill-manager/contract';
 import { finding } from '../../../store/findings.ts';
 import { buildResult, type Result } from '../../result/index.ts';
-import { option, optionList, flag } from '../../parsers/index.ts';
+import { option, optionList } from '../../parsers/index.ts';
 import {
   classifyProblem,
   planPipeline,
@@ -15,17 +15,16 @@ import {
   createClaudeProvider,
   OpenAICompatibleProvider,
 } from '../../../core/pipeline/index.ts';
-import type { CommandContext, CommandHandler, CommandSpec } from '../types.ts';
+import type { CommandHandler, CommandSpec } from '../types.ts';
 import type { IntelligenceProvider } from '../../../core/pipeline/types.ts';
 import { join } from 'node:path';
 
 /** pipeline run 命令处理器 */
-const pipelineRunHandler: CommandHandler = async (context): Promise&lt;Result&lt;unknown&gt;&gt; =&gt; {
+const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unknown>> => {
   const findings: Finding[] = [];
   let problem = option(context.args, 'problem');
   let outputDir = option(context.args, 'output-dir');
   const answersRaw = optionList(context.args, 'answers');
-  const json = flag(context.args, 'json');
 
   if (!problem || !outputDir) {
     if (!problem) {
@@ -55,10 +54,10 @@ const pipelineRunHandler: CommandHandler = async (context): Promise&lt;Result&lt
   outputDir = outputDir as string;
 
   // 解析 answers（格式 q1=a1）
-  const answers: Record&lt;string, string&gt; = {};
+  const answers: Record<string, string> = {};
   for (const ans of answersRaw) {
     const eqIndex = ans.indexOf('=');
-    if (eqIndex &gt; 0) {
+    if (eqIndex > 0) {
       const q = ans.slice(0, eqIndex);
       const a = ans.slice(eqIndex + 1);
       answers[q] = a;
@@ -70,16 +69,16 @@ const pipelineRunHandler: CommandHandler = async (context): Promise&lt;Result&lt
   const llmProviderType = option(context.args, 'llm-provider');
   const llmApiKey = option(context.args, 'llm-api-key');
 
-  if (llmProviderType &amp;&amp; llmApiKey) {
+  if (llmProviderType && llmApiKey) {
     const llmBaseUrl = option(context.args, 'llm-base-url');
     const llmModel = option(context.args, 'llm-model');
     const llmTemperature = option(context.args, 'llm-temperature');
-    const config = {
+    const config: { apiKey: string; baseURL?: string; model?: string; temperature?: number } = {
       apiKey: llmApiKey,
-      baseURL: llmBaseUrl,
-      model: llmModel,
-      temperature: llmTemperature ? parseFloat(llmTemperature) : undefined,
     };
+    if (llmBaseUrl) config.baseURL = llmBaseUrl;
+    if (llmModel) config.model = llmModel;
+    if (llmTemperature) config.temperature = parseFloat(llmTemperature);
 
     if (llmProviderType === 'doubao') {
       provider = createDoubaoProvider(config);
@@ -102,22 +101,23 @@ const pipelineRunHandler: CommandHandler = async (context): Promise&lt;Result&lt
   });
 
   let docs;
-  if (Object.keys(answers).length &gt; 0) {
+  if (Object.keys(answers).length > 0) {
     docs = await runPipelineWithAnswers(planResult, provider, answers);
   } else {
     docs = await runPipeline(planResult, provider);
   }
 
   // 检查是否是 questionnaire-pending
-  if (docs.length === 1 &amp;&amp; docs[0].docType === 'questionnaire-pending') {
-    const data = JSON.parse(docs[0].content);
+  const first = docs[0];
+  if (docs.length === 1 && first && first.docType === 'questionnaire-pending') {
+    const data = JSON.parse(first.content);
     return buildResult(context.args.command, [], [], { data });
   }
 
   // 收敛了，写出文档包
   writeDocumentPackage(outputDir, docs);
 
-  const docPaths = docs.map((d) =&gt; join(outputDir, `${d.stage}.md`));
+  const docPaths = docs.map((d) => join(outputDir, `${d.stage}.md`));
   docPaths.push(join(outputDir, 'INDEX.md'));
 
   return buildResult(context.args.command, [], [], {
@@ -131,7 +131,7 @@ const pipelineRunHandler: CommandHandler = async (context): Promise&lt;Result&lt
 };
 
 /** 注册 pipeline 命令 */
-export function registerPipelineCommands(registerFn: (spec: CommandSpec) =&gt; void): void {
+export function registerPipelineCommands(registerFn: (spec: CommandSpec) => void): void {
   registerFn({
     name: 'pipeline run',
     handler: pipelineRunHandler,

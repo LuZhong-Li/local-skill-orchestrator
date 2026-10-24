@@ -8,24 +8,24 @@ import {
   createClaudeProvider,
 } from '../../kernel/core/pipeline/llm-providers.ts';
 
-test('OpenAICompatibleProvider: 基本实例化', () =&gt; {
+test('OpenAICompatibleProvider: 基本实例化', () => {
   const provider = new OpenAICompatibleProvider('test-provider', {
     apiKey: 'test-key',
   });
   assert.equal(provider.name, 'test-provider');
 });
 
-test('createDoubaoProvider: 正确配置', () =&gt; {
+test('createDoubaoProvider: 正确配置', () => {
   const provider = createDoubaoProvider({ apiKey: 'test-key' });
   assert.equal(provider.name, 'doubao');
 });
 
-test('createClaudeProvider: 正确配置', () =&gt; {
+test('createClaudeProvider: 正确配置', () => {
   const provider = createClaudeProvider({ apiKey: 'test-key' });
   assert.equal(provider.name, 'claude');
 });
 
-test('OpenAICompatibleProvider: 自定义配置生效', () =&gt; {
+test('OpenAICompatibleProvider: 自定义配置生效', () => {
   const provider = new OpenAICompatibleProvider('custom', {
     apiKey: 'test-key',
     model: 'custom-model',
