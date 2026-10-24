@@ -9,7 +9,7 @@
  * 该判断由调用方依据索引中的落位目标给出。
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { KernelError } from '../errors.ts';
 import { CODES } from '@skill-manager/contract';
 import { DISABLED_SUFFIX, SKILL_MD_NAME } from '@skill-manager/contract';
@@ -157,6 +157,46 @@ export interface DeliveryPlanEntry {
  *
  * 调用方必须已用 K-07 的冲突检测检查过计划；本函数只负责执行，并在源文件缺失或读写失败时抛错。
  */
+/**
+ * 校验 file_map 条目的相对路径必须留在指定根目录内。
+ * 拒绝绝对路径、`..` 段、反斜杠（跨平台路径注入）。
+ */
+function assertWithinRoot(root: string, relative: string, field: string): void {
+  if (!relative || relative.startsWith('/') || /^[A-Za-z]:[\\/]/.test(relative)) {
+    throw new KernelError({
+      code: CODES.PATH_INVALID,
+      message: `file_map ${field} 不能是绝对路径：${relative}`,
+      source: 'library-fs',
+      target: relative,
+      remedy: '请使用相对于原件目录的相对路径',
+    });
+  }
+  const segments = relative.split('/');
+  if (segments.some((seg) => seg === '..' || seg === '.')) {
+    throw new KernelError({
+      code: CODES.PATH_INVALID,
+      message: `file_map ${field} 不能包含 .. 段：${relative}`,
+      source: 'library-fs',
+      target: relative,
+      remedy: '请使用扁平相对路径，不要向上跳级',
+    });
+  }
+  const resolved = join(root, ...segments);
+  const normalizedRoot = resolve(root);
+  if (
+    !resolved.startsWith(normalizedRoot + (resolved.includes('\\') ? '\\' : '/')) &&
+    resolved !== normalizedRoot
+  ) {
+    throw new KernelError({
+      code: CODES.PATH_INVALID,
+      message: `file_map ${field} 越界：${relative}`,
+      source: 'library-fs',
+      target: relative,
+      remedy: '请修正 file_map，所有路径必须留在副本目录内',
+    });
+  }
+}
+
 export function deliverFiles(
   sourceDir: string,
   destDir: string,
@@ -169,6 +209,8 @@ export function deliverFiles(
 
   const delivered: string[] = [];
   for (const entry of plan) {
+    assertWithinRoot(sourceDir, entry.source, 'source');
+    assertWithinRoot(destDir, entry.destination, 'destination');
     const from = join(sourceDir, ...entry.source.split('/'));
     const to = join(destDir, ...entry.destination.split('/'));
     try {

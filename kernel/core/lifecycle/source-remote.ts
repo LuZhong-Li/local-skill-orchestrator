@@ -22,7 +22,43 @@ import {
   type AcquiredSource,
 } from './source-shared.ts';
 
+/** 校验 git clone URL 协议白名单，拒绝 ext:: 等远程助手协议。 */
+function assertGitUrlAllowed(url: string): void {
+  // 拒绝包含 :: 的非标准协议（ext::、uploadpack:: 等 git 远程助手）
+  if (url.includes('::')) {
+    throw sourceError(
+      CODES.SRC_UNRESOLVED,
+      `不支持的 git 协议：${url}`,
+      url,
+      '仅允许 https://、http://、git://、ssh:// 或 user@host:path 形式',
+    );
+  }
+  // 只允许显式协议或 scp 形式
+  if (!/^(https?|git|ssh):\/\//.test(url) && !/^[\w.-]+@[\w.-]+:/.test(url)) {
+    throw sourceError(
+      CODES.SRC_UNRESOLVED,
+      `不支持的 git 地址格式：${url}`,
+      url,
+      '请使用 https:// 或 git@host:owner/repo.git 形式',
+    );
+  }
+}
+
+/** 校验远端归档下载只允许 HTTPS（防止中间人提示词注入）。localhost 测试例外。 */
+function assertArchiveUrlAllowed(url: string): void {
+  if (url.startsWith('https://')) return;
+  // 测试环境：允许本地 mock server
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(url)) return;
+  throw sourceError(
+    CODES.SRC_UNRESOLVED,
+    `远端归档下载仅允许 HTTPS：${url}`,
+    url,
+    '明文 HTTP 会让中间人替换 Skill 内容；请改用 https:// 或本地归档来源',
+  );
+}
+
 async function fetchRemoteFile(url: string, destFile: string): Promise<void> {
+  assertArchiveUrlAllowed(url);
   let response: Response;
   try {
     response = await fetch(url, { signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS) });
@@ -103,6 +139,7 @@ async function cloneRemoteRepo(
   ref: string | undefined,
   destDir: string,
 ): Promise<void> {
+  assertGitUrlAllowed(url);
   // 不用 --depth 1：浅克隆在 dumb HTTP 上不被支持，而自建镜像常用 dumb 协议。
   // 代价是克隆体积更大，由超时上限兜底。
   const args = ['clone', '--quiet'];

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * 命令行宿主入口。
  *
@@ -103,7 +103,7 @@ function rawReportOf(
 
 function helpText(): string {
   return [
-    'skill-manager 0.1.0',
+    `skill-manager ${TOOL_VERSION}`,
     '',
     '用法：skill-manager <指令> [选项]',
     '',
