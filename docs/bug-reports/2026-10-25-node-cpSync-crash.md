@@ -1,9 +1,12 @@
-﻿# Bug 报告：install 崩溃 0xC0000409（Node cpSync × 中文源路径）
+# Bug 报告：install 崩溃 0xC0000409（Node cpSync × 中文源路径）
 
-> 状态：**待处理（上游 Node 运行时 bug，skill-manager 需绕行）**
-> 报告日期：2026-10-26 · 首次发现：2026-10-25
+> 状态：**已结案 —— 上游 Node bug，v24.15.0 已修复；升级 Node ≥ v24.15.0 即可，skill-manager 无需改代码**
+> 报告日期：2026-10-26 · 首次发现：2026-10-25 · 结案确认：2026-10-26（双版本实测）
 > 环境：Windows 10.0.26300 · Node v24.14.1（`C:\Users\HW\AppData\Local\Programs\nodejs\node.exe`）· skill-manager 0.7.0（源码运行）
-> 标签：`runtime` · `windows` · `fs.cpSync` · `非 ASCII 路径`
+> 标签：`runtime` · `windows` · `fs.cpSync` · `非 ASCII 路径` · `已上游修复`
+> 上游：修复 PR https://github.com/nodejs/node/pull/61950（`fs: fix cpSync to handle non-ASCII characters`，
+> 2026-04-15 合入 v24.15.0，见 https://nodejs.org/en/blog/release/v24.15.0）；
+> 早期同类 issue：https://github.com/nodejs/node/issues/54476、https://github.com/nodejs/node/issues/58768
 
 ## 现象
 
@@ -51,7 +54,21 @@ node -e "const {cpSync}=require('node:fs'); cpSync('C:/Users/HW/中文源测试'
 
 **崩溃层**：进程级原生崩溃（0xC0000409），位于 Node 运行时内部链路
 （`node:fs` JS 包装 → libuv → Windows 文件系统 API）。应用层无法 try/catch。
-是否 Node JS 层或更底层 API 触发，需 Node 官方调试栈确认（2026-10-25 检索无公开记录）。
+
+### 结案确认（2026-10-26）：版本过低的已知 bug
+
+上游已有修复：**PR #61950「fs: fix cpSync to handle non-ASCII characters」已在 Node v24.15.0 合入**
+（官方发布说明 Notable Changes 明确列出）；早期同类问题见 #54476（Windows 中文目录崩溃）、#58768（非 ASCII 路径跟踪）。
+
+本机双版本同脚本实测：
+
+| Node 版本 | 中文目录 + cpSync | 结果 |
+| --- | --- | --- |
+| v24.14.1（本机安装，修复前） | `repro.js` | 💥 崩溃 0xC0000409 |
+| v24.22.0（便携版，修复后） | `repro.js` | ✅ 正常（CP_RESULT=OK） |
+
+**结论**：skill-manager 只是触发了 Node 旧版（< v24.15.0）同步复制实现中的原生崩溃；
+升级 Node 到 ≥ v24.15.0 后重新执行 install 即可。若最新版仍可复现，才作为新的 Node 回归问题上报。
 
 ## 影响
 
@@ -60,18 +77,20 @@ node -e "const {cpSync}=require('node:fs'); cpSync('C:/Users/HW/中文源测试'
 2. **更广**：任何在 Windows + Node v24 上用 `cpSync` 递归复制中文路径的工具
    （npm / 构建脚本 / 备份工具）同样受影响。
 
-## 修复建议（skill-manager 侧绕行）
+## 修复建议
 
-崩溃不抛 JS 异常，`try/catch` 捕获不到，**必须替换实现**：
+**首选（无需改代码）**：把 Node 从 v24.14.1 升级到 **≥ v24.15.0**（本机已验证 v24.22.0 正常），
+然后重新执行 skill-manager 的 install/update 即可，链路无需任何改动。
 
-- **首选**：`kernel/store/library-fs/index.ts` 的 `copyTree()` / `replaceTree()`
-  改为 `readdirSync` + `copyFileSync` 逐文件实现（证据 #8 已验证 413 文件中文源正常）。
-  `deliverFiles()` 的逐文件分支已有同思路代码可复用。
-- 备选：源路径含非 ASCII 字符时切换逐文件分支（需自行实现 ASCII 检测）。
-- 收尾：`builtin-skills.ts` 用 `import.meta.url` 定位内置技能目录，
-  编译成 CJS/SEA 后 `import.meta` 为空导致 `ERR_INVALID_URL`（`build/kernel/skill-manager.exe`
-  0.1.0 同因崩溃）——若未来要做单文件产物，需改为编译期注入路径。
-  另：ESM bundle 被 `yaml` 的动态 `require('process')` 挡住（"Dynamic require is not supported"）。
+**可选（兼容旧版 Node）**：若必须支持 Node < 24.15.0，`kernel/store/library-fs/index.ts` 的
+`copyTree()` / `replaceTree()` 可改为 `readdirSync` + `copyFileSync` 逐文件实现
+（证据 #8 已验证 413 文件中文源正常；`deliverFiles()` 的逐文件分支已有同思路代码）。
+崩溃不抛 JS 异常，`try/catch` 捕获不到，因此不能靠 fallback，只能替换实现。
+
+**顺带记录（不阻塞）**：`builtin-skills.ts` 用 `import.meta.url` 定位内置技能目录，
+编译成 CJS/SEA 后 `import.meta` 为空导致 `ERR_INVALID_URL`（`build/kernel/skill-manager.exe`
+0.1.0 同因崩溃）——若未来要做单文件产物，需改为编译期注入路径。
+另：ESM bundle 被 `yaml` 的动态 `require('process')` 挡住（"Dynamic require is not supported"）。
 
 ## 复现与回归
 
