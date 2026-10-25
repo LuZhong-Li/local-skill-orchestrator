@@ -1,5 +1,29 @@
 # 变更记录
 
+## 0.8.0
+
+&gt; 发布日期：2026-10-25
+
+### 中文摘要
+
+- **内置技能模板**：首次运行 CLI 时自动安装 5 个演示技能，包含需求文档、设计文档、里程碑计划、代码审查清单和 Git 提交规范模板；已有技能不会被覆盖，用户可自主管理。
+- **LLM 提供商支持**：新增 OpenAI 兼容、豆包（Doubao）、Claude 三种 LLM 提供商适配器，统一接口抽象，支持灵活切换和配置。
+- **安全加固**：修复文件映射路径遍历漏洞，阻止 git ext:: 协议，禁止纯 HTTP 下载，只允许 HTTPS 协议。
+- **管道引擎**：实现 M0-M5 完整的管道引擎，包括元技能注册表、提供者抽象、人工回退、需求问卷状态机、决策记录、收敛门、文档包写入器、CLI 管道命令等。
+
+### English Summary
+
+- **Built-in skill templates**: 5 demo skills auto-install on first CLI run, including requirements doc, design doc, milestone plan, code review checklist, and Git commit spec templates; existing skills are never overwritten, users can manage them freely.
+- **LLM provider support**: added OpenAI-compatible, Doubao, and Claude LLM provider adapters with unified interface abstraction for flexible switching and configuration.
+- **Security hardening**: fixed file_map path traversal vulnerability, blocked git ext:: protocol, disabled plain HTTP downloads, only HTTPS allowed.
+- **Pipeline engine**: implemented complete M0-M5 pipeline engine including meta-skill registry, provider abstraction, human fallback, requirements questionnaire state machine, decision records, convergence gate, document package writer, and CLI pipeline command.
+
+### Verification
+
+- Regular tests: **834 items** (833 pass + 1 platform-specific skip).
+- GUI smoke: **94/94** passed.
+- All check gates passed: contract, architecture, complexity, test fixtures, typecheck, lint, format, and build.
+
 ## 0.7.0
 
 > 发布日期：2026-10-23
