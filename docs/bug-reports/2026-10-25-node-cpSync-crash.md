@@ -70,6 +70,17 @@ node -e "const {cpSync}=require('node:fs'); cpSync('C:/Users/HW/中文源测试'
 **结论**：skill-manager 只是触发了 Node 旧版（< v24.15.0）同步复制实现中的原生崩溃；
 升级 Node 到 ≥ v24.15.0 后重新执行 install 即可。若最新版仍可复现，才作为新的 Node 回归问题上报。
 
+### 升级后全链路实测（2026-10-26，系统 Node 已升 v24.22.0）
+
+| 步骤 | 命令 | 结果 |
+| --- | --- | --- |
+| 复现脚本 | 中文目录 + `cpSync`（`_node-test/repro.js`） | ✅ CP_RESULT=OK（升级前同脚本崩 0xC0000409） |
+| init | `cli.ts init --workspace D:\树根\_node-test\sm-ws`（中文路径工作区） | ✅ 成功 |
+| install | `cli.ts install …\.user_skills\vibe-knowledge-video-skill --workspace … --yes`（中文源路径） | ✅ 成功，中心库+宿主副本落位 |
+| validate | `cli.ts validate --workspace …` | ✅ 成功，无变更 |
+
+系统 Node：v24.14.1 → v24.22.0（npm 10.9.2 → 11.19.1）；旧版已备份至 `D:\树根\_node-backup\nodejs-v24.14.1` 可回滚。
+
 ## 影响
 
 1. **skill-manager**：`install` / `update` / `reconcile --action accept` 等所有走
