@@ -16,6 +16,8 @@ import { TOOL_VERSION } from '../core/index/index.ts';
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import type { Interaction } from '../dispatch/policy/index.ts';
+import { resolveWorkspaceRoot, layoutOf } from '../store/workspace/index.ts';
+import { ensureBuiltinSkills } from '../core/bootstrap/builtin-skills.ts';
 
 /** 协调世界时秒级时间戳 */
 function utcNow(): string {
@@ -48,6 +50,15 @@ export async function run(
   argv: string[],
   interaction: Interaction = createStdioInteraction(),
 ): Promise<number> {
+  // 首次运行时自动安装内置示范 Skill
+  try {
+    const workspaceRoot = resolveWorkspaceRoot();
+    const layout = layoutOf(workspaceRoot);
+    ensureBuiltinSkills(layout.skillsDir);
+  } catch {
+    // 内置安装失败不阻塞主流程
+  }
+
   const { args, findings } = parseArgs(argv);
   const json = flag(args, 'json');
   const machine = flag(args, 'machine');

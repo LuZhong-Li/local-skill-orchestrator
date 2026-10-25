@@ -591,6 +591,12 @@
       "layer": "core"
     },
     {
+      "path": "kernel/core/bootstrap/builtin-skills.ts",
+      "kind": "source",
+      "region": "kernel-core",
+      "layer": "core"
+    },
+    {
       "path": "kernel/core/conflict/index.ts",
       "kind": "source",
       "region": "kernel-core",
@@ -8811,6 +8817,13 @@
     },
     {
       "from": "kernel/entry/cli.ts",
+      "to": "kernel/core/bootstrap/builtin-skills.ts",
+      "specifier": "../core/bootstrap/builtin-skills.ts",
+      "from_layer": "entry",
+      "to_layer": "core"
+    },
+    {
+      "from": "kernel/entry/cli.ts",
       "to": "kernel/core/index/index.ts",
       "specifier": "../core/index/index.ts",
       "from_layer": "entry",
@@ -8855,6 +8868,13 @@
       "from": "kernel/entry/cli.ts",
       "to": "kernel/store/findings.ts",
       "specifier": "../store/findings.ts",
+      "from_layer": "entry",
+      "to_layer": "store"
+    },
+    {
+      "from": "kernel/entry/cli.ts",
+      "to": "kernel/store/workspace/index.ts",
+      "specifier": "../store/workspace/index.ts",
       "from_layer": "entry",
       "to_layer": "store"
     },
@@ -9322,15 +9342,15 @@
     }
   ],
   "stats": {
-    "source_files": 301,
+    "source_files": 302,
     "asset_nodes": 1,
-    "nodes": 302,
-    "edges": 1072,
+    "nodes": 303,
+    "edges": 1074,
     "unresolved": 0,
     "cycles": 0,
     "layers": {
       "contract": 12,
-      "core": 83,
+      "core": 84,
       "dispatch": 68,
       "entry": 2,
       "gui": 73,
@@ -9342,7 +9362,7 @@
       "contract": 19,
       "core": 317,
       "dispatch": 516,
-      "entry": 8,
+      "entry": 10,
       "gui": 147,
       "public": 6,
       "scripts": 38,
@@ -9350,21 +9370,21 @@
     },
     "incoming": {
       "contract": 19,
-      "core": 373,
+      "core": 374,
       "dispatch": 213,
       "entry": 1,
       "gui": 147,
       "public": 1,
       "scripts": 37,
-      "store": 281
+      "store": 282
     },
     "cross_layer_edges": {
       "core->store": 113,
       "dispatch->core": 167,
       "dispatch->store": 145,
-      "entry->core": 1,
+      "entry->core": 2,
       "entry->dispatch": 5,
-      "entry->store": 1,
+      "entry->store": 2,
       "public->core": 1,
       "public->dispatch": 4,
       "public->store": 1,

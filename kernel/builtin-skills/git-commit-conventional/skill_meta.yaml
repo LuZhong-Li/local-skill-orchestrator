@@ -1,0 +1,25 @@
+id: git-commit-conventional
+name: Conventional Commits 规范
+version: 0.1.0
+description: 标准化 Git 提交信息格式，支持自动生成 CHANGELOG
+author: skill-manager
+license: MIT
+status: enabled
+path: git-commit-conventional
+trigger_keywords:
+  - 提交规范
+  - conventional commits
+  - git commit
+source:
+  type: local
+targets:
+  - target: claude
+    scope: global
+    path: .claude/skills/git-commit-conventional
+    mode: copy
+    enabled: true
+    file_map:
+      SKILL.md: SKILL.md
+created_at: '2026-10-25T00:00:00Z'
+updated_at: '2026-10-25T00:00:00Z'
+checksum: ''
