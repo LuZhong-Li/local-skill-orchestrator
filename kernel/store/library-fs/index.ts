@@ -8,7 +8,15 @@
  * 本体只提供副本层面的可见性切换原语，不负责决定哪个目录是副本——
  * 该判断由调用方依据索引中的落位目标给出。
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import {
+  copyFileSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { join, resolve } from 'node:path';
 import { KernelError } from '../errors.ts';
 import { CODES } from '@skill-manager/contract';
@@ -104,12 +112,32 @@ export function countTreeFiles(target: string): number {
 }
 
 /**
+ * 逐文件递归复制目录（绕过 Windows Node v24 cpSync 中文路径崩溃 bug）。
+ * 根因：fs.cpSync({recursive:true}) 在源路径含非 ASCII 字符时触发 STATUS_STACK_BUFFER_OVERRUN，
+ * 应用层 try/catch 无法捕获。改用 readdirSync + copyFileSync 逐文件复制。
+ */
+function copyTreeRecursive(sourceDir: string, destDir: string): void {
+  mkdirSync(destDir, { recursive: true });
+  const entries = readdirSync(sourceDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = join(sourceDir, entry.name);
+    const dstPath = join(destDir, entry.name);
+    if (entry.isDirectory()) {
+      copyTreeRecursive(srcPath, dstPath);
+    } else if (entry.isFile()) {
+      copyFileSync(srcPath, dstPath);
+    }
+    // 符号链接跳过（与原 cpSync 默认行为一致）
+  }
+}
+
+/**
  * 把一份内容整体复制为副本。
  * 调用方必须保证传入的路径已经过路径防护校验。
  */
 export function copyTree(sourceDir: string, destDir: string): void {
   try {
-    cpSync(sourceDir, destDir, { recursive: true, force: true });
+    copyTreeRecursive(sourceDir, destDir);
   } catch (error) {
     throw new KernelError({
       code: CODES.IO_FAILED,
@@ -269,7 +297,7 @@ export function listTreeFiles(root: string, base = '', collected: string[] = [])
 export function replaceTree(sourceDir: string, destDir: string): void {
   try {
     rmSync(destDir, { recursive: true, force: true });
-    cpSync(sourceDir, destDir, { recursive: true, force: true });
+    copyTreeRecursive(sourceDir, destDir);
   } catch (error) {
     throw new KernelError({
       code: CODES.IO_FAILED,

@@ -5,11 +5,22 @@
  * 已存在的不覆盖（用户删除后不会重新出现）。
  */
 
-import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const BUILTIN_DIR = resolve(fileURLToPath(new URL('../../../builtin-skills/', import.meta.url)));
+
+/** 逐文件递归复制（绕过 Windows Node v24 cpSync 中文路径崩溃 bug）。 */
+function copyDirRecursive(src: string, dst: string): void {
+  mkdirSync(dst, { recursive: true });
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const s = join(src, entry.name);
+    const d = join(dst, entry.name);
+    if (entry.isDirectory()) copyDirRecursive(s, d);
+    else if (entry.isFile()) copyFileSync(s, d);
+  }
+}
 
 /** 确保内置 Skill 已安装到中心库。返回新安装的 Skill id 列表。 */
 export function ensureBuiltinSkills(skillsDir: string): string[] {
@@ -22,7 +33,7 @@ export function ensureBuiltinSkills(skillsDir: string): string[] {
     if (!entry.isDirectory()) continue;
     const target = join(skillsDir, entry.name);
     if (existsSync(target)) continue;
-    cpSync(join(BUILTIN_DIR, entry.name), target, { recursive: true });
+    copyDirRecursive(join(BUILTIN_DIR, entry.name), target);
     installed.push(entry.name);
   }
   return installed;
