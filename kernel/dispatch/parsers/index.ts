@@ -1,4 +1,4 @@
-﻿/**
+/**
  * L2 参数解析与参数级校验。
  *
  * 只做参数层面的处理：识别全局选项、区分位置参数、产出结构性错误。
@@ -75,6 +75,10 @@ export const VALUE_OPTIONS = new Set([
   'llm-base-url',
   'llm-model',
   'llm-temperature',
+  // 经验回归：pipeline run 预填相似经验
+  'experience',
+  // experience 命令专用
+  'query',
 ]);
 
 /**
@@ -191,16 +195,9 @@ export function parseArgs(argv: string[]): ParseOutcome {
       command = token;
       continue;
     }
-    // 两层指令只在 config 下成立：config get 与 config set
-    if (group.length === 0 && command === 'config' && (token === 'get' || token === 'set')) {
-      group.push(token);
-      command = `config ${token}`;
-      continue;
-    }
-    // 支持 pipeline run 两层命令
-    if (group.length === 0 && command === 'pipeline' && token === 'run') {
-      group.push(token);
-      command = `pipeline run`;
+    const sub = trySubCommand(command, group, token);
+    if (sub !== null) {
+      command = sub;
       continue;
     }
     positionals.push(token);
@@ -218,6 +215,27 @@ export function parseArgs(argv: string[]): ParseOutcome {
   }
 
   return { args: { command, positionals, options }, findings };
+}
+
+/**
+ * 识别两层指令（config get/set、pipeline run、experience list/search/show）。
+ * 命中时把子命令并入 command 并返回新指令名；不命中返回 null。
+ */
+function trySubCommand(command: string, group: string[], token: string): string | null {
+  if (group.length > 0) return null;
+  if (command === 'config' && (token === 'get' || token === 'set')) {
+    group.push(token);
+    return `config ${token}`;
+  }
+  if (command === 'pipeline' && token === 'run') {
+    group.push(token);
+    return `pipeline run`;
+  }
+  if (command === 'experience' && (token === 'list' || token === 'search' || token === 'show')) {
+    group.push(token);
+    return `experience ${token}`;
+  }
+  return null;
 }
 
 /** 读取布尔选项 */

@@ -702,7 +702,10 @@ skill-manager 必须维护一份全局索引文件，作为「已管理 Skill �
 | 15 | `skill-manager update <名称>` | 从已登记来源更新 Skill；更新前检测本地漂移；远端目标标签可指定 | 目标、远端目标标签、预演、跳过确认、全部更新 | 一期 |
 | 16 | `skill-manager restore <名称>` | 从备份载体把内容写回中心库并重分发副本，刷新或重建索引记录 | 时间戳、预演、跳过确认 | 一期 |
 | 17 | `skill-manager reconcile` | 对盘点后的宿主副本执行显式、可预览的纳管 / 修复 / 清理动作 | 动作、精确路径或 id + host、分类、根过滤、apply、预演、跳过确认 | M4c 二期 |
-| 18 | `skill-manager pipeline run` | 把一个问题按文档流水线处理为文档包 | problem、output-dir、answers（可重复）、json | M7 |
+| 18 | `skill-manager pipeline run` | 把一个问题按文档流水线处理为文档包，完成后自动累计一条经验 | problem、output-dir、answers（可重复）、experience（可选）、json | M7 |
+| 19 | `skill-manager experience list` | 经验回归：列出累计的处理经验 | limit、json | M7 |
+| 20 | `skill-manager experience search` | 经验回归：按关键词检索经验 | query、json | M7 |
+| 21 | `skill-manager experience show` | 经验回归：查看单条经验详情 | json | M7 |
 
 ### 5.3 输出契约要求
 

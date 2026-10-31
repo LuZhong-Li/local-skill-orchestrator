@@ -32,6 +32,9 @@ const EXPECTED_COMMANDS = [
   'restore',
   'reconcile',
   'pipeline run',
+  'experience list',
+  'experience search',
+  'experience show',
 ];
 
 /** 结果封装的必填顶层字段 */

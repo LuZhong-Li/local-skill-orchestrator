@@ -1,4 +1,4 @@
-﻿# 指令契约规范
+# 指令契约规范
 
 | 项目 | 内容 |
 |---|---|
@@ -143,6 +143,9 @@
 | 16 | `restore` | 从备份载体恢复内容 | 是 | 常规确认 | 0 至 5 |
 | 17 | `reconcile` | 对盘点后的宿主副本执行显式动作 | 是 | 常规确认 | 0 至 6 |
 | 18 | `pipeline run` | 按文档流水线把一个问题处理为文档包 | 是 | 无需 | 0 至 5 |
+| 19 | `experience list` | 列出累计的处理经验 | 是 | 无需 | 0 至 4 |
+| 20 | `experience search` | 按关键词检索经验 | 是 | 无需 | 0 至 4 |
+| 21 | `experience show` | 查看单条经验详情 | 是 | 无需 | 0 至 4 |
 
 指令名是契约的一部分：界面宿主与命令行必须使用同一套指令名，不做任何映射或改写。别名不属于契约，使用别名不得改变行为。
 
@@ -761,7 +764,7 @@ T4 执行范围：六个动作均支持共享根整组与插件 `x-` 宿主。�
 
 **用途**：把一个问题按文档流水线处理为文档包（需求→调研→设计→计划→审批，按需加 UI 四件套）。
 
-**语法**：`skill-manager pipeline run --problem <问题描述> --output-dir <目录> [--answers <问题=答案>...] [--json]`
+**语法**：`skill-manager pipeline run --problem <问题描述> --output-dir <目录> [--answers <问题=答案>...] [--experience <关键词>] [--json]`
 
 **前置条件**：`--problem` 与 `--output-dir` 必填；输出目录不存在时递归创建。
 
@@ -780,10 +783,43 @@ T4 执行范围：六个动作均支持共享根整组与插件 `x-` 宿主。�
 | `--problem` | 问题描述文本 |
 | `--output-dir` | 文档包输出目录，递归创建 |
 | `--answers <问题=答案>...` | 可重复，用于收敛需求追问 |
+| `--experience <关键词>` | 可选；按关键词检索历史经验，预填相似问题的问答 |
 
-**输出载荷**：输出目录、文档路径列表；未收敛时返回 `openQuestions` 与问卷状态。
+**输出载荷**：输出目录、文档路径列表、`experience_id`（本次自动累计的经验 id）、`experience_applied`（是否应用了相似经验）；未收敛时返回 `openQuestions` 与问卷状态。
 
-**预演与确认**：无需确认；写操作仅作用于用户显式指定的输出目录，不写工作区、索引或账本。
+**预演与确认**：无需确认；写操作仅作用于用户显式指定的输出目录与工作区 experiences/ 目录，不写索引或账本。
+
+---
+
+### 4.19 `experience list` / `experience search` / `experience show`
+
+**用途**：经验回归查询——每次 `pipeline run` 处理完成后自动累计一条经验，用户可列出、检索或查看单条详情。
+
+**语法**：
+
+```
+skill-manager experience list [--limit <数量>] [--json]
+skill-manager experience search --query <关键词> [--json]
+skill-manager experience show <id> [--json]
+```
+
+**前置条件**：`experience search` 需 `--query` 或位置参数关键词；`experience show` 需经验 id。经验不存在时返回输入类错误。
+
+**行为**：
+
+1. `list`：列出工作区 experiences/ 目录下全部经验，按时间倒序，默认 10 条；
+2. `search`：按关键词匹配问题原文、摘要、分类与问答；
+3. `show`：读取单条经验完整详情。
+
+**输出载荷**：
+
+| 指令 | 载荷要点 |
+|---|---|
+| `experience list` | 条数、经验摘要列表（id / problem / kind / stages / createdAt / provider） |
+| `experience search` | 关键词、条数、命中列表 |
+| `experience show` | 单条经验完整记录（problem / kind / stages / decisions / docTypes / provider / durationMs / createdAt / summary） |
+
+**预演与确认**：无需确认；全部为只读操作。
 
 ---
 
@@ -809,6 +845,10 @@ T4 执行范围：六个动作均支持共享根整组与插件 `x-` 宿主。�
 | `export` | 备份路径、条目数量、被剥离项、格式版本 |
 | `import` | 新增、覆盖、冲突、跳过四类条目明细 |
 | `reconcile` | 动作、选择器、前后分类与证据、共享根事务组、写入 / 账本变更 / 备份与逐项状态 |
+| `pipeline run` | 输出目录、文档路径、experience_id、experience_applied；未收敛时为 openQuestions |
+| `experience list` | 条数、经验摘要列表 |
+| `experience search` | 关键词、条数、命中列表 |
+| `experience show` | 单条经验完整记录 |
 
 ---
 

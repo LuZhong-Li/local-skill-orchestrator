@@ -1,4 +1,4 @@
-﻿/**
+/**
  * L2 指令注册与路由入口。
  *
  * 各命令处理器、宿主切换与共享确认逻辑已拆分到本目录模块；
@@ -24,6 +24,7 @@ import { restoreHandler } from './commands/restore.ts';
 import { validateHandler } from './commands/validate.ts';
 import { reconcileHandler } from '../reconcile/index.ts';
 import { registerPipelineCommands } from './commands/pipeline.ts';
+import { registerExperienceCommands } from './commands/experience.ts';
 import type { CommandContext, CommandHandler, CommandSpec } from './types.ts';
 
 export type { CommandContext, CommandHandler, CommandSpec } from './types.ts';
@@ -48,6 +49,9 @@ export const REGISTERED_COMMANDS = [
   'restore',
   'reconcile',
   'pipeline run',
+  'experience list',
+  'experience search',
+  'experience show',
 ] as const;
 
 const handlers = new Map<string, CommandHandler>();
@@ -76,6 +80,7 @@ register({ name: 'import', handler: importHandler });
 register({ name: 'restore', handler: restoreHandler });
 register({ name: 'reconcile', handler: reconcileHandler });
 registerPipelineCommands(register);
+registerExperienceCommands(register);
 
 const KIND_COMMANDS = new Set([
   'scan',

@@ -18,6 +18,7 @@ export const SKILLS_DIR_NAME = 'skills';
 export const BACKUPS_DIR_NAME = 'backups';
 export const LOCKS_DIR_NAME = 'locks';
 export const LOGS_DIR_NAME = 'logs';
+export const EXPERIENCES_DIR_NAME = 'experiences';
 export const PLUGINS_DIR_NAME = 'plugins';
 export const PLUGIN_INDEX_FILE_NAME = 'plugin_index.yaml';
 export const HOST_LANDINGS_FILE_NAME = 'host_landings.yaml';
@@ -33,6 +34,7 @@ export interface WorkspaceLayout {
   backupsDir: string;
   locksDir: string;
   logsDir: string;
+  experiencesDir: string;
   pluginIndexFile: string;
   hostLandingsFile: string;
 }
@@ -55,6 +57,7 @@ export function layoutOf(root: string): WorkspaceLayout {
     backupsDir: join(root, BACKUPS_DIR_NAME),
     locksDir: join(root, LOCKS_DIR_NAME),
     logsDir: join(root, LOGS_DIR_NAME),
+    experiencesDir: join(root, EXPERIENCES_DIR_NAME),
     pluginIndexFile: join(root, PLUGIN_INDEX_FILE_NAME),
     hostLandingsFile: join(root, HOST_LANDINGS_FILE_NAME),
   };
@@ -70,6 +73,7 @@ export function ensureWorkspaceDirs(layout: WorkspaceLayout): void {
       layout.backupsDir,
       layout.locksDir,
       layout.logsDir,
+      layout.experiencesDir,
     ]) {
       mkdirSync(dir, { recursive: true });
     }

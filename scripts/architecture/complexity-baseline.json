@@ -1,6 +1,6 @@
 {
   "schema_version": "1",
-  "generated_at": "2026-10-24T04:03:57.087Z",
+  "generated_at": "2026-10-31T09:02:29.037Z",
   "complexity": {
     "threshold": 10,
     "entries": [
@@ -620,7 +620,17 @@
         "function": "parseArgs",
         "scope": "parseArgs",
         "signature": "export function parseArgs(argv: string[]): ParseOutcome {",
-        "complexity": 23,
+        "complexity": 17,
+        "owner": "dispatch",
+        "clearedBy": "P1-b"
+      },
+      {
+        "id": "kernel/dispatch/parsers/index.ts#trySubCommand#7473840e7b2c",
+        "file": "kernel/dispatch/parsers/index.ts",
+        "function": "trySubCommand",
+        "scope": "trySubCommand",
+        "signature": "function trySubCommand(command: string, group: string[], token: string): string | null {",
+        "complexity": 11,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },
@@ -680,7 +690,7 @@
         "function": "<anonymous>",
         "scope": "<module>",
         "signature": "const pipelineRunHandler: CommandHandler = async (context): Promise<Result<unknown>> => {",
-        "complexity": 18,
+        "complexity": 17,
         "owner": "dispatch",
         "clearedBy": "P1-b"
       },
