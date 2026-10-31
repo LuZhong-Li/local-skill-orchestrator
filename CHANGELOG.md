@@ -2,26 +2,30 @@
 
 ## 0.8.0
 
-&gt; 发布日期：2026-10-25
+> 发布日期：2026-10-31
 
 ### 中文摘要
 
+- **经验回归**：每次 `pipeline run` 处理完一个问题后自动累计一条经验（问题、分类、环节、决策、文档类型、耗时），存入工作区 `experiences/`；新增 `experience list` / `search` / `show` 三个查询命令；`pipeline run --experience <关键词>` 可预填相似经验问答，复用历史决策。
 - **内置技能模板**：首次运行 CLI 时自动安装 5 个演示技能，包含需求文档、设计文档、里程碑计划、代码审查清单和 Git 提交规范模板；已有技能不会被覆盖，用户可自主管理。
 - **LLM 提供商支持**：新增 OpenAI 兼容、豆包（Doubao）、Claude 三种 LLM 提供商适配器，统一接口抽象，支持灵活切换和配置。
 - **安全加固**：修复文件映射路径遍历漏洞，阻止 git ext:: 协议，禁止纯 HTTP 下载，只允许 HTTPS 协议。
 - **管道引擎**：实现 M0-M5 完整的管道引擎，包括元技能注册表、提供者抽象、人工回退、需求问卷状态机、决策记录、收敛门、文档包写入器、CLI 管道命令等。
+- **Windows 中文路径崩溃修复**：修复 Node `fs.cpSync` 在中文源路径下原生崩溃（退出码 0xC0000409）的问题，改为逐文件递归复制；上游 PR 61950 于 Node v24.15.0 修复，升级 Node ≥24.15.0 亦可解决。
 
 ### English Summary
 
+- **Experience regression**: every `pipeline run` now auto-records one experience (problem, kind, stages, decisions, doc types, duration) into the workspace `experiences/` directory; new `experience list` / `search` / `show` commands query the accumulated records; `pipeline run --experience <keyword>` prefills answers from similar past experiences.
 - **Built-in skill templates**: 5 demo skills auto-install on first CLI run, including requirements doc, design doc, milestone plan, code review checklist, and Git commit spec templates; existing skills are never overwritten, users can manage them freely.
 - **LLM provider support**: added OpenAI-compatible, Doubao, and Claude LLM provider adapters with unified interface abstraction for flexible switching and configuration.
 - **Security hardening**: fixed file_map path traversal vulnerability, blocked git ext:: protocol, disabled plain HTTP downloads, only HTTPS allowed.
 - **Pipeline engine**: implemented complete M0-M5 pipeline engine including meta-skill registry, provider abstraction, human fallback, requirements questionnaire state machine, decision records, convergence gate, document package writer, and CLI pipeline command.
+- **Windows Chinese-path crash fix**: fixed the native crash (exit code 0xC0000409) of Node `fs.cpSync` on Chinese source paths by switching to recursive file-by-file copy; upstream PR 61950 fixed it in Node v24.15.0, so upgrading to Node ≥24.15.0 also resolves it.
 
 ### Verification
 
-- Regular tests: **834 items** (833 pass + 1 platform-specific skip).
-- GUI smoke: **94/94** passed.
+- Regular tests: **879 items** (878 pass + 1 platform-specific skip).
+- Experience regression: 5 unit + 5 e2e tests, including auto-record, list/search/show, and `--experience` prefill.
 - All check gates passed: contract, architecture, complexity, test fixtures, typecheck, lint, format, and build.
 
 ## 0.7.0
